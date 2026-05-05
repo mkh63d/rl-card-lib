@@ -1,0 +1,120 @@
+@startuml use_case_diagram
+' RL Card Library - Use Case Diagram
+' Shows the main use cases for library users
+
+skinparam actorStyle awesome
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam usecase {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+}
+
+title RL Card Library - Use Case Diagram
+
+left to right direction
+
+' Actors
+actor "Developer/Researcher" as developer
+actor "ML Engineer" as engineer
+actor "Game Designer" as designer
+
+' System boundary
+rectangle "RL Card Library" as system {
+    
+    ' Core game use cases
+    package "Game Management" {
+        usecase "Create Card Game" as UC1
+        usecase "Define Game Rules" as UC2
+        usecase "Configure Players" as UC3
+        usecase "Execute Game Actions" as UC4
+        usecase "Query Legal Actions" as UC5
+        usecase "Get Game State" as UC6
+    }
+    
+    ' Environment use cases
+    package "Environment" {
+        usecase "Create RL Environment" as UC7
+        usecase "Reset Environment" as UC8
+        usecase "Step Through Episode" as UC9
+        usecase "Render Game State" as UC10
+        usecase "Get Action Mask" as UC11
+    }
+    
+    ' Agent use cases
+    package "Agent Management" {
+        usecase "Create Random Agent" as UC12
+        usecase "Create DQN Agent" as UC13
+        usecase "Configure Agent Parameters" as UC14
+        usecase "Select Action" as UC15
+        usecase "Train Agent Online" as UC16
+        usecase "Save/Load Agent" as UC17
+    }
+    
+    ' Training use cases
+    package "Training & Evaluation" {
+        usecase "Configure Training" as UC18
+        usecase "Run Training Loop" as UC19
+        usecase "Track Metrics" as UC20
+        usecase "Evaluate Agent" as UC21
+        usecase "Create Checkpoints" as UC22
+        usecase "Visualize Results" as UC23
+    }
+    
+    ' Game implementation use cases
+    package "Game Implementation" {
+        usecase "Play Klondike Solitaire" as UC24
+        usecase "Play Macao" as UC25
+        usecase "Implement Custom Game" as UC26
+    }
+}
+
+' Developer relationships
+developer --> UC1
+developer --> UC2
+developer --> UC7
+developer --> UC26
+developer --> UC13
+developer --> UC18
+
+' ML Engineer relationships
+engineer --> UC13
+engineer --> UC14
+engineer --> UC18
+engineer --> UC19
+engineer --> UC20
+engineer --> UC21
+engineer --> UC22
+engineer --> UC17
+
+' Game Designer relationships
+designer --> UC1
+designer --> UC2
+designer --> UC3
+designer --> UC24
+designer --> UC25
+
+' Include relationships
+UC7 ..> UC1 : <<include>>
+UC9 ..> UC4 : <<include>>
+UC9 ..> UC5 : <<include>>
+UC9 ..> UC6 : <<include>>
+UC15 ..> UC5 : <<include>>
+UC19 ..> UC9 : <<include>>
+UC19 ..> UC20 : <<include>>
+UC16 ..> UC15 : <<include>>
+
+' Extend relationships
+UC22 ..> UC19 : <<extend>>
+UC23 ..> UC20 : <<extend>>
+UC11 ..> UC9 : <<extend>>
+UC10 ..> UC9 : <<extend>>
+
+' Generalization
+UC12 --|> UC15
+UC13 --|> UC15
+UC24 --|> UC1
+UC25 --|> UC1
+UC26 --|> UC1
+
+@enduml

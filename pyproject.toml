@@ -1,0 +1,126 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rl-card-lib"
+version = "0.1.0"
+description = "A universal library for training reinforcement learning agents in card games"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Michał Hołyński", email = "mholynski@proton.me"}
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Games/Entertainment :: Card Games",
+]
+keywords = ["reinforcement-learning", "card-games", "deep-learning", "AI", "DQN"]
+
+dependencies = [
+    "numpy>=1.21.0",
+    "torch>=2.0.0",
+    "gymnasium>=0.29.0",
+    "matplotlib>=3.5.0",
+    "tqdm>=4.64.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "flake8>=6.0.0",
+    "pylint>=3.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mkh63d/rl-card-lib"
+Documentation = "https://github.com/mkh63d/rl-card-lib#readme"
+Repository = "https://github.com/mkh63d/rl-card-lib"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/rl_card_lib"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "pass",
+    "\\.\\.\\.",
+]
+omit = [
+    "*/__pycache__/*",
+]
+
+[tool.pylint.main]
+ignore-paths = ["tests/", "examples/"]
+py-version = "3.9"
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "C0301",  # line-too-long (handled by flake8)
+    "C0303",  # trailing-whitespace
+    "C0325",  # superfluous-parens
+    "C0415",  # import-outside-toplevel
+    "R0903",  # too-few-public-methods
+    "R0911",  # too-many-return-statements
+    "R0912",  # too-many-branches
+    "R0913",  # too-many-arguments
+    "R0914",  # too-many-locals
+    "R0902",  # too-many-instance-attributes
+    "R0915",  # too-many-statements
+    "R0917",  # too-many-positional-arguments
+    "R1705",  # no-else-return
+    "W0102",  # dangerous-default-value
+    "W0107",  # unnecessary-pass
+    "W0212",  # protected-access
+    "W0612",  # unused-variable
+    "W0613",  # unused-argument (for abstract methods)
+    "W0621",  # redefined-outer-name (pytest fixtures)
+    "W1514",  # unspecified-encoding
+    "E1101",  # no-member (numpy false positives)
+    "R0402",  # consider-using-from-import
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.design]
+max-args = 15
+max-attributes = 20
