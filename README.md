@@ -21,6 +21,29 @@ cd rl-card-lib
 pip install -e ".[dev]"
 ```
 
+## Running Demos and Tests
+
+### Demos
+
+```bash
+# Quick demo (cards, games, and a short training loop)
+python examples/quick_demo.py
+
+# Training examples
+python examples/train_klondike.py
+python examples/train_macao.py
+```
+
+### Tests
+
+```bash
+# Run the full test suite
+python -m pytest
+
+# Run tests with coverage
+python -m pytest --cov
+```
+
 ## Quick Start
 
 ### Defining a Custom Game
