@@ -6,18 +6,20 @@ This folder contains PlantUML diagrams documenting the architecture of the RL Ca
 
 ### 1. Package Diagram (`package_diagram.puml`)
 Shows the complete modular structure of the library:
-- **core**: Card, Deck, Player, CardGame base classes
+- **cardgames**: Card, Deck, Player, CardGame base classes
+- **core**: Game base class, Gym wrapper, and simple trainer
 - **games**: Concrete game implementations (Klondike, Macao)
 - **agents**: RL agents (Random, DQN) with neural network components
-- **env**: Gymnasium-compatible environment wrapper
-- **trainer**: Training loop and metrics tracking
-- **utils**: Encoding and visualization utilities
+- **env**: Gymnasium-like environment wrappers (CardGameEnv, MaskedCardGameEnv)
+- **trainer**: Training loop, self-play trainer, and metrics tracking
+- **utils**: Encoding utilities
+- **visualizer**: Rendering helpers for cards and boards
 
 ### 2. Use Case Diagram (`use_case_diagram.puml`)
 Shows the main use cases for different actors:
-- **Developer/Researcher**: Creating custom games, environments, and agents
-- **ML Engineer**: Training, evaluating, and deploying agents
-- **Game Designer**: Implementing and testing game rules
+- **Developer/Researcher**: Creating custom games and environment wrappers
+- **ML Engineer**: Training, evaluating, self-play, and tracking metrics
+- **Game Designer**: Implementing and testing game rules and visualizations
 
 ### 3. Sequence Diagram (`sequence_diagram.puml`)
 Shows the complete DQN agent training workflow:

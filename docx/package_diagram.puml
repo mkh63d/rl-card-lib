@@ -9,15 +9,16 @@ skinparam shadowing false
 title RL Card Library - Package Diagram
 
 package "rl_card_lib" as main {
-    
-    package "core" as core {
+
+    package "cardgames" as cardgames {
         class Card {
             +suit: Suit
             +rank: Rank
             +face_up: bool
             +flip(): Card
+            +to_index(): int
         }
-        
+
         enum Suit {
             CLUBS
             DIAMONDS
@@ -26,20 +27,22 @@ package "rl_card_lib" as main {
             +symbol: str
             +color: str
         }
-        
+
         enum Rank {
             ACE..KING
             +symbol: str
         }
-        
+
         class Deck {
             +cards: list[Card]
             +shuffle(seed): Deck
-            +draw(count): list[Card]
+            +draw(count, face_up): list[Card]
+            +draw_one(face_up): Card
             +peek(count): list[Card]
             +is_empty(): bool
+            +reset(): Deck
         }
-        
+
         class Player {
             +player_id: int
             +name: str
@@ -47,9 +50,10 @@ package "rl_card_lib" as main {
             +score: int
             +is_agent: bool
             +add_card(card): Player
+            +add_cards(cards): Player
             +remove_card(card): Card
         }
-        
+
         abstract class CardGame {
             +deck: Deck
             +players: list[Player]
@@ -61,42 +65,52 @@ package "rl_card_lib" as main {
             {abstract} +get_legal_actions(): list[int]
             {abstract} +get_observation(): ndarray
             {abstract} +get_action_space_size(): int
+            {abstract} +get_observation_shape(): tuple
+            {abstract} +is_game_over(): bool
         }
-        
-        Card "52" *-- "1" Deck
+
         Card --> Suit
         Card --> Rank
+        Deck "52" o-- "*" Card
         Player "1" o-- "*" Card
         CardGame "1" *-- "1" Deck
         CardGame "1" *-- "*" Player
     }
-    
-    package "games" as games {
-        class KlondikeSolitaire {
-            +tableau: list[list[Card]]
-            +foundation: list[list[Card]]
-            +stock: list[Card]
-            +waste: list[Card]
-            +reset(): ndarray
-            +step(action): tuple
-            +_can_move_to_foundation(): bool
-            +_can_move_to_tableau(): bool
+
+    package "core" as core {
+        abstract class Game {
+            +num_players: int
+            +current_player_idx: int
+            +done: bool
+            +winner: int
+            {abstract} +reset(): ndarray
+            {abstract} +step(action): tuple
+            {abstract} +get_legal_actions(): list[int]
+            {abstract} +get_observation(): ndarray
+            {abstract} +get_action_space_size(): int
+            {abstract} +get_observation_shape(): tuple
+            {abstract} +is_game_over(): bool
+            +get_legal_action_mask(): ndarray
         }
-        
-        class Macao {
-            +draw_pile: list[Card]
-            +discard_pile: list[Card]
-            +current_rank_requirement: Rank
-            +cards_to_draw: int
-            +reset(): ndarray
+
+        class GymEnvWrapper {
+            +game: Game
+            +reset(seed, options): tuple
             +step(action): tuple
-            +_handle_special_cards(): void
+            +render(mode): str
         }
-        
-        KlondikeSolitaire --|> CardGame
-        Macao --|> CardGame
+
+        class Trainer {
+            +env: Any
+            +agent: Any
+            +max_steps: int
+            +train(num_episodes): list[dict]
+        }
+
+        Game <|-- CardGame
+        GymEnvWrapper "1" *-- "1" Game
     }
-    
+
     package "agents" as agents {
         abstract class Agent {
             +name: str
@@ -108,28 +122,26 @@ package "rl_card_lib" as main {
             +save(path): void
             +load(path): void
         }
-        
+
         class RandomAgent {
             +select_action(obs, legal_actions): int
         }
-        
+
         class DQNAgent {
             +state_size: int
             +action_size: int
-            +learning_rate: float
             +gamma: float
             +epsilon: float
             +batch_size: int
             +select_action(obs, legal_actions): int
             +learn(obs, action, reward, next_obs, done): dict
-            +_update_target_network(): void
         }
-        
+
         class QNetwork {
             +network: Sequential
             +forward(x): Tensor
         }
-        
+
         class ReplayBuffer {
             +buffer: deque
             +capacity: int
@@ -137,15 +149,16 @@ package "rl_card_lib" as main {
             +sample(batch_size): tuple
             +__len__(): int
         }
-        
+
         RandomAgent --|> Agent
         DQNAgent --|> Agent
-        DQNAgent "1" *-- "2" QNetwork : policy_net, target_net
+        DQNAgent "1" *-- "1" QNetwork : q_network
+        DQNAgent "1" *-- "1" QNetwork : target_network
         DQNAgent "1" *-- "1" ReplayBuffer
     }
-    
+
     package "env" as env {
-        class CardGameEnv <<gym.Env>> {
+        class CardGameEnv {
             +game: CardGame
             +action_space: Discrete
             +observation_space: Box
@@ -154,64 +167,102 @@ package "rl_card_lib" as main {
             +reset(seed, options): tuple
             +step(action): tuple
             +render(): str
-            +get_legal_actions_mask(): ndarray
+            +get_legal_actions(): list[int]
+            +get_legal_action_mask(): ndarray
         }
-        
+
+        class MaskedCardGameEnv {
+            +reset(seed, options): tuple
+            +step(action): tuple
+        }
+
         CardGameEnv "1" *-- "1" CardGame
+        MaskedCardGameEnv --|> CardGameEnv
     }
-    
+
     package "trainer" as trainer {
         class Trainer {
             +env: CardGameEnv
             +agent: Agent
             +eval_env: CardGameEnv
             +metrics: TrainingMetrics
-            +checkpoint_dir: str
             +train(episodes, max_steps): TrainingMetrics
             +evaluate(episodes): dict
             +_run_episode(training, max_steps): dict
-            +_save_checkpoint(): void
         }
-        
+
+        class SelfPlayTrainer {
+            +opponent_update_interval: int
+        }
+
         class TrainingMetrics {
-            +episode_rewards: list[float]
-            +episode_lengths: list[int]
-            +wins: list[bool]
+            +rewards: list[float]
+            +steps: list[int]
+            +wins: list[int]
+            +losses: list[float]
             +training_time: float
             +add_episode(metrics): void
-            +get_recent_average(metric, window): float
+            +get_recent_average(metric, n): float
             +summary(): dict
             +plot(): Figure
         }
-        
+
         Trainer "1" *-- "1" CardGameEnv
         Trainer "1" *-- "1" Agent
         Trainer "1" *-- "1" TrainingMetrics
+        SelfPlayTrainer --|> Trainer
     }
-    
+
     package "utils" as utils {
         class encoding <<module>> {
-            +encode_card(card): ndarray
-            +encode_hand(cards): ndarray
             +one_hot_encode(value, size): ndarray
+            +binary_encode_cards(cards): ndarray
+            +encode_action_mask(legal_actions, action_size): ndarray
+            +encode_card_features(card): ndarray
+            +encode_hand_sorted(hand, max_hand_size): ndarray
+            +normalize_value(value, min_val, max_val): float
         }
-        
+    }
+
+    package "visualizer" as visualizer {
         class visualization <<module>> {
-            +render_card_ascii(card): str
-            +render_hand_ascii(cards): str
-            +plot_training_curves(metrics): Figure
+            +render_cards(cards, hidden): str
+            +render_tableau(piles, max_display_height): str
+            +create_simple_board_view(game_state): str
         }
+    }
+
+    package "games" as games {
+        class KlondikeSolitaire {
+            +tableaux: list[list[Card]]
+            +foundations: list[list[Card]]
+            +stock: list[Card]
+            +waste: list[Card]
+            +reset(): ndarray
+            +step(action): tuple
+        }
+
+        class Macao {
+            +discard_pile: list[Card]
+            +draw_penalty: int
+            +reset(): ndarray
+            +step(action): tuple
+        }
+
+        KlondikeSolitaire --|> CardGame
+        Macao --|> CardGame
     }
 }
 
 ' External dependencies
 package "External" as external {
-    class "gymnasium.Env" as GymEnv
     class "torch.nn.Module" as TorchModule
+    class "gymnasium.spaces" as GymSpaces
     class "numpy" as np
 }
 
-CardGameEnv --|> GymEnv
 QNetwork --|> TorchModule
+CardGameEnv ..> GymSpaces : uses
+CardGame ..> np
 
 @enduml

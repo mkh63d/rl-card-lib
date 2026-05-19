@@ -25,45 +25,36 @@ participant "TrainingMetrics" as metrics
 
 == Initialization ==
 
-User -> trainer: train(episodes=1000)
+User -> trainer: train(episodes, max_steps_per_episode)
 activate trainer
 
 trainer -> agent: train()
 activate agent
-agent --> trainer: training_mode=True
+agent --> trainer: training=True
 deactivate agent
 
 == Training Loop (for each episode) ==
 
 loop for episode in range(episodes)
-    
+
     trainer -> env: reset(seed)
     activate env
     env -> game: reset()
     activate game
-    game -> game: shuffle_deck()
-    game -> game: deal_cards()
     game --> env: observation
     deactivate game
-    env --> trainer: (observation, info)
+    env --> trainer: (observation, info{legal_actions})
     deactivate env
-    
+
     trainer -> trainer: episode_reward = 0
-    
+
     == Episode Loop (until done) ==
-    
+
     loop while not done
-        
-        trainer -> env: get_legal_actions_mask()
-        activate env
-        env -> game: get_legal_actions()
-        game --> env: legal_actions
-        env --> trainer: action_mask
-        deactivate env
-        
+
         trainer -> agent: select_action(observation, legal_actions)
         activate agent
-        
+
         alt if random() < epsilon (exploration)
             agent -> agent: random_choice(legal_actions)
         else (exploitation)
@@ -74,85 +65,83 @@ loop for episode in range(episodes)
             agent -> agent: mask_illegal_actions(q_values)
             agent -> agent: argmax(masked_q_values)
         end
-        
+
         agent --> trainer: action
         deactivate agent
-        
+
         trainer -> env: step(action)
         activate env
         env -> game: step(action)
         activate game
-        game -> game: execute_action()
-        game -> game: check_win_condition()
-        game -> game: calculate_reward()
-        game --> env: (observation, reward, terminated, truncated, info)
+        game --> env: (next_obs, reward, terminated, truncated, info)
         deactivate game
         env --> trainer: (next_obs, reward, terminated, truncated, info)
         deactivate env
-        
+
         trainer -> agent: learn(observation, action, reward, next_obs, done)
         activate agent
-        
+
         agent -> buffer: push(state, action, reward, next_state, done)
         activate buffer
         buffer --> agent: stored
         deactivate buffer
-        
+
         alt if len(buffer) >= batch_size
             agent -> buffer: sample(batch_size)
             activate buffer
             buffer --> agent: batch
             deactivate buffer
-            
-            agent -> qnet: forward(states) [policy_net]
+
+            agent -> qnet: forward(states) [q_network]
             activate qnet
             qnet --> agent: current_q_values
             deactivate qnet
-            
-            agent -> qnet: forward(next_states) [target_net]
+
+            agent -> qnet: forward(next_states) [target_network]
             activate qnet
             qnet --> agent: next_q_values
             deactivate qnet
-            
+
             agent -> agent: compute_loss(current_q, target_q)
             agent -> agent: optimizer.step()
-            
-            alt if step % target_update_freq == 0
+
+            alt if train_steps % target_update_freq == 0
                 agent -> agent: update_target_network()
             end
         end
-        
+
         agent --> trainer: learning_info
         deactivate agent
-        
+
         trainer -> trainer: episode_reward += reward
         trainer -> trainer: observation = next_obs
-        
+        trainer -> trainer: legal_actions = info.legal_actions
+
     end
-    
+
     == Episode Complete ==
-    
-    trainer -> metrics: add_episode(reward, steps, win)
+
+    trainer -> metrics: add_episode(metrics)
     activate metrics
     metrics --> trainer: recorded
     deactivate metrics
-    
+
     alt if episode % log_interval == 0
         trainer -> metrics: get_recent_average("reward", 100)
         metrics --> trainer: avg_reward
         trainer -> trainer: log_progress()
     end
-    
+
     alt if episode % eval_interval == 0
         trainer -> trainer: evaluate(eval_episodes)
         note right: Runs evaluation\nepisodes without\nlearning
     end
-    
+
     alt if episode % checkpoint_interval == 0
         trainer -> agent: save(checkpoint_path)
         note right: Saves model\nweights to disk
     end
-    
+
 end
 
 == Training Complete ==

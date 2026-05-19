@@ -21,7 +21,7 @@ actor "Game Designer" as designer
 
 ' System boundary
 rectangle "RL Card Library" as system {
-    
+
     ' Core game use cases
     package "Game Management" {
         usecase "Create Card Game" as UC1
@@ -31,41 +31,50 @@ rectangle "RL Card Library" as system {
         usecase "Query Legal Actions" as UC5
         usecase "Get Game State" as UC6
     }
-    
+
     ' Environment use cases
     package "Environment" {
-        usecase "Create RL Environment" as UC7
-        usecase "Reset Environment" as UC8
-        usecase "Step Through Episode" as UC9
-        usecase "Render Game State" as UC10
-        usecase "Get Action Mask" as UC11
+        usecase "Create CardGameEnv" as UC7
+        usecase "Create MaskedCardGameEnv" as UC8
+        usecase "Wrap Game as GymEnv" as UC9
+        usecase "Reset Environment" as UC10
+        usecase "Step Through Episode" as UC11
+        usecase "Render Game State" as UC12
+        usecase "Get Action Mask" as UC13
     }
-    
+
     ' Agent use cases
     package "Agent Management" {
-        usecase "Create Random Agent" as UC12
-        usecase "Create DQN Agent" as UC13
-        usecase "Configure Agent Parameters" as UC14
-        usecase "Select Action" as UC15
-        usecase "Train Agent Online" as UC16
-        usecase "Save/Load Agent" as UC17
+        usecase "Create Random Agent" as UC14
+        usecase "Create DQN Agent" as UC15
+        usecase "Configure Agent Parameters" as UC16
+        usecase "Select Action" as UC17
+        usecase "Train Agent Online" as UC18
+        usecase "Save/Load Agent" as UC19
     }
-    
+
     ' Training use cases
     package "Training & Evaluation" {
-        usecase "Configure Training" as UC18
-        usecase "Run Training Loop" as UC19
-        usecase "Track Metrics" as UC20
-        usecase "Evaluate Agent" as UC21
-        usecase "Create Checkpoints" as UC22
-        usecase "Visualize Results" as UC23
+        usecase "Configure Training" as UC20
+        usecase "Run Training Loop" as UC21
+        usecase "Track Metrics" as UC22
+        usecase "Evaluate Agent" as UC23
+        usecase "Create Checkpoints" as UC24
+        usecase "Self-Play Training" as UC25
     }
-    
+
+    ' Visualization use cases
+    package "Visualization" {
+        usecase "Render Cards/Tableau" as UC26
+        usecase "Visualize Training Metrics" as UC27
+        usecase "Create Board View" as UC28
+    }
+
     ' Game implementation use cases
     package "Game Implementation" {
-        usecase "Play Klondike Solitaire" as UC24
-        usecase "Play Macao" as UC25
-        usecase "Implement Custom Game" as UC26
+        usecase "Play Klondike Solitaire" as UC29
+        usecase "Play Macao" as UC30
+        usecase "Implement Custom Game" as UC31
     }
 }
 
@@ -73,48 +82,53 @@ rectangle "RL Card Library" as system {
 developer --> UC1
 developer --> UC2
 developer --> UC7
-developer --> UC26
-developer --> UC13
-developer --> UC18
+developer --> UC8
+developer --> UC9
+developer --> UC31
 
 ' ML Engineer relationships
-engineer --> UC13
-engineer --> UC14
-engineer --> UC18
-engineer --> UC19
+engineer --> UC15
+engineer --> UC16
 engineer --> UC20
 engineer --> UC21
 engineer --> UC22
-engineer --> UC17
+engineer --> UC23
+engineer --> UC24
+engineer --> UC19
+engineer --> UC25
+engineer --> UC27
 
 ' Game Designer relationships
 designer --> UC1
 designer --> UC2
 designer --> UC3
-designer --> UC24
-designer --> UC25
+designer --> UC29
+designer --> UC30
+designer --> UC26
 
 ' Include relationships
 UC7 ..> UC1 : <<include>>
-UC9 ..> UC4 : <<include>>
-UC9 ..> UC5 : <<include>>
-UC9 ..> UC6 : <<include>>
-UC15 ..> UC5 : <<include>>
-UC19 ..> UC9 : <<include>>
-UC19 ..> UC20 : <<include>>
-UC16 ..> UC15 : <<include>>
+UC8 ..> UC7 : <<include>>
+UC10 ..> UC7 : <<include>>
+UC11 ..> UC4 : <<include>>
+UC11 ..> UC5 : <<include>>
+UC11 ..> UC6 : <<include>>
+UC17 ..> UC5 : <<include>>
+UC21 ..> UC11 : <<include>>
+UC21 ..> UC22 : <<include>>
+UC18 ..> UC17 : <<include>>
 
 ' Extend relationships
-UC22 ..> UC19 : <<extend>>
-UC23 ..> UC20 : <<extend>>
-UC11 ..> UC9 : <<extend>>
-UC10 ..> UC9 : <<extend>>
+UC24 ..> UC21 : <<extend>>
+UC27 ..> UC22 : <<extend>>
+UC13 ..> UC11 : <<extend>>
+UC12 ..> UC11 : <<extend>>
 
 ' Generalization
-UC12 --|> UC15
-UC13 --|> UC15
-UC24 --|> UC1
-UC25 --|> UC1
-UC26 --|> UC1
+UC14 --|> UC17
+UC15 --|> UC17
+UC29 --|> UC1
+UC30 --|> UC1
+UC31 --|> UC1
 
 @enduml
