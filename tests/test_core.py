@@ -1,7 +1,7 @@
 """Tests for core module."""
 
 import pytest
-from rl_card_lib.core import Card, Deck, Player, Suit, Rank
+from rl_card_lib.cardgames import Card, Deck, Player, Suit, Rank
 
 
 class TestCard:
@@ -413,7 +413,7 @@ class TestCardGame:
 
     def test_game_default_render(self):
         """Test default render method from base class."""
-        from rl_card_lib.core.game import CardGame
+        from rl_card_lib.cardgames import CardGame
         from rl_card_lib.games import Macao
         
         game = Macao()
@@ -425,7 +425,7 @@ class TestCardGame:
 
     def test_game_default_action_to_string(self):
         """Test default action_to_string method."""
-        from rl_card_lib.core.game import CardGame
+        from rl_card_lib.cardgames import CardGame
         from rl_card_lib.games import Macao
         
         game = Macao()

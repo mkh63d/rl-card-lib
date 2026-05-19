@@ -15,21 +15,21 @@ from rl_card_lib.agents import RandomAgent, DQNAgent
 def demo_cards():
     """Demonstrate basic card operations."""
     print("=== Card Demo ===\n")
-    
+
     # Create individual cards
     ace_of_spades = Card(Suit.SPADES, Rank.ACE)
     king_of_hearts = Card(Suit.HEARTS, Rank.KING, face_up=False)
-    
+
     print(f"Ace of Spades: {ace_of_spades}")
     print(f"King of Hearts (face down): {king_of_hearts}")
-    
+
     king_of_hearts.flip()
     print(f"King of Hearts (flipped): {king_of_hearts}")
-    
+
     # Create and shuffle a deck
     deck = Deck()
     print(f"\nFresh deck: {deck}")
-    
+
     deck.shuffle(seed=42)
     drawn = deck.draw(5, face_up=True)
     print(f"Drew 5 cards: {' '.join(str(c) for c in drawn)}")
@@ -39,13 +39,13 @@ def demo_cards():
 def demo_klondike():
     """Demonstrate Klondike Solitaire game."""
     print("\n=== Klondike Solitaire Demo ===\n")
-    
+
     game = KlondikeSolitaire()
     obs = game.reset()
-    
+
     print(game.render())
     print(f"\nObservation shape: {obs.shape}")
-    
+
     # Play a few random moves
     print("\nPlaying 5 random moves...")
     for i in range(5):
@@ -53,7 +53,7 @@ def demo_klondike():
         action = np.random.choice(legal)
         obs, reward, done, _, info = game.step(action)
         print(f"Move {i+1}: {game.action_to_string(action)} (reward: {reward:.2f})")
-        
+
         if done:
             print("Game over!")
             break
@@ -62,13 +62,13 @@ def demo_klondike():
 def demo_macao():
     """Demonstrate Macao game."""
     print("\n=== Macao Demo ===\n")
-    
+
     game = Macao(num_players=2)
     obs = game.reset()
-    
+
     print(game.render())
     print(f"\nObservation shape: {obs.shape}")
-    
+
     # Play a few moves
     print("\nPlaying 10 moves...")
     for i in range(10):
@@ -76,7 +76,7 @@ def demo_macao():
         action = np.random.choice(legal)
         obs, reward, done, _, info = game.step(action)
         print(f"Player {info['current_player']}: {game.action_to_string(action)}")
-        
+
         if done:
             print(f"Game over! Winner: Player {info['winner']}")
             break
@@ -85,11 +85,11 @@ def demo_macao():
 def demo_training():
     """Demonstrate quick training setup."""
     print("\n=== Training Demo ===\n")
-    
+
     # Create environment
     game = KlondikeSolitaire()
     env = CardGameEnv(game, max_steps=100)
-    
+
     # Create agents
     random_agent = RandomAgent(action_size=env.action_space.n)
     dqn_agent = DQNAgent(
@@ -98,7 +98,7 @@ def demo_training():
         hidden_sizes=[64, 64],
         device="cpu"
     )
-    
+
     # Run a few episodes with random agent
     print("Running 10 episodes with random agent...")
     total_reward = 0
@@ -110,9 +110,9 @@ def demo_training():
             obs, reward, terminated, truncated, info = env.step(action)
             total_reward += reward
             done = terminated or truncated
-    
+
     print(f"Random agent average reward: {total_reward / 10:.2f}")
-    
+
     # Run a few episodes with DQN agent (untrained)
     print("\nRunning 10 episodes with untrained DQN agent...")
     total_reward = 0
@@ -124,9 +124,9 @@ def demo_training():
             obs, reward, terminated, truncated, info = env.step(action)
             total_reward += reward
             done = terminated or truncated
-    
+
     print(f"Untrained DQN agent average reward: {total_reward / 10:.2f}")
-    
+
     print("\nNote: Train the agent for many more episodes to see improvement!")
 
 
@@ -136,9 +136,9 @@ def main():
     demo_klondike()
     demo_macao()
     demo_training()
-    
-    print("\n" + "="*50)
-    print("Demo complete! Check examples/train_*.py for full training scripts.")
+
+    print("\n" + "=" * 50)
+    print("Demo complete! Check scripts/train_*.py for full training scripts.")
 
 
 if __name__ == "__main__":

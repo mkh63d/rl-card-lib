@@ -23,7 +23,7 @@ classifiers = [
 ]
 keywords = ["visualization", "training-metrics", "card-games"]
 dependencies = [
-	"rl-card-lib-core>=0.1.0",
+	"rl-card-lib-cardgames>=0.1.0",
 	"matplotlib>=3.5.0",
 ]
 

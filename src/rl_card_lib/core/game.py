@@ -1,23 +1,19 @@
-"""Abstract base class for card games."""
+"""Abstract base class for general games."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
 import numpy as np
 
-from rl_card_lib.core.deck import Deck
-from rl_card_lib.core.player import Player
 
-
-class CardGame(ABC):
+class Game(ABC):
     """
-    Abstract base class for all card games.
-    
+    Abstract base class for general games.
+
     Subclasses must implement the core game logic methods.
     This class provides a standard interface for RL environments.
-    
+
     Attributes:
-        deck: The game's deck of cards
-        players: List of players
+        players: List of players (game-specific types)
         current_player_idx: Index of the current player
         done: Whether the game has ended
         winner: Index of the winning player (None if game not over)
@@ -31,8 +27,7 @@ class CardGame(ABC):
             num_players: Number of players in the game
         """
         self.num_players = num_players
-        self.deck = Deck()
-        self.players: list[Player] = []
+        self.players: list[Any] = []
         self.current_player_idx: int = 0
         self.done: bool = False
         self.winner: Optional[int] = None
@@ -117,10 +112,10 @@ class CardGame(ABC):
         """
         pass
     
-    def get_current_player(self) -> Player:
+    def get_current_player(self) -> Any:
         return self.players[self.current_player_idx]
     
-    def next_player(self) -> Player:
+    def next_player(self) -> Any:
         """
         Advance to the next player.
         
@@ -211,7 +206,7 @@ class CardGame(ABC):
             mask[action] = True
         return mask
     
-    def copy(self) -> "CardGame":
+    def copy(self) -> "Game":
         """
         Create a copy of the current game state.
         

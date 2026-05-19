@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from rl_card_lib.core.card import Card
+from rl_card_lib.cardgames.card import Card
 
 
 def one_hot_encode(value: int, size: int) -> np.ndarray:

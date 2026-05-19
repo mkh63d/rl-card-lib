@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 
-from rl_card_lib.core import Card, Suit, Rank
+from rl_card_lib.cardgames import Card, Suit, Rank
 from rl_card_lib.utils.encoding import (
     one_hot_encode,
     binary_encode_cards,
@@ -12,7 +12,7 @@ from rl_card_lib.utils.encoding import (
     encode_hand_sorted,
     normalize_value,
 )
-from rl_card_lib.utils.visualization import (
+from rl_card_lib.visualizer.visualization import (
     render_cards,
     render_tableau,
     create_simple_board_view,

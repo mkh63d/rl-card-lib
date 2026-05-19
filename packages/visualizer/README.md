@@ -31,7 +31,7 @@ pip install -e "./packages/visualizer[dev]"
 
 ```python
 from rl_card_lib.games import KlondikeSolitaire
-from rl_card_lib.utils.visualization import render_game_state
+from rl_card_lib.visualizer.visualization import render_game_state
 
 game = KlondikeSolitaire()
 # Play some moves...
@@ -43,7 +43,7 @@ render_game_state(game)  # Display game state
 
 ```python
 from rl_card_lib.trainer import Trainer
-from rl_card_lib.utils.visualization import plot_metrics
+from rl_card_lib.visualizer.visualization import plot_metrics
 
 trainer = Trainer(env, agent)
 metrics = trainer.train(num_episodes=1000)
@@ -53,7 +53,7 @@ plot_metrics(metrics)  # Visualize training progress
 
 ## Dependencies
 
-- `rl-card-lib-core>=0.1.0` - Core library
+- `rl-card-lib-cardgames>=0.1.0` - Cardgames extension
 - `matplotlib>=3.5.0` - Plotting library
 
 ## Optional Dependencies (dev)
@@ -80,7 +80,7 @@ pytest tests/ --cov=rl_card_lib.utils.visualization --cov-report=html
 
 ```
 src/rl_card_lib/
-└── utils/
+└── visualizer/
     ├── visualization.py    # Main visualization module
     └── __init__.py
 ```

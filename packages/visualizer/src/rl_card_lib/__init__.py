@@ -1,6 +1,5 @@
-"""Placeholder package for `rl_card_lib` visualizer subpackage.
+"""Package entry for `rl_card_lib` when installed from `packages/visualizer`."""
 
-Prepared for splitting; actual modules will be moved here in the next step.
-"""
+from . import visualizer
 
-__all__ = []
+__all__ = ["visualizer"]

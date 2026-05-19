@@ -1,6 +1,12 @@
-"""Placeholder package for `rl_card_lib` cardgames subpackage.
+"""Package entry for `rl_card_lib` when installed from `packages/cardgames`."""
 
-Prepared for splitting; actual modules will be moved here in the next step.
-"""
+from rl_card_lib.cardgames import Card, Suit, Rank, Deck, Player, CardGame
 
-__all__ = []
+__all__ = [
+	"Card",
+	"Suit",
+	"Rank",
+	"Deck",
+	"Player",
+	"CardGame",
+]

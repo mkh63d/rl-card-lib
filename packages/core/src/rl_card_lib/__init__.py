@@ -1,7 +1,9 @@
-"""Placeholder package for `rl_card_lib` core subpackage.
+"""Package entry for `rl_card_lib` when installed from `packages/core`.
 
-This file is intentionally minimal: it's a placeholder to make the
-`packages/core` layout importable and ready for splitting.
+Expose the `core` subpackage so consumers importing the package get
+the core API available.
 """
 
-__all__ = []
+from . import core
+
+__all__ = ["core"]
