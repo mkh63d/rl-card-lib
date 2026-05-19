@@ -87,13 +87,6 @@
 
 ## Documentation
 
-### README Files
-- [x] Root README complete
-- [x] Core package README complete
-- [x] Cardgames package README complete
-- [x] Visualizer package README complete
-- [x] Examples package README complete
-
 ### API Documentation
 - [ ] Docstrings for all public APIs
 - [ ] Type hints in all signatures
