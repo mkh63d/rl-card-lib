@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rl-card-lib-cardgames"
+version = "0.1.0"
+description = "Card games extensions for rl-card-lib (prepared for splitting)"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+	{name = "Michał Hołyński", email = "mholynski@proton.me"}
+]
+requires-python = ">=3.9"
+dependencies = [
+	"numpy>=1.21.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
