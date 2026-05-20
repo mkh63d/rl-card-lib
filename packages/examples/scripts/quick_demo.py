@@ -6,7 +6,15 @@ This script provides a minimal example of using the RL Card Library.
 
 import numpy as np
 
-from rl_card_lib.cardgames import Card, Deck, Suit, Rank
+from rl_card_lib.cardgames import (
+    Card,
+    Deck,
+    Suit,
+    Rank,
+    is_alternating_color,
+    is_next_lower,
+    count_by_color,
+)
 from rl_card_lib.games import KlondikeSolitaire, Macao
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import RandomAgent, DQNAgent
@@ -34,6 +42,13 @@ def demo_cards():
     drawn = deck.draw(5, face_up=True)
     print(f"Drew 5 cards: {' '.join(str(c) for c in drawn)}")
     print(f"Remaining: {deck}")
+
+    # Rule helpers
+    if len(drawn) >= 2:
+        print("\nRule helpers:")
+        print(f"Alternating colors? {is_alternating_color(drawn[0], drawn[1])}")
+        print(f"Is next lower? {is_next_lower(drawn[0], drawn[1])}")
+    print(f"Color counts: {count_by_color(drawn)}")
 
 
 def demo_klondike():
