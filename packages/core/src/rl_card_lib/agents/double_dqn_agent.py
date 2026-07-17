@@ -6,7 +6,6 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 
 from rl_card_lib.agents.dqn_agent import DQNAgent, QNetwork
@@ -208,7 +207,8 @@ class DoubleDQNAgent(DQNAgent):
             gamma: Discount factor for future rewards
             epsilon_start: Initial exploration rate
             epsilon_end: Minimum exploration rate
-            epsilon_decay: Decay factor for epsilon per learning step
+            epsilon_decay: Decay factor applied to epsilon once per episode
+                (in reset()), so the schedule is independent of episode length
             buffer_size: Capacity of replay buffer
             batch_size: Batch size for training
             target_update_freq: Learning steps between target network updates
@@ -315,8 +315,5 @@ class DoubleDQNAgent(DQNAgent):
 
         if self.train_steps % self.target_update_freq == 0:
             self.target_network.load_state_dict(self.q_network.state_dict())
-
-        if self.epsilon > self.epsilon_end:
-            self.epsilon *= self.epsilon_decay
 
         return {"loss": loss.item()}

@@ -128,7 +128,8 @@ class DQNAgent(Agent):
             gamma: Discount factor for future rewards
             epsilon_start: Initial exploration rate
             epsilon_end: Minimum exploration rate
-            epsilon_decay: Decay factor for epsilon per step
+            epsilon_decay: Decay factor applied to epsilon once per episode
+                (in reset()), so the schedule is independent of episode length
             buffer_size: Capacity of replay buffer
             batch_size: Batch size for training
             target_update_freq: Steps between target network updates
@@ -287,19 +288,24 @@ class DQNAgent(Agent):
         self.optimizer.step()
         
         self.train_steps += 1
-        
+
         # Update target network
         if self.train_steps % self.target_update_freq == 0:
             self.target_network.load_state_dict(self.q_network.state_dict())
-        
-        # Decay epsilon
-        if self.epsilon > self.epsilon_end:
-            self.epsilon *= self.epsilon_decay
-        
+
         return {"loss": loss.item()}
-    
+
     def reset(self) -> None:
-        """Reset episode counter."""
+        """
+        Count the episode and decay epsilon.
+
+        Epsilon decays here, once per episode, not per gradient step. Per-step
+        decay made the effective schedule depend on episode length: a 300-step
+        Klondike episode used to burn 300 decays, so a "9000-step" schedule was
+        exhausted after 20 episodes and training was greedy for the other 99.6%.
+        """
+        if self.episodes > 0 and self.epsilon > self.epsilon_end:
+            self.epsilon *= self.epsilon_decay
         self.episodes += 1
     
     def save(self, path: str) -> None:
