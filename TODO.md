@@ -215,12 +215,12 @@ matter for the thesis because they cap achievable play regardless of algorithm.
   - Options: make non-revealing tableau moves cost more than they pay, reward
     reveals/foundations only, or penalize revisiting a position. This changes
     every existing Klondike number, so it is a deliberate call, not a drive-by fix.
-- [ ] Deadend liability - if there is like three repeating steps, it is going to go throught them over and over again.
+- [ ] Deadend liability - if there is like three repeating steps, it is going to go through them over and over again.
   - Confirmed and localised: see the reward loop item above. Worth handling
     generally too (detect a repeated position hash within an episode and either
     penalize it or drop the repeated action from `get_legal_actions()`), since
     the same trap can appear in any future game with reversible moves.
-- [ ] Solvibility check - check full game setup if it is even solvable
+- [ ] Solvability check - check full game setup if it is even solvable
   - Now cheap to build: `KlondikeSolitaire.copy()` exists, so a solver can search
     a deal without disturbing the live game. Would let win rate be reported over
     *solvable* deals only, which is the number worth comparing against literature

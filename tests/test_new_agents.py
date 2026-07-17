@@ -14,6 +14,7 @@ from rl_card_lib.agents import (
     RandomAgent,
 )
 from rl_card_lib.agents.double_dqn_agent import DuelingQNetwork, MaskedReplayBuffer
+from rl_card_lib.cardgames import Rank
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games import (
     KlondikeHeuristicAgent,
@@ -117,9 +118,7 @@ class TestKlondikeHeuristicAgent:
         # Force an ace to the top of tableau 0 (action 12 moves it up).
         game.foundations = [[] for _ in range(4)]
         game.tableaux[0][-1] = type(game.tableaux[0][-1])(
-            game.tableaux[0][-1].suit, __import__(
-                "rl_card_lib.cardgames", fromlist=["Rank"]
-            ).Rank.ACE, True
+            game.tableaux[0][-1].suit, Rank.ACE, True
         )
 
         assert agent.score_action(game, 12) > agent.score_action(game, 0)

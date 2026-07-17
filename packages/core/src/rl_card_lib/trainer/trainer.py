@@ -315,11 +315,18 @@ class SelfPlayTrainer(Trainer):
     Only the agent's own transitions are learned from, and only its own rewards
     count towards the episode reward.
 
+    Note that self-play here has zero lag: `self.opponent` is the agent itself,
+    so the opponent always plays the learner's current weights. There is no
+    frozen snapshot. See `opponent_update_interval` below and TODO.md.
+
     Args:
         env: Game environment
         agent: Agent to train, always seated as player 0
         opponent: Fixed policy for the other seats (None to play against self)
-        opponent_update_interval: Episodes between opponent updates
+        opponent_update_interval: Currently unused, reserved for the frozen-
+            opponent snapshot described in TODO.md. Accepted and stored so the
+            eventual implementation does not break call sites, but it has no
+            effect on training today: do not read episode counts into it
         **kwargs: Additional arguments passed to Trainer
     """
 

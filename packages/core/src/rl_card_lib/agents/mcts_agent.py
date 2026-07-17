@@ -180,11 +180,19 @@ class MCTSAgent(GameAwareAgent):
         observer = int(getattr(game, "current_player_idx", 0))
         legal_set = set(legal)
 
-        per_tree = max(1, self.simulations // self.determinizations)
+        # Spread the budget so the trees sum to exactly self.simulations: the
+        # first `remainder` trees take one extra rollout, and once the budget is
+        # thinner than the tree count the surplus trees get nothing rather than
+        # a floor of one rollout each, which would overshoot the budget.
+        base, remainder = divmod(self.simulations, self.determinizations)
         visits: dict[int, int] = defaultdict(int)
         values: dict[int, float] = defaultdict(float)
 
-        for _ in range(self.determinizations):
+        for tree in range(self.determinizations):
+            per_tree = base + (1 if tree < remainder else 0)
+            if per_tree == 0:
+                break
+
             if self.use_determinization:
                 root_state = game.determinize(observer, self._py_rng)
             else:
