@@ -49,14 +49,18 @@ class _Node:
         parent: Optional["_Node"],
         action: Optional[int],
         actor: Optional[int],
-        reward: float,
+        reward: np.ndarray,
         num_players: int,
         terminal: bool = False,
     ):
         self.state = state
         self.parent = parent
-        #: Action that led into this node, and the player who took it. Rewards
-        #: are credited to that player, not to whoever moves next.
+        #: Action that led into this node, and the player who took it. The
+        #: reward is a per-player vector: the step reward goes to the actor,
+        #: and on terminal edges the other players' terminal payoffs (from the
+        #: game's get_reward()) are included too. Without those, "the opponent
+        #: wins" costs the searching player nothing, and it will not spend a
+        #: move to block.
         self.action = action
         self.actor = actor
         self.reward = reward
@@ -91,15 +95,18 @@ class MCTSAgent(GameAwareAgent):
     world it searches is already fully known to it.
 
     This agent does not learn. It is a compute-for-strength baseline: quality
-    scales with `simulations`, and so does the time per move.
+    scales with `simulations`, and so does the time per move. The tree is also
+    rebuilt from scratch every move, which is deliberate: each move re-samples
+    the hidden cards, and a subtree grown under one sampled world is not valid
+    evidence about the next one. The cost is that long games pay the full
+    budget on every move, so treat this as a low-episode-count baseline.
 
-    Known limitation, Macao: crediting rewards per player assumes the game pays
-    the *acting* player. Macao's terminal reward is written from player 0's seat
-    (`10.0 if current_player.is_agent else -5.0`), so a winning opponent is
-    recorded as scoring -5 and this search concludes its opponent is trying to
-    lose. It consequently plays Macao at random strength (5% vs random, where
-    GreedyLookaheadAgent gets 80%). Klondike is unaffected, being single-player.
-    See TODO.md; the fix belongs in the reward, or in a negamax variant here.
+    The per-player return tracking requires rewards to be actor-relative: every
+    reward a game's step() returns must belong to the player who took the
+    action. Both library games satisfy this. (Macao once paid its terminal
+    reward from player 0's seat regardless of who won; this agent read that as
+    an opponent trying to lose and played at random strength until the reward
+    was fixed.)
 
     Args:
         game: Game or environment to read state from (can be bound later)
@@ -215,13 +222,47 @@ class MCTSAgent(GameAwareAgent):
 
         return int(max(visits, key=lambda a: (visits[a], values[a] / visits[a])))
 
+    def _terminal_payoffs(self, state: Any, actor: int, reward: float) -> np.ndarray:
+        """
+        Spread a terminal transition's rewards over all players.
+
+        The actor keeps the step reward it was paid; every other player gets
+        its terminal payoff from the game's get_reward(), which is how a loss
+        becomes visible to the search at all — the losing player never acts on
+        the terminal transition, so no step() reward can reach it.
+
+        Args:
+            state: Terminal state, already stepped
+            actor: Player who took the terminal action
+            reward: Step reward the actor received
+
+        Returns:
+            Per-player reward vector for the terminal edge
+        """
+        vector = np.zeros(self._num_players, dtype=np.float64)
+        vector[actor] = reward
+        for player in range(self._num_players):
+            if player != actor:
+                vector[player] = float(state.get_reward(player))
+        return vector
+
+    def _edge_reward(
+        self, state: Any, actor: int, reward: float, terminal: bool
+    ) -> np.ndarray:
+        """Per-player reward vector for one stepped edge."""
+        if terminal:
+            return self._terminal_payoffs(state, actor, reward)
+        vector = np.zeros(self._num_players, dtype=np.float64)
+        vector[actor] = reward
+        return vector
+
     def _new_node(
         self,
         state: Any,
         parent: Optional[_Node],
         action: Optional[int],
         actor: Optional[int],
-        reward: float,
+        reward: np.ndarray,
         terminal: bool = False,
     ) -> _Node:
         """Create a node and cache the actions still to try from it."""
@@ -253,7 +294,10 @@ class MCTSAgent(GameAwareAgent):
         Returns:
             The root, whose children carry the visit counts
         """
-        root = self._new_node(root_state, None, None, None, 0.0)
+        root = self._new_node(
+            root_state, None, None, None,
+            np.zeros(self._num_players, dtype=np.float64),
+        )
 
         for _ in range(iterations):
             node = root
@@ -315,14 +359,15 @@ class MCTSAgent(GameAwareAgent):
 
         child_state = node.state.copy()
         _, reward, terminated, truncated, _ = child_state.step(action)
+        terminal = bool(terminated or truncated)
 
         child = self._new_node(
             state=child_state,
             parent=node,
             action=action,
             actor=actor,
-            reward=float(reward),
-            terminal=bool(terminated or truncated),
+            reward=self._edge_reward(child_state, actor, float(reward), terminal),
+            terminal=terminal,
         )
         node.children.append(child)
         return child
@@ -367,10 +412,13 @@ class MCTSAgent(GameAwareAgent):
             action = self._rollout_action(state, legal)
             _, reward, terminated, truncated, _ = state.step(action)
 
-            returns[actor] += discount * float(reward)
+            terminal = bool(terminated or truncated)
+            returns += discount * self._edge_reward(
+                state, actor, float(reward), terminal
+            )
             discount *= self.gamma
 
-            if terminated or truncated:
+            if terminal:
                 break
 
         return returns
@@ -379,9 +427,15 @@ class MCTSAgent(GameAwareAgent):
         """
         Credit a simulation's result to every node on the path.
 
-        Walking up, the return seen from a parent is its edge reward plus the
-        discounted return of the child, credited to the player who actually took
-        that edge.
+        A node's accumulated value is the return of *taking the edge into it*:
+        the edge reward (credited to the player who took it) plus the
+        discounted value of everything below. The edge reward must be folded in
+        before the node's value_sums are touched — an earlier version added it
+        only above the node, which made every node's Q blind to its own
+        immediate reward. The visible symptom was a search that could not see
+        instant wins: a move paying +10 on the spot carried Q = 0 at selection
+        time, so UCT explored it no harder than a losing shuffle, and play
+        collapsed to near-random on both games.
 
         Args:
             path: Root-to-leaf node path
@@ -391,9 +445,12 @@ class MCTSAgent(GameAwareAgent):
 
         for node in reversed(path):
             node.visits += 1
+
+            if node.parent is not None:
+                value = self.gamma * value
+                value = value + node.reward
+
             node.value_sums += value
 
             if node.parent is not None:
                 self._stats.update(node.value_sums[node.actor] / node.visits)
-                value = self.gamma * value
-                value[node.actor] += node.reward
