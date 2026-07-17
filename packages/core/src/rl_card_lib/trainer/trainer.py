@@ -1,6 +1,7 @@
 """Training loop and utilities."""
 
 from typing import Optional, Callable
+import copy
 import time
 import numpy as np
 from tqdm import tqdm
@@ -315,18 +316,20 @@ class SelfPlayTrainer(Trainer):
     Only the agent's own transitions are learned from, and only its own rewards
     count towards the episode reward.
 
-    Note that self-play here has zero lag: `self.opponent` is the agent itself,
-    so the opponent always plays the learner's current weights. There is no
-    frozen snapshot. See `opponent_update_interval` below and TODO.md.
+    In self-play mode the opponent is a frozen snapshot of the agent, refreshed
+    every `opponent_update_interval` episodes. The lag is deliberate: an
+    opponent that tracks the learner's weights move-for-move is the least
+    stable self-play variant, since every gradient step also changes the
+    opponent mid-curriculum. Pass `opponent_update_interval=None` for that
+    zero-lag mirror match anyway, e.g. to reproduce older runs.
 
     Args:
         env: Game environment
         agent: Agent to train, always seated as player 0
         opponent: Fixed policy for the other seats (None to play against self)
-        opponent_update_interval: Currently unused, reserved for the frozen-
-            opponent snapshot described in TODO.md. Accepted and stored so the
-            eventual implementation does not break call sites, but it has no
-            effect on training today: do not read episode counts into it
+        opponent_update_interval: Episodes between opponent snapshot refreshes
+            in self-play mode; None plays against the live agent instead of a
+            snapshot. Ignored when an explicit opponent is given.
         **kwargs: Additional arguments passed to Trainer
     """
 
@@ -335,17 +338,61 @@ class SelfPlayTrainer(Trainer):
         env: CardGameEnv,
         agent: Agent,
         opponent: Optional[Agent] = None,
-        opponent_update_interval: int = 1000,
+        opponent_update_interval: Optional[int] = 1000,
         **kwargs
     ):
         super().__init__(env, agent, **kwargs)
         self.opponent_update_interval = opponent_update_interval
         self.self_play = opponent is None
-        self.opponent = agent if opponent is None else opponent
+        self._episodes_since_snapshot = 0
+
+        if not self.self_play:
+            self.opponent = opponent
+        elif opponent_update_interval is None:
+            self.opponent = agent
+        else:
+            self.opponent = self._snapshot_agent()
 
         if (hasattr(self.opponent, "bind")
                 and getattr(self.opponent, "game", None) is None):
             self.opponent.bind(env)
+
+    def _snapshot_agent(self) -> Agent:
+        """
+        Deep-copy the learner into a frozen opponent.
+
+        Two attributes are exempted from the copy: the replay buffer, which can
+        hold hundreds of megabytes the snapshot will never learn from, and a
+        bound game, which would drag the live environment into the copy. Both
+        are detached for the duration of the deepcopy and restored afterwards;
+        the snapshot keeps references to the originals, which is safe because
+        the trainer never calls learn() on it.
+
+        Returns:
+            An eval-mode copy of the agent, frozen at its current weights
+        """
+        shared = {}
+        for attr in ("replay_buffer", "game"):
+            if hasattr(self.agent, attr):
+                shared[attr] = getattr(self.agent, attr)
+                setattr(self.agent, attr, None)
+        try:
+            snapshot = copy.deepcopy(self.agent)
+        finally:
+            for attr, value in shared.items():
+                setattr(self.agent, attr, value)
+        for attr, value in shared.items():
+            setattr(snapshot, attr, value)
+        snapshot.eval()
+        return snapshot
+
+    def _refresh_snapshot_if_due(self) -> None:
+        """Replace the frozen opponent once enough episodes have passed."""
+        if not self.self_play or self.opponent_update_interval is None:
+            return
+        if self._episodes_since_snapshot >= self.opponent_update_interval:
+            self.opponent = self._snapshot_agent()
+            self._episodes_since_snapshot = 0
 
     def _current_player(self, fallback: int) -> int:
         """
@@ -369,9 +416,13 @@ class SelfPlayTrainer(Trainer):
         max_steps: Optional[int] = None
     ) -> dict:
         """Run one episode of the agent against the opponent."""
+        if training:
+            self._refresh_snapshot_if_due()
+            self._episodes_since_snapshot += 1
+
         observation, info = self.env.reset()
         self.agent.reset()
-        if not self.self_play:
+        if self.opponent is not self.agent:
             self.opponent.reset()
 
         episode_reward = 0.0
