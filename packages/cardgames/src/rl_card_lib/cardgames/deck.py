@@ -31,10 +31,25 @@ class Deck:
     def __str__(self) -> str:
         return f"Deck({len(self.cards)} cards)"
 
-    def shuffle(self, seed: Optional[int] = None) -> "Deck":
-        if seed is not None:
-            random.seed(seed)
-        random.shuffle(self.cards)
+    def shuffle(
+        self,
+        seed: Optional[int] = None,
+        rng: Optional[random.Random] = None,
+    ) -> "Deck":
+        """
+        Shuffle the deck in place.
+
+        Args:
+            seed: Seed for a one-off private `random.Random`; never touches the
+                process-wide RNG, so other components' randomness is unaffected
+            rng: Existing `random.Random` to draw from; wins over `seed`
+
+        Returns:
+            self, so calls can be chained
+        """
+        if rng is None:
+            rng = random.Random(seed) if seed is not None else random
+        rng.shuffle(self.cards)
         return self
 
     def draw(self, count: int = 1, face_up: bool = True) -> list[Card]:
