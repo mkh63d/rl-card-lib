@@ -3,288 +3,174 @@
 ## Package Migration
 
 ### Structure Validation
-- [ ] **Correct pathing** across all packages
-  - [ ] Core imports work correctly
-  - [ ] Cardgames imports core properly
-  - [ ] Visualizer imports core properly
-  - [ ] Examples import cardgames and core
-  - [ ] No circular dependencies
-  - [ ] All namespace references consistent
+- [x] **Correct pathing** across all packages — exercised by
+  `tests/test_public_api_imports.py` and the cross-package suites; CI runs them
+  on every push.
+  - [x] Core imports work correctly
+  - [x] Cardgames imports core properly
+  - [x] Visualizer imports cardgames properly (it needs `Card`, not core)
+  - [x] Examples import cardgames and core
+  - [x] No circular dependencies
+  - [x] All namespace references consistent
 
 ### Package Dependencies
-- [ ] Update `pyproject.toml` for each package with correct dependencies
-  - [ ] Core: only `numpy`, `torch`, `gymnasium`, `tqdm`
-  - [ ] Cardgames: `rl-card-lib-core`, `numpy`
-  - [ ] Visualizer: `rl-card-lib-core`, `matplotlib`
-  - [ ] Examples: `rl-card-lib-core`, `rl-card-lib-cardgames`, `rl-card-lib-visualizer`
-- [ ] Update root `pyproject.toml` with all package references
-- [ ] Verify dependency resolution (no version conflicts)
+- [x] `pyproject.toml` dependencies audited per package (2026-07-17):
+  - Core: `numpy`, `torch`, `gymnasium`, `tqdm`
+  - Cardgames: `rl-card-lib-core`, `numpy`
+  - Visualizer: `rl-card-lib-cardgames`, `matplotlib` — the original plan said
+    core, but the code imports `rl_card_lib.cardgames.card`, so cardgames is
+    the true dependency
+  - Examples: core + cardgames + visualizer
+  - Report: core
+- [ ] Update root `pyproject.toml` with all package references once the
+  packages are published; until then the root package vendors everything
+- [x] Dependency resolution verified locally (editable installs coexist)
 
 ## Testing Infrastructure
 
-### Unit Tests (Per-Package)
-- [ ] Core package tests in `packages/core/tests/`
-- [ ] Cardgames package tests in `packages/cardgames/tests/`
-- [ ] Visualizer package tests in `packages/visualizer/tests/`
-- [ ] Examples validation tests in `packages/examples/tests/`
+- [x] Root integration suite (`tests/`, 330+ tests) covering cross-package
+  imports, API contracts, training workflows and multi-agent scenarios
+- [x] Examples package tests (`packages/examples/tests/`)
+- [ ] Per-package unit test directories for core/cardgames/visualizer — the
+  root suite covers the code today; split it when the packages publish
+  separately
+- [ ] Coverage thresholds — measure first, then pick a number that means
+  something. `[tool.coverage]` config exists in the root pyproject.
 
-### Integration Tests (Root)
-- [ ] Cross-package imports work correctly
-- [ ] Public API contracts verified
-- [ ] Full training workflows function
-- [ ] Multi-agent scenarios work
+## Correctness (audited 2026-07-17, resolved 2026-07-17)
 
-### Coverage
-- [ ] Coverage measured per-package
-- [ ] Coverage measured root-level
-- [ ] Coverage reports generated (not exported)
-- [ ] Minimum coverage threshold defined
+All four items from the benchmarking audit are fixed, with regression tests in
+`tests/test_reward_design.py`. Kept here because the details matter for the
+thesis text.
 
-## Package Development
+- [x] **Klondike reward is anti-correlated with winning.** Root cause: a
+  non-revealing tableau move paid `0.05 * cards_moved` against a `-0.01` step
+  cost and was reversible, so shuffling two piles was unbounded free reward.
+  Non-revealing tableau moves now pay nothing (net `-0.01`); reveals and
+  foundation moves still pay. Any pre-fix Klondike reward curve measures
+  loop-farming, not skill — do not compare across the fix.
+- [x] **Macao's reward mixed two perspectives.** The terminal reward was
+  written from player 0's seat (`+10 if current_player.is_agent else -5`), so
+  player 1 winning was recorded as -5 *for player 1* and search agents
+  concluded the opponent was trying to lose. Rewards are now actor-relative
+  (the winner is always the actor on the winning play); losers' payoffs are
+  queryable via `get_reward(player_idx)`, which MCTSAgent feeds into its
+  search. Shaped per-move rewards are potential-based on hand size, so no
+  move loop can mint reward (the previous flat per-play bonuses made
+  hoarding-then-harvesting profitable — measured, MCTS stopped finishing
+  games until this was fixed).
+- [x] **Shaped vs sparse decided: both, explicitly.** Shaped stays the default
+  (now loop-free by construction: Klondike pays only progress, Macao is
+  potential-based); `reward_mode="sparse"` (+1 win / -1 loss, nothing else) is
+  available on both games for the honest-but-slower baseline. The thesis can
+  now compare them as an experiment instead of a leap of faith.
+- [x] **`SelfPlayTrainer.opponent_update_interval` did nothing.** Implemented:
+  self-play trains against a frozen deep-copied snapshot, refreshed every N
+  episodes; `None` restores the zero-lag mirror. Thesis text describing
+  periodic opponent updates is accurate again.
 
-### Core Package
-- [ ] Complete unit tests
-- [ ] Type hints throughout
-- [ ] Docstrings for all public APIs
-- [ ] API stability review
-- [ ] CHANGELOG created
+While fixing the above, two live defects surfaced in `MCTSAgent` (both fixed,
+see `_backpropagate` and `_edge_reward`):
 
-### Cardgames Package
-- [ ] Complete game implementations
-- [ ] Game-specific tests
-- [ ] Game rules validation
-- [ ] Performance optimization
-- [ ] State space documentation
+- [x] **Node values excluded the edge reward**, so UCT selection and the root
+  choice were blind to immediate rewards — an instantly winning move carried
+  Q = 0. This, not the reward bugs alone, is why MCTS played at random
+  strength on both games.
+- [x] **Losses were invisible to the search**: step() can only pay the acting
+  player, so "opponent wins" cost nothing. Terminal edges now credit every
+  non-actor's `get_reward()`. After both fixes: Macao vs random went from ~3%
+  to ~87% wins at 60 simulations, and strength scales with the budget
+  (`test_more_simulations_beat_fewer`, formerly an xfail).
 
-### Visualizer Package
-- [ ] Visualization implementations
-- [ ] Rendering backend support
-- [ ] Metrics plotting
-- [ ] Live dashboard (optional)
-- [ ] Export capabilities
+## Action space / environment modelling (resolved 2026-07-17)
 
-### Examples Package
-- [ ] All examples functional
-- [ ] Example tests pass
-- [ ] Documentation complete
-- [ ] Expected outputs documented
-
-## Publishing
-
-### Pre-Release
-- [ ] Version bumped in all `pyproject.toml` files
-- [ ] CHANGELOG updated
-- [ ] Documentation reviewed
-- [ ] Tests passing (100% coverage)
-- [ ] Code quality checks pass
-
-### Release
-- [ ] Build artifacts generated
-- [ ] PyPI credentials configured
-- [ ] Packages published to PyPI
-- [ ] GitHub releases created
-- [ ] Documentation deployed
-
-## Documentation
-
-### API Documentation
-- [ ] Docstrings for all public APIs
-- [ ] Type hints in all signatures
-- [ ] Usage examples in docstrings
-
-### Repository Documentation
-- [ ] CONTRIBUTING guidelines
-- [ ] ARCHITECTURE documentation
-- [ ] DEVELOPMENT setup guide
-
-## DevOps
-
-### CI/CD Pipeline
-- [ ] GitHub Actions workflow
-- [ ] Test matrix (Python 3.9, 3.10, 3.11)
-- [ ] Coverage reports
-- [ ] Linting checks
-- [ ] Type checking
-
-### Code Quality
-- [ ] Black formatting applied
-- [ ] isort import sorting applied
-- [ ] Flake8 linting passes
-- [ ] Pylint checks pass
-- [ ] MyPy type checking passes
-
-## Maintenance
-
-- [ ] Version synchronization strategy defined
-- [ ] Dependency update strategy
-- [ ] Breaking change policy
-- [ ] Support policy defined
-
-## Correctness (found while benchmarking the agents, 2026-07-17)
-
-Ordered by how much they distort results. The first two make current numbers on
-their game meaningless; reproduce any of them with
-`python packages/examples/scripts/benchmark_agents.py --episodes 20`.
-
-- [ ] **Klondike reward is anti-correlated with winning.** See "reward loop"
-  below. Benchmark receipts (20 deals, cards moved to foundation out of 52):
-  | agent | reward | cards up | wins |
-  |---|---|---|---|
-  | Random | 45.08 | 11.3 | 0% |
-  | Heuristic (ignores reward) | 55.28 | **30.7** | **50%** |
-  | GreedyLookahead (maximizes reward) | 32.33 | **2.1** | 0% |
-  The agent that optimizes reward is *5x worse at solitaire than random*, and
-  scores less reward than random too, because it locks onto the shuffle loop on
-  move one while random play stumbles into real progress. Until this is decided,
-  Klondike reward curves measure loop-farming, not skill.
-
-- [ ] **Macao's reward mixes two incompatible perspectives.** `step()` pays the
-  *acting* player for playing a card (+0.1/+0.2/+0.3), but the terminal reward is
-  written from player 0's seat: `10.0 if current_player.is_agent else -5.0`, and
-  `is_agent` is only ever true for player 0 (`macao.py` reset()). So *player 1
-  winning is recorded as -5 for player 1*.
-  - Breaks any agent that reasons about opponents: `MCTSAgent` wins 5% vs random
-    on Macao (identical to random's own 5%) while `GreedyLookahead(1)` wins 80%,
-    because MCTS credits the -5 to the winner and concludes its opponent is
-    trying to lose. Adding determinizations makes it worse (0%), as expected when
-    the search is faithfully propagating an inverted opponent model.
-  - Fix one of: make terminal reward actor-relative (`+10` to the winner,
-    `-5` to each loser), or declare the reward strictly player-0-centric and have
-    `MCTSAgent` minimize instead of maximize at opponent nodes (negamax). The
-    first is less surprising; the second matches the truncation reward, which is
-    already player-0-centric.
-  - `MCTSAgent`'s per-player return tracking assumes the first convention. It is
-    correct for Klondike (single player) and for any actor-relative reward.
-
-- [ ] **Decide whether shaped per-step rewards should exist at all.** Both bugs
-  above are the same root cause: hand-tuned per-move bonuses that do not compose
-  into "win the game". A sparse terminal reward (+1 win / -1 loss / 0 draw) plus
-  the existing action masking cannot be farmed and needs no per-game tuning. It
-  learns slower, which is the real trade-off worth writing up.
-
-- [ ] **`SelfPlayTrainer.opponent_update_interval` does nothing.** It is stored
-  in `__init__` and never read anywhere (`grep` it). The docstring promises
-  "episodes between opponent updates", but `self.opponent = agent` is the same
-  object as the learner, so the opponent silently tracks the agent's current
-  weights at all times — there is no frozen snapshot and no periodic update.
-  That is *pure* self-play with zero lag, which is the least stable variant and
-  not what the parameter advertises. Either implement the snapshot (deep-copy
-  the agent every N episodes into a frozen opponent) or delete the parameter.
-  Any thesis text describing periodic opponent updates is currently inaccurate.
-
-## Action space / environment modelling
-
-These limit what an agent can express, so no amount of training fixes them. They
-matter for the thesis because they cap achievable play regardless of algorithm.
-
-- [ ] **Macao's two most strategic decisions are not in the action space.** When
-  an Ace or a Jack is played, `macao.py` `step()` picks the requested suit/rank
-  itself with a hardcoded "most common in my hand" rule. The agent never chooses.
-  So the headline skills of the game (declaring a suit to strand an opponent,
-  naming a rank they cannot match) are baked in as a fixed heuristic and are
-  unlearnable. `MAX_ACTIONS` is 60 with only 0-53 used, so there is room: 54-57
-  for the four suits and a rank block would make the choice the agent's.
-
-- [ ] **Klondike cannot express which card to move.** Action `19 + from*7 + to`
-  names only the two piles; `_move_tableau_to_tableau` then moves *the first
-  face-up card that fits*. Where a pile offers two legal moves to the same
-  destination, the agent cannot pick — the game decides. Splitting a stack at a
-  chosen depth is a normal solitaire tactic and is currently unreachable.
-  (`KlondikeHeuristicAgent._tableau_move_index` has to replicate the game's
-  choice to score the move honestly, which is a symptom of the same issue.)
-
-- [ ] **Klondike's action space is 66% dead.** `MAX_ACTIONS = 200` but the
-  highest encodable action is `19 + 6*7 + 6 = 67`. Actions 68-199 can never be
-  legal, yet every network carries 200 outputs and every masked softmax/argmax
-  runs over them. Cheap fix, and it shrinks the DQN output layer by two thirds.
-  Macao has the same issue at a smaller scale (60 declared, 0-53 used).
+- [x] **Macao's Ace/Jack declarations are agent actions** (54-57 suits, 58-64
+  ranks, `MAX_ACTIONS = 65`, all reachable). Playing an Ace/Jack with cards in
+  hand enters a declaration phase; the same player's next action names the
+  request. The observation gained two phase flags. The old hardcoded
+  most-common-in-hand rule survives only as `MacaoHeuristicAgent`'s scoring
+  for these actions.
+- [x] **Klondike "cannot express which card to move" — investigated, no
+  ambiguity exists.** The face-up section of a tableau pile is always one
+  descending alternating-color run, so for a given destination at most one
+  card can legally move (the destination's top card forces rank and color;
+  empty piles accept only the run's single king). The pile-pair encoding is
+  therefore lossless. Pinned by `test_tableau_move_is_unambiguous`, which
+  asserts the invariant over hundreds of random positions.
+- [x] **Klondike's action space shrunk from 200 to 68** (highest encodable
+  action is 67). The DQN output layer lost its 132 permanently-dead outputs.
+  Old checkpoints are incompatible. Macao's 60 → 65, with every action used.
 
 ## Library Features
 
-- [ ] **Klondike reward loop (confirmed, decide before trusting any Klondike result)**
-  - `_move_tableau_to_tableau` pays `0.05 * cards_moved` (plus 0.2 for a reveal)
-    while `step()` charges only -0.01, so a *non-revealing* 1-card move nets
-    +0.04 — and it is reversible. Moving a card back and forth is unbounded free
-    reward, which is the "deadend liability" below, confirmed and localised.
-  - Measured with `GreedyLookaheadAgent`: ~139 of 150 moves are tableau shuffles
-    and only ~2.3 cards reach the foundations. `KlondikeHeuristicAgent`, which
-    ignores the reward and follows solitaire strategy, gets ~28.4 cards up and
-    wins ~43%. Any agent that optimizes this reward well *converges to farming
-    the loop*, so shaped reward is currently anti-correlated with winning and
-    reward curves on Klondike do not measure solitaire skill.
-  - Options: make non-revealing tableau moves cost more than they pay, reward
-    reveals/foundations only, or penalize revisiting a position. This changes
-    every existing Klondike number, so it is a deliberate call, not a drive-by fix.
-- [ ] Deadend liability - if there is like three repeating steps, it is going to go through them over and over again.
-  - Confirmed and localised: see the reward loop item above. Worth handling
-    generally too (detect a repeated position hash within an episode and either
-    penalize it or drop the repeated action from `get_legal_actions()`), since
-    the same trap can appear in any future game with reversible moves.
-- [ ] Solvability check - check full game setup if it is even solvable
-  - Now cheap to build: `KlondikeSolitaire.copy()` exists, so a solver can search
-    a deal without disturbing the live game. Would let win rate be reported over
-    *solvable* deals only, which is the number worth comparing against literature
-    (~80% of Klondike deals are winnable with perfect play; ~43% for the current
-    heuristic is not comparable to that until the denominators match).
-- [ ] Is it full analysis or heuristic? Can I adjust it? What is it dependent on?
-  - As built: `KlondikeHeuristicAgent`/`MacaoHeuristicAgent` are pure heuristics
-    (fixed priority scores, no search, no learning). `GreedyLookaheadAgent` is
-    exhaustive but only to `depth` plies. `MCTSAgent` is sampled search, tunable
-    by `simulations`. All the scores live in one `score_action()` per agent so
-    they are adjustable in one place.
+- [x] **Klondike reward loop** — see Correctness above.
+- [x] **Deadend liability** — two layers: the loop no longer pays (Klondike),
+  and `CardGameEnv` now detects repeated positions generically, flagging them
+  in `info["repeated_position"]` and optionally pricing them via
+  `repeated_position_penalty`. Works for any future game with reversible moves.
+- [x] **Solvability check** — `solve_klondike(game, max_nodes)`: budgeted
+  perfect-information DFS with transposition pruning; True / False / None
+  (budget exhausted). Lets win rates be reported over solvable deals, which is
+  the number comparable to the literature (~80% of deals are winnable with
+  perfect play).
+- [x] **Full analysis or heuristic?** As built: `KlondikeHeuristicAgent` /
+  `MacaoHeuristicAgent` are pure fixed-priority heuristics (adjustable in one
+  `score_action()` each), `GreedyLookaheadAgent` is exhaustive to `depth`,
+  `MCTSAgent` is sampled search tunable by `simulations`. Documented in each
+  class docstring.
 
-## Agent work (follow-ups from the first training runs)
+## Experiments to run now that the rewards are trustworthy
 
-- [ ] **Give Double DQN a fair trial.** It underperformed vanilla DQN at 400
-  episodes (40% vs 85% vs random) but was still climbing. Its target moves more
-  conservatively, so this is likely just a shorter horizon than it needs, not a
-  defect. Re-run both at 5k+ episodes before drawing any conclusion for the
-  thesis. Do not report the 400-episode number as a DQN-vs-DoubleDQN result.
-- [ ] **MCTS is too slow to benchmark honestly on Klondike.** 20 sims/move over
-  20 deals takes ~4 minutes; a 300-move deal pays the full budget every move.
-  Either cache the tree between moves (reuse the subtree under the chosen action)
-  or accept it as a low-episode-count baseline only.
-- [ ] **A better rollout policy made MCTS worse on Klondike** (2.9 cards up with
-  the heuristic rollout vs 10.2 with random). Consistent with the reward loop:
-  sharper value estimates on a broken objective just farm the loop more reliably.
-  Recheck once the reward is fixed; it should reverse.
-- [ ] Tune the MCTS exploration weight once the rewards are trustworthy. The
-  current 1.4 is the textbook value for rewards in [0,1]; `_MinMaxStats`
-  rescales into that range, but the constant was never validated on a sane
-  objective (the sweep that would have validated it was measuring loop-farming).
-- [ ] Consider prioritized experience replay for the DQN family, and n-step
-  returns. Both are cheap additions to `MaskedReplayBuffer` and are the standard
-  next lever after double + dueling.
+The code-level blockers are gone; these are measurement work, not fixes.
 
-## Smaller issues noticed while working (low priority, but real)
+- [ ] **Re-run DQN vs Double DQN at 5k+ episodes.** The 400-episode comparison
+  (85% vs 40%) predates the epsilon-decay fix and the action-space shrink, so
+  it is doubly stale. Do not report it.
+- [ ] **Re-check the heuristic rollout policy for MCTS on Klondike.** It
+  measured *worse* than random rollouts (2.9 vs 10.2 cards up) when the
+  objective was the farmable loop; with the loop gone and the backprop fix in,
+  the comparison starts from scratch.
+- [ ] **Validate the MCTS exploration weight (1.4) on the fixed rewards.** The
+  old sweep was measuring loop-farming. Note the win-reward magnitude
+  stretches `_MinMaxStats` normalization, which compresses small Q
+  differences; if exploitation looks weak, that interaction is the first
+  suspect.
+- [ ] **Shaped vs sparse learning-speed comparison** — now a one-flag
+  experiment (`reward_mode`), and a natural thesis section.
+- [ ] Consider prioritized replay and n-step returns for the DQN family; both
+  slot into `MaskedReplayBuffer` and are the standard next lever after
+  double + dueling.
 
-- [ ] **Epsilon decays per learning step, not per episode.** `DQNAgent.learn()`
-  applies `epsilon *= epsilon_decay` on every gradient step. With 300-step
-  Klondike episodes that is 300 decays per episode: measured,
-  `epsilon_decay=0.9995` from 1.0 hits the 0.05 floor after 5991 steps, i.e.
-  **20 episodes**, not the ~9000 the number suggests. So `train_klondike.py`'s
-  5000-episode run explores for its first 0.4% and is greedy for the rest. Not
-  wrong per se, but every documented decay value reads as ~300x slower than it
-  is; either decay in `reset()` or rename the parameter to say "per step".
-- [ ] **Global RNG reseeding.** `Deck.shuffle(seed)` and `CardGameEnv.reset(seed)`
-  call `random.seed()` / `np.random.seed()`, which reseeds the *process-wide*
-  RNG and silently perturbs every other agent and torch init in the run. Prefer
-  a local `random.Random(seed)` / `np.random.default_rng(seed)` instance.
-  (`MCTSAgent` already keeps its own `random.Random`, partly for this reason.)
-- [ ] **Invalid actions are penalized twice over.** `CardGameEnv.step()` returns
-  `invalid_action_reward=-1.0` and does not advance the game, while
-  `Macao.step()` separately returns `-1.0` and *does* advance the player for a
-  card that is not in hand. Two different code paths, two different behaviours,
-  same nominal penalty. Since every agent here masks illegal actions, this is
-  mostly dead code — worth deleting rather than maintaining.
-- [ ] **Klondike has no "loss" terminal, only truncation.** `CardGameEnv.step()`
-  ends an episode on `terminated`, which `Klondike.step()` sets only via
-  `_check_win()`. `is_game_over()` — which does report a stuck deal — is never
-  consulted by the env. In practice action 0 (draw/recycle) stays legal almost
-  forever, so a deal that cannot be won does not end: it runs to `max_steps` and
-  is recorded as a truncation. The agent therefore never receives a signal that
-  it *lost*, only that it ran out of time, and hundreds of pointless
-  draw-recycle transitions enter the replay buffer per dead deal. Related to the
-  unlimited-`max_passes` default.
-- [ ] No tests for `packages/report/` (250 lines, currently untracked).
+## Accepted trade-offs (decided, not forgotten)
 
+- **MCTS rebuilds its tree every move.** Deliberate: each move re-samples the
+  hidden cards, and a subtree grown under one sampled world is not valid
+  evidence about the next. The cost is real (long Klondike deals pay the full
+  budget per move); treat MCTS as a low-episode-count baseline there, or set
+  `use_determinization=False` when an upper bound is wanted.
+- **Klondike keeps `max_passes=None` by default.** Unlimited passes match
+  casual play and keep every historical number comparable; the cost is that a
+  dead deal can only end by truncation. Training scripts that want real loss
+  terminals should pass a finite `max_passes` (the limit is enforced now).
+- **`DQNAgent(seed=...)` still seeds torch globally.** Torch has no clean
+  per-instance init seeding; documented rather than half-fixed. The
+  library's own components no longer touch global RNGs.
+
+## Publishing / DevOps
+
+- [x] CI: GitHub Actions, Python 3.10-3.12, flake8 + both test suites
+- [x] CHANGELOG created (root `CHANGELOG.md`)
+- [ ] Version bump + PyPI publishing — blocked on deciding whether the
+  packages publish separately at all before the thesis deadline
+- [ ] Repo-wide black/isort normalization — deliberately kept out of the
+  correctness PR to keep its diff reviewable; run as its own commit
+- [ ] mypy in CI — the codebase predates strict typing; adopt per-package,
+  core first
+- [ ] CONTRIBUTING / ARCHITECTURE docs
+
+## Documentation
+
+- [x] Reward structures documented in the game class docstrings
+- [x] Action encodings documented next to the constants they describe
+- [ ] `docs/migration.md` for the core `Game` generalization (see
+  `packages/core/TODO.md`)

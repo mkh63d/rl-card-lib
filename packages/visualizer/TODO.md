@@ -1,28 +1,33 @@
 # Visualizer Package - TODO
 
+Status 2026-07-17: the package ships ASCII rendering helpers
+(`render_cards`, `render_tableau`, `create_simple_board_view`) and the
+training-visualizer CLI; training-curve plotting lives with
+`TrainingMetrics.plot()` in core. Everything below is roadmap, kept small on
+purpose — the thesis needs plots more than it needs rendering backends.
+
 ## Code Structure
-- [ ] **Correct pathing** - Verify all imports reference correct packages
-- [ ] **Backend abstraction** - Support multiple rendering backends
-- [ ] **Plugin system** - Allow custom renderers
+- [x] **Correct pathing** — imports verified (depends on cardgames for `Card`)
+- [ ] **Backend abstraction** — only worthwhile once a second backend exists
+- [ ] **Plugin system** — same
 
 ## Rendering
-- [ ] **Matplotlib rendering** - Card game state visualization
-- [ ] **ASCII rendering** - Terminal-friendly game display
-- [ ] **HTML rendering** - Web-based visualization
-- [ ] **Animation support** - Animate move sequences
+- [x] **ASCII rendering** — terminal-friendly card/tableau display
+- [ ] **Matplotlib board rendering**
+- [ ] **HTML rendering**
+- [ ] **Animation support**
 
 ## Metrics Visualization
-- [ ] **Plot training curves** - Reward, win-rate, loss graphs
-- [ ] **Comparison plots** - Compare multiple training runs
-- [ ] **Live dashboard** - Real-time training monitoring
-- [ ] **Export capabilities** - Save plots as images/PDFs
+- [x] **Training curves** — `TrainingMetrics.plot()` (core) saves
+  reward/win-rate/loss plots; the training scripts use it
+- [ ] **Comparison plots** for multiple runs
+- [ ] **Live dashboard** (optional)
+- [ ] **Export capabilities** beyond PNG
 
 ## Testing
-- [ ] **Unit tests** - Rendering function tests
-- [ ] **Visual regression** - Compare rendered outputs
-- [ ] **Performance tests** - Large dataset visualization
+- [ ] **Unit tests** for the rendering helpers (pure string functions, cheap
+  to add when the API settles)
+- [ ] **Visual regression** — premature before the API settles
 
 ## Documentation
-- [ ] **Usage examples** - Code samples for each renderer
-- [ ] **API reference** - Document all public functions
-- [ ] **Gallery** - Collection of example visualizations
+- [ ] **Usage examples / API reference / gallery**

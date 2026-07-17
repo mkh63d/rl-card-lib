@@ -1,37 +1,32 @@
 # Examples Package - TODO
 
 ## Code Structure
-- [ ] **Correct pathing** - Verify all imports work correctly across packages
-- [ ] **Script organization** - Organize scripts by complexity level (basic → advanced)
+- [x] **Correct pathing** — verified by the package's own test suite and CI
+- [ ] **Script organization** — organize scripts by complexity level
 
-## Quick Demo
-- [ ] **Simplify** - Ensure quick demo is actually quick (~5 seconds)
-- [ ] **Add comments** - Thoroughly document each step
-- [ ] **Error handling** - Graceful error messages
-
-## Klondike Training Example
-- [ ] **Add hyperparameter tuning** - Example of grid search
-- [ ] **Add logging** - Comprehensive training logs
-- [ ] **Add evaluation** - Post-training performance evaluation
-- [ ] **Add visualization** - Plot training progress
-
-## Macao Training Example
-- [ ] **Add multi-agent** - Compare different agent types
-- [ ] **Add tournament** - Multi-agent tournament example
-- [ ] **Add analysis** - Win-rate analysis
+## Scripts
+- [x] **benchmark_agents.py** — benchmarks all agents on both games over
+  shared deals; reward and cards-up now agree in ranking (the reward loop that
+  made them diverge is fixed)
+- [x] **train_agents.py / train_klondike.py / train_macao.py** — epsilon
+  decays retuned for the per-episode semantics; stale reward-loop caveats
+  removed
+- [ ] **Quick demo** — keep under ~5 seconds, add error handling
+- [ ] **Hyperparameter tuning example** (grid search)
+- [ ] **Macao tournament example** (multi-agent round-robin)
 
 ## Advanced Examples
-- [ ] **Custom game** - Example of creating a new game
-- [ ] **Custom agent** - Example of implementing custom agent
-- [ ] **Distributed training** - Multi-process training example
-- [ ] **Web integration** - Flask/FastAPI integration example
+- [ ] **Custom game** — example of creating a new game
+- [ ] **Custom agent** — example of implementing a custom agent
+- [ ] **Distributed training** — multi-process training example
+- [ ] **Web integration** — Flask/FastAPI integration example
 
 ## Testing
-- [ ] **Smoke tests** - Verify all examples run without error
-- [ ] **Output validation** - Check example outputs are sensible
-- [ ] **Performance** - Ensure examples complete in reasonable time
+- [x] **Game logic tests** — `packages/examples/tests/` plus the root suites
+- [ ] **Smoke tests for the scripts themselves** — the library under them is
+  tested; the argparse entry points are not
 
 ## Documentation
-- [ ] **README for each example** - Individual example documentation
-- [ ] **Expected output** - Document what successful run looks like
-- [ ] **Troubleshooting** - Common issues and solutions
+- [x] **Expected output** — benchmark/train scripts print labeled tables;
+  module docstrings say what to expect
+- [ ] **README per example** with troubleshooting notes
