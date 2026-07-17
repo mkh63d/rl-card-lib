@@ -73,7 +73,7 @@ class TestCardGame:
         game.reset()
         mask = game.get_legal_action_mask()
         assert mask.dtype == bool
-        assert mask[0] == True  # Draw should be legal
+        assert bool(mask[0]) is True  # Draw should be legal
 
     def test_game_copy_not_implemented_by_default(self):
         """Test copy raises NotImplementedError for games that don't override it."""

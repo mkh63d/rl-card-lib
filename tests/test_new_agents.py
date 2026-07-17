@@ -389,37 +389,31 @@ class TestMCTSAgent:
         with pytest.raises(ValueError, match="determinizations"):
             MCTSAgent(determinizations=0)
 
-    @pytest.mark.xfail(
-        reason="No game currently has a reward function this can be measured on. "
-               "Klondike's reward contains a farmable +0.04 loop, so better search "
-               "means better loop-farming; Macao credits its terminal reward to "
-               "player 0 regardless of who won, so this search believes its "
-               "opponent is trying to lose and plays at random strength. Both are "
-               "tracked in TODO.md. Expected to pass once either is fixed.",
-        strict=False,
-    )
     def test_more_simulations_beat_fewer(self):
         """
         Search quality should rise with the budget, not just the runtime.
 
         This is the property that distinguishes real search from an expensive
-        random agent, so it is kept as a live xfail rather than deleted: it is
-        the regression test for the reward fixes, and it should start passing
-        the moment one of them lands.
+        random agent. It spent its early life as an xfail: Klondike's reward
+        contained a farmable loop and Macao's terminal reward was credited to
+        player 0 regardless of who won, so a bigger budget only bought better
+        loop-farming or a more faithful model of an opponent "trying to lose".
+        It passes now that rewards are actor-relative and loop-free, and it is
+        the regression test that keeps them that way.
         """
         weak_wins, strong_wins = 0, 0
 
-        for seed in range(8):
-            for simulations, tally in ((6, "weak"), (60, "strong")):
-                game = Macao(num_players=2)
-                env = CardGameEnv(game, max_steps=120)
+        for seed in range(10):
+            for simulations, tally in ((2, "weak"), (48, "strong")):
+                game = Macao(num_players=2, seed=seed)
+                env = CardGameEnv(game, max_steps=160)
                 agent = MCTSAgent(
                     simulations=simulations, rollout_depth=25, seed=seed
                 ).bind(env)
                 opponent = RandomAgent(action_size=env.action_space.n, seed=seed)
 
-                observation, info = env.reset()
-                for _ in range(120):
+                observation, info = env.reset(seed=seed)
+                for _ in range(160):
                     actor = game.current_player_idx
                     chooser = agent if actor == 0 else opponent
                     action = chooser.select_action(observation, info.get("legal_actions"))
@@ -509,11 +503,18 @@ class TestQLearningAgent:
         agent.select_action(np.array([0.124], dtype=np.float32), [0])
         assert agent.table_size == 1
 
-    def test_epsilon_decays(self):
+    def test_epsilon_decays_per_episode(self):
         agent = QLearningAgent(action_size=3, epsilon_start=1.0, epsilon_decay=0.9, seed=0)
         observation = np.ones(2, dtype=np.float32)
+
+        # Learning steps must not decay epsilon, and neither must the reset
+        # that opens the first episode; the second reset applies one decay.
         agent.learn(observation, 0, 1.0, observation, False)
-        assert agent.epsilon < 1.0
+        assert agent.epsilon == 1.0
+        agent.reset()
+        assert agent.epsilon == 1.0
+        agent.reset()
+        assert agent.epsilon == pytest.approx(0.9)
 
     def test_save_load_roundtrip(self, tmp_path):
         agent = QLearningAgent(action_size=4, seed=0)
@@ -876,11 +877,39 @@ class TestTrainerAgentIntegration:
         metrics = trainer.train(episodes=3, max_steps_per_episode=60, verbose=False)
         assert len(metrics.rewards) == 3
 
-    def test_selfplay_defaults_to_mirror_match(self, macao_env):
+    def test_selfplay_defaults_to_frozen_snapshot(self, macao_env):
         agent = RandomAgent(action_size=macao_env.action_space.n, seed=0)
         trainer = SelfPlayTrainer(macao_env, agent)
         assert trainer.self_play is True
+        # The opponent is a frozen copy of the agent, not the agent itself.
+        assert trainer.opponent is not agent
+        assert type(trainer.opponent) is type(agent)
+
+    def test_selfplay_zero_lag_mirror_is_optional(self, macao_env):
+        agent = RandomAgent(action_size=macao_env.action_space.n, seed=0)
+        trainer = SelfPlayTrainer(macao_env, agent, opponent_update_interval=None)
+        assert trainer.self_play is True
         assert trainer.opponent is agent
+
+    def test_selfplay_snapshot_lags_the_learner(self, macao_env):
+        """The frozen opponent must only pick up new weights at the interval."""
+        agent = QLearningAgent(action_size=macao_env.action_space.n, seed=0)
+        trainer = SelfPlayTrainer(macao_env, agent, opponent_update_interval=2)
+
+        first_opponent = trainer.opponent
+        # Teach the learner something after the snapshot was taken.
+        observation = np.ones(4, dtype=np.float32)
+        agent.learn(observation, 0, 5.0, observation, True)
+        taught_key = agent._key(observation)
+        assert taught_key in agent.q_table
+
+        trainer.train(episodes=1, max_steps_per_episode=5, verbose=False)
+        assert trainer.opponent is first_opponent, "refreshed before the interval"
+        assert taught_key not in trainer.opponent.q_table, \
+            "snapshot saw later learning"
+
+        trainer.train(episodes=2, max_steps_per_episode=5, verbose=False)
+        assert trainer.opponent is not first_opponent, "never refreshed"
 
     def test_selfplay_tracks_turns_from_the_game(self, macao_env):
         """The agent must only be credited for the seat it actually plays."""

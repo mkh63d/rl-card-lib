@@ -1,6 +1,5 @@
 """Tests for game implementations."""
 
-import pytest
 import numpy as np
 
 from rl_card_lib.games import KlondikeSolitaire, Macao
@@ -285,8 +284,6 @@ class TestMacaoGameplay:
         game = Macao(num_players=2)
         game.reset()
 
-        initial_hand = len(game.players[0].hand)
-
         # Force a draw by trying action 52
         if 52 in game.get_legal_actions():
             game.step(52)
@@ -403,8 +400,8 @@ class TestKlondikeInternalMethods:
         king = Card(Suit.HEARTS, Rank.KING)
         queen = Card(Suit.HEARTS, Rank.QUEEN)
 
-        assert game._can_place_on_tableau(king, 0) == True
-        assert game._can_place_on_tableau(queen, 0) == False
+        assert game._can_place_on_tableau(king, 0) is True
+        assert game._can_place_on_tableau(queen, 0) is False
 
     def test_can_place_on_foundation(self):
         """Test placing on foundation."""
@@ -417,8 +414,8 @@ class TestKlondikeInternalMethods:
         ace = Card(Suit.HEARTS, Rank.ACE)
         two = Card(Suit.HEARTS, Rank.TWO)
 
-        assert game._can_place_on_foundation(ace, int(Suit.HEARTS)) == True
-        assert game._can_place_on_foundation(two, int(Suit.HEARTS)) == False
+        assert game._can_place_on_foundation(ace, int(Suit.HEARTS)) is True
+        assert game._can_place_on_foundation(two, int(Suit.HEARTS)) is False
 
     def test_invalid_tableau_move(self):
         """Test invalid tableau to tableau move."""

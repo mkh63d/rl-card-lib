@@ -143,6 +143,7 @@ class TestTrainer:
 
     def test_train_with_callback(self, trainer):
         call_count = [0]
+
         def callback(metrics):
             call_count[0] += 1
             return call_count[0] < 3  # Stop after 3 episodes
