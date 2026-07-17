@@ -93,6 +93,14 @@ class MCTSAgent(GameAwareAgent):
     This agent does not learn. It is a compute-for-strength baseline: quality
     scales with `simulations`, and so does the time per move.
 
+    Known limitation, Macao: crediting rewards per player assumes the game pays
+    the *acting* player. Macao's terminal reward is written from player 0's seat
+    (`10.0 if current_player.is_agent else -5.0`), so a winning opponent is
+    recorded as scoring -5 and this search concludes its opponent is trying to
+    lose. It consequently plays Macao at random strength (5% vs random, where
+    GreedyLookaheadAgent gets 80%). Klondike is unaffected, being single-player.
+    See TODO.md; the fix belongs in the reward, or in a negamax variant here.
+
     Args:
         game: Game or environment to read state from (can be bound later)
         simulations: Total rollouts per move, split across determinizations

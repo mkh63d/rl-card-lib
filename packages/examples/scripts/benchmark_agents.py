@@ -58,9 +58,12 @@ def benchmark_klondike(episodes: int, max_steps: int = 300) -> list[dict]:
             ("Random", RandomAgent(action_size=action_size, seed=0)),
             ("Heuristic", KlondikeHeuristicAgent(seed=0)),
             ("GreedyLookahead(1)", GreedyLookaheadAgent(depth=1, seed=0)),
-            ("MCTS(60)", MCTSAgent(simulations=60, rollout_depth=30, seed=0)),
-            ("MCTS(60)+heur", MCTSAgent(
-                simulations=60, rollout_depth=30,
+            # Klondike deals run to hundreds of moves, and MCTS pays its whole
+            # simulation budget on every one of them, so the budget here is
+            # what finishes in minutes rather than what plays best.
+            ("MCTS(20)", MCTSAgent(simulations=20, rollout_depth=15, seed=0)),
+            ("MCTS(20)+heur", MCTSAgent(
+                simulations=20, rollout_depth=15,
                 rollout_policy=KlondikeHeuristicAgent(seed=0), seed=0,
             )),
             ("QLearning (untrained)", QLearningAgent(action_size=action_size, seed=0)),
@@ -142,9 +145,9 @@ def benchmark_macao(episodes: int, max_steps: int = 200) -> list[dict]:
             ("Random", RandomAgent(action_size=action_size, seed=0)),
             ("Heuristic", MacaoHeuristicAgent(seed=0)),
             ("GreedyLookahead(1)", GreedyLookaheadAgent(depth=1, seed=0)),
-            ("MCTS(60)", MCTSAgent(simulations=60, rollout_depth=30, seed=0)),
-            ("MCTS(60)x4det", MCTSAgent(
-                simulations=60, determinizations=4, rollout_depth=30, seed=0
+            ("MCTS(40)", MCTSAgent(simulations=40, rollout_depth=20, seed=0)),
+            ("MCTS(40)x4det", MCTSAgent(
+                simulations=40, determinizations=4, rollout_depth=20, seed=0
             )),
             ("QLearning (untrained)", QLearningAgent(action_size=action_size, seed=0)),
             ("DQN (untrained)", DQNAgent(

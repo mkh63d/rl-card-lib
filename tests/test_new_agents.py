@@ -390,16 +390,23 @@ class TestMCTSAgent:
         with pytest.raises(ValueError, match="determinizations"):
             MCTSAgent(determinizations=0)
 
+    @pytest.mark.xfail(
+        reason="No game currently has a reward function this can be measured on. "
+               "Klondike's reward contains a farmable +0.04 loop, so better search "
+               "means better loop-farming; Macao credits its terminal reward to "
+               "player 0 regardless of who won, so this search believes its "
+               "opponent is trying to lose and plays at random strength. Both are "
+               "tracked in TODO.md. Expected to pass once either is fixed.",
+        strict=False,
+    )
     def test_more_simulations_beat_fewer(self):
         """
         Search quality should rise with the budget, not just the runtime.
 
-        Measured on Macao rather than Klondike on purpose. Klondike's reward
-        makes a non-revealing tableau move worth +0.05 against a -0.01 step
-        penalty, and the move is reversible, so shuffling a card back and forth
-        pays +0.04 a time forever. Search that gets *better* at maximizing that
-        reward gets worse at solitaire, and this assertion would fail for a
-        reason that has nothing to do with MCTS. See TODO.md, "reward loop".
+        This is the property that distinguishes real search from an expensive
+        random agent, so it is kept as a live xfail rather than deleted: it is
+        the regression test for the reward fixes, and it should start passing
+        the moment one of them lands.
         """
         weak_wins, strong_wins = 0, 0
 
@@ -427,7 +434,7 @@ class TestMCTSAgent:
                     else:
                         strong_wins += 1
 
-        assert strong_wins >= weak_wins
+        assert strong_wins > weak_wins
 
 
 class TestQLearningAgent:
