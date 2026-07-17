@@ -10,9 +10,10 @@ Self-play win rate sits near 50% by construction and cannot tell you whether the
 agent got better or the opponent got worse; a fixed opponent gives an absolute
 number. Pass --self-play for the mirror match.
 
-Klondike reports cards moved to the foundations, not just reward, because the
-shaped reward contains a repeatable tableau-shuffle loop (see TODO.md). Reward
-going up on Klondike is not evidence of solitaire skill; cards-up is.
+Klondike reports cards moved to the foundations, not just reward. The shaped
+reward used to contain a repeatable tableau-shuffle loop that made reward
+anti-correlated with winning; the loop no longer pays, but cards-up stays the
+headline metric because it cannot be gamed by any reward change.
 
 Usage:
     python train_agents.py --game klondike --agent double_dqn --episodes 500
@@ -66,14 +67,14 @@ def build_learner(kind: str, state_size: int, action_size: int, seed: int):
             gamma=0.95,
             epsilon_start=1.0,
             epsilon_end=0.05,
-            epsilon_decay=0.99995,
+            epsilon_decay=0.995,  # per episode: floor at ~600 episodes
             seed=seed,
         )
     if kind == "dqn":
         return DQNAgent(
             state_size=state_size, action_size=action_size,
             hidden_sizes=[256, 128], learning_rate=5e-4, gamma=0.95,
-            epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.9995,
+            epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995,
             buffer_size=50_000, batch_size=64, target_update_freq=500,
             device="cpu", seed=seed,
         )
@@ -81,7 +82,7 @@ def build_learner(kind: str, state_size: int, action_size: int, seed: int):
         return DoubleDQNAgent(
             state_size=state_size, action_size=action_size,
             hidden_sizes=[256, 128], learning_rate=5e-4, gamma=0.95,
-            epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.9995,
+            epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995,
             buffer_size=50_000, batch_size=64, target_update_freq=500,
             dueling=True, device="cpu", seed=seed,
         )

@@ -31,7 +31,7 @@ def main():
         gamma=0.99,
         epsilon_start=1.0,
         epsilon_end=0.05,
-        epsilon_decay=0.9995,
+        epsilon_decay=0.999,  # per episode: reaches the 0.05 floor around episode 3000
         buffer_size=50000,
         batch_size=64,
         target_update_freq=1000,

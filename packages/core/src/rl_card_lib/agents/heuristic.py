@@ -141,12 +141,11 @@ class GreedyLookaheadAgent(GameAwareAgent):
     useful probe: if this agent plays badly, the reward shaping is the suspect,
     not the learner.
 
-    It has already earned its keep in that role. On Klondike it spends ~139 of
-    150 moves shuffling tableau cards and finishes with ~2.3 cards on the
-    foundations, because a non-revealing tableau move pays +0.05 against a -0.01
-    step penalty and is reversible: moving a card back and forth nets +0.04 a
-    time, forever. The agent is not malfunctioning, it is collecting exactly what
-    the reward function offers. See TODO.md, "reward loop".
+    It has already earned its keep in that role: it exposed Klondike's old
+    reward loop by spending ~139 of 150 moves shuffling tableau cards, since a
+    non-revealing tableau move paid +0.05 against a -0.01 step cost and was
+    reversible. That payment is gone (such moves now net -0.01), but keep the
+    probe in mind whenever a reward function changes.
 
     Cost is branching^depth simulations per move, so depth beyond 2-3 is slow.
     Depth > 1 also assumes a single player, since summing rewards across players
