@@ -162,6 +162,43 @@ their game meaningless; reproduce any of them with
   the existing action masking cannot be farmed and needs no per-game tuning. It
   learns slower, which is the real trade-off worth writing up.
 
+- [ ] **`SelfPlayTrainer.opponent_update_interval` does nothing.** It is stored
+  in `__init__` and never read anywhere (`grep` it). The docstring promises
+  "episodes between opponent updates", but `self.opponent = agent` is the same
+  object as the learner, so the opponent silently tracks the agent's current
+  weights at all times — there is no frozen snapshot and no periodic update.
+  That is *pure* self-play with zero lag, which is the least stable variant and
+  not what the parameter advertises. Either implement the snapshot (deep-copy
+  the agent every N episodes into a frozen opponent) or delete the parameter.
+  Any thesis text describing periodic opponent updates is currently inaccurate.
+
+## Action space / environment modelling
+
+These limit what an agent can express, so no amount of training fixes them. They
+matter for the thesis because they cap achievable play regardless of algorithm.
+
+- [ ] **Macao's two most strategic decisions are not in the action space.** When
+  an Ace or a Jack is played, `macao.py` `step()` picks the requested suit/rank
+  itself with a hardcoded "most common in my hand" rule. The agent never chooses.
+  So the headline skills of the game (declaring a suit to strand an opponent,
+  naming a rank they cannot match) are baked in as a fixed heuristic and are
+  unlearnable. `MAX_ACTIONS` is 60 with only 0-53 used, so there is room: 54-57
+  for the four suits and a rank block would make the choice the agent's.
+
+- [ ] **Klondike cannot express which card to move.** Action `19 + from*7 + to`
+  names only the two piles; `_move_tableau_to_tableau` then moves *the first
+  face-up card that fits*. Where a pile offers two legal moves to the same
+  destination, the agent cannot pick — the game decides. Splitting a stack at a
+  chosen depth is a normal solitaire tactic and is currently unreachable.
+  (`KlondikeHeuristicAgent._tableau_move_index` has to replicate the game's
+  choice to score the move honestly, which is a symptom of the same issue.)
+
+- [ ] **Klondike's action space is 66% dead.** `MAX_ACTIONS = 200` but the
+  highest encodable action is `19 + 6*7 + 6 = 67`. Actions 68-199 can never be
+  legal, yet every network carries 200 outputs and every masked softmax/argmax
+  runs over them. Cheap fix, and it shrinks the DQN output layer by two thirds.
+  Macao has the same issue at a smaller scale (60 declared, 0-53 used).
+
 ## Library Features
 
 - [ ] **Klondike reward loop (confirmed, decide before trusting any Klondike result)**
@@ -218,4 +255,36 @@ their game meaningless; reproduce any of them with
 - [ ] Consider prioritized experience replay for the DQN family, and n-step
   returns. Both are cheap additions to `MaskedReplayBuffer` and are the standard
   next lever after double + dueling.
+
+## Smaller issues noticed while working (low priority, but real)
+
+- [ ] **Epsilon decays per learning step, not per episode.** `DQNAgent.learn()`
+  applies `epsilon *= epsilon_decay` on every gradient step. With 300-step
+  Klondike episodes that is 300 decays per episode: measured,
+  `epsilon_decay=0.9995` from 1.0 hits the 0.05 floor after 5991 steps, i.e.
+  **20 episodes**, not the ~9000 the number suggests. So `train_klondike.py`'s
+  5000-episode run explores for its first 0.4% and is greedy for the rest. Not
+  wrong per se, but every documented decay value reads as ~300x slower than it
+  is; either decay in `reset()` or rename the parameter to say "per step".
+- [ ] **Global RNG reseeding.** `Deck.shuffle(seed)` and `CardGameEnv.reset(seed)`
+  call `random.seed()` / `np.random.seed()`, which reseeds the *process-wide*
+  RNG and silently perturbs every other agent and torch init in the run. Prefer
+  a local `random.Random(seed)` / `np.random.default_rng(seed)` instance.
+  (`MCTSAgent` already keeps its own `random.Random`, partly for this reason.)
+- [ ] **Invalid actions are penalized twice over.** `CardGameEnv.step()` returns
+  `invalid_action_reward=-1.0` and does not advance the game, while
+  `Macao.step()` separately returns `-1.0` and *does* advance the player for a
+  card that is not in hand. Two different code paths, two different behaviours,
+  same nominal penalty. Since every agent here masks illegal actions, this is
+  mostly dead code — worth deleting rather than maintaining.
+- [ ] **Klondike has no "loss" terminal, only truncation.** `CardGameEnv.step()`
+  ends an episode on `terminated`, which `Klondike.step()` sets only via
+  `_check_win()`. `is_game_over()` — which does report a stuck deal — is never
+  consulted by the env. In practice action 0 (draw/recycle) stays legal almost
+  forever, so a deal that cannot be won does not end: it runs to `max_steps` and
+  is recorded as a truncation. The agent therefore never receives a signal that
+  it *lost*, only that it ran out of time, and hundreds of pointless
+  draw-recycle transitions enter the replay buffer per dead deal. Related to the
+  unlimited-`max_passes` default.
+- [ ] No tests for `packages/report/` (250 lines, currently untracked).
 
