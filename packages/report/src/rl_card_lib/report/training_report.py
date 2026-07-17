@@ -12,6 +12,11 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     DQNAgent = None
 
+try:
+    from rl_card_lib.agents.ppo_agent import PPOAgent
+except Exception:  # pragma: no cover - optional dependency
+    PPOAgent = None
+
 
 @dataclass
 class TrainingReport:
@@ -21,6 +26,7 @@ class TrainingReport:
     trainer: dict[str, Any]
     agent: dict[str, Any]
     dqn: Optional[dict[str, Any]] = None
+    ppo: Optional[dict[str, Any]] = None
     training: Optional[dict[str, Any]] = None
 
     @classmethod
@@ -36,6 +42,7 @@ class TrainingReport:
         agent = getattr(trainer, "agent", None)
         agent_info = _collect_agent_info(agent)
         dqn_info = _collect_dqn_info(agent)
+        ppo_info = _collect_ppo_info(agent)
         training_info = _collect_training_info(episodes, max_steps_per_episode)
 
         return cls(
@@ -43,6 +50,7 @@ class TrainingReport:
             trainer=trainer_info,
             agent=agent_info,
             dqn=dqn_info,
+            ppo=ppo_info,
             training=training_info,
         )
 
@@ -56,6 +64,8 @@ class TrainingReport:
             data["training"] = self.training
         if self.dqn:
             data["dqn"] = self.dqn
+        if self.ppo:
+            data["ppo"] = self.ppo
         return data
 
     def to_markdown(self) -> str:
@@ -66,8 +76,27 @@ class TrainingReport:
         _append_section(lines, "Trainer", self.trainer)
         _append_section(lines, "Agent", self.agent)
         _append_section(lines, "DQN", self.dqn)
+        _append_section(lines, "PPO", self.ppo)
 
         return "\n".join(lines).strip()
+
+    def to_json(self, indent: int = 2) -> str:
+        """
+        Render the report as a JSON string.
+
+        Values that JSON has no encoding for (paths, devices, tuples) are
+        stringified rather than rejected, since a report is for reading, not
+        for round-tripping.
+
+        Args:
+            indent: Indentation passed to json.dumps
+
+        Returns:
+            JSON document with the same sections as as_dict()
+        """
+        import json
+
+        return json.dumps(self.as_dict(), indent=indent, default=str)
 
 
 def _collect_training_info(
@@ -168,6 +197,31 @@ def _collect_dqn_info(agent: Optional[Agent]) -> Optional[dict[str, Any]]:
         return {k: v for k, v in info.items() if v is not None}
 
     return None
+
+
+def _collect_ppo_info(agent: Optional[Agent]) -> Optional[dict[str, Any]]:
+    if agent is None or PPOAgent is None or not isinstance(agent, PPOAgent):
+        return None
+
+    info: dict[str, Any] = {
+        "state_size": agent.state_size,
+        "action_size": agent.action_size,
+        "hidden_sizes": list(agent.hidden_sizes),
+        "learning_rate": _get_learning_rate(agent),
+        "gamma": agent.gamma,
+        "gae_lambda": agent.gae_lambda,
+        "clip_epsilon": agent.clip_epsilon,
+        "epochs": agent.epochs,
+        "minibatch_size": agent.minibatch_size,
+        "rollout_steps": agent.rollout_steps,
+        "entropy_coef": agent.entropy_coef,
+        "value_coef": agent.value_coef,
+        "max_grad_norm": agent.max_grad_norm,
+        "device": str(agent.device),
+        "seed": getattr(agent, "seed", None),
+    }
+
+    return {k: v for k, v in info.items() if v is not None}
 
 
 def _get_learning_rate(agent: Any) -> Optional[float]:
