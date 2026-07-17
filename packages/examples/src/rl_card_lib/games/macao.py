@@ -1,9 +1,15 @@
 """Macao (Crazy Eights variant) game implementation."""
 
-from typing import Optional
+import random
+from typing import Any, Optional
 import numpy as np
 
 from rl_card_lib.cardgames import Card, Suit, Rank, Deck, Player, CardGame
+
+
+def _clone_cards(cards: list[Card]) -> list[Card]:
+    """Copy a pile so the clone's cards can be flipped without touching the original."""
+    return [Card(c.suit, c.rank, c.face_up) for c in cards]
 
 
 class Macao(CardGame):
@@ -375,6 +381,96 @@ class Macao(CardGame):
     def is_game_over(self) -> bool:
         """Check if game is over."""
         return self.done or self._turn_count >= self.max_turns
+
+    def copy(self) -> "Macao":
+        """
+        Return an independent copy of the current position.
+
+        Bypasses __init__ so no cards are dealt and no shuffling happens.
+
+        Returns:
+            A game whose state matches this one but shares no mutable objects
+        """
+        clone = object.__new__(type(self))
+
+        # Game / CardGame state
+        clone.num_players = self.num_players
+        clone.current_player_idx = self.current_player_idx
+        clone.done = self.done
+        clone.winner = self.winner
+        clone._turn_count = self._turn_count
+        clone._history = list(self._history)
+        clone.deck = self.deck.copy()
+
+        clone.players = []
+        for player in self.players:
+            clone_player = Player(
+                player_id=player.player_id,
+                name=player.name,
+                is_agent=player.is_agent,
+            )
+            clone_player.hand = _clone_cards(player.hand)
+            clone_player.score = player.score
+            clone.players.append(clone_player)
+
+        # Macao state
+        clone.max_turns = self.max_turns
+        clone.discard_pile = _clone_cards(self.discard_pile)
+        clone.requested_suit = self.requested_suit
+        clone.requested_rank = self.requested_rank
+        clone.draw_penalty = self.draw_penalty
+        clone.skip_next = self.skip_next
+
+        return clone
+
+    def determinize(
+        self,
+        observer_idx: int = 0,
+        rng: Optional[Any] = None,
+    ) -> "Macao":
+        """
+        Return a copy with the opponents' hands and the deck re-dealt at random.
+
+        The observer sees its own hand, the discard pile and everyone's hand
+        *sizes*, but not which cards the opponents hold nor the deck order. This
+        re-deals everything it cannot see, keeping hand sizes intact, so search
+        agents plan over a state they could have deduced rather than the truth.
+
+        Note this ignores what could be inferred from the play so far, e.g. an
+        opponent who drew rather than played probably has no matching suit.
+
+        Args:
+            observer_idx: Player whose knowledge the sample must stay consistent with
+            rng: `random.Random` instance to draw from (None for the global one)
+
+        Returns:
+            A game the observer cannot distinguish from this one
+        """
+        rng = rng or random
+        clone = self.copy()
+
+        unseen: list[Card] = []
+        for idx, player in enumerate(clone.players):
+            if idx != observer_idx:
+                unseen.extend(player.hand)
+        unseen.extend(clone.deck.cards)
+
+        rng.shuffle(unseen)
+
+        pos = 0
+        for idx, player in enumerate(clone.players):
+            if idx != observer_idx:
+                hand_size = len(player.hand)
+                player.hand = unseen[pos:pos + hand_size]
+                for card in player.hand:
+                    card.face_up = True
+                pos += hand_size
+
+        clone.deck.cards = unseen[pos:]
+        for card in clone.deck.cards:
+            card.face_up = False
+
+        return clone
 
     def render(self) -> str:
         """Render game state as string."""

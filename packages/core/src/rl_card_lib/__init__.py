@@ -10,18 +10,37 @@ __author__ = "Michal Holynski"
 from rl_card_lib.cardgames import Card, Deck, CardGame, Player
 from rl_card_lib.core import Game, GymEnvWrapper
 from rl_card_lib.env import CardGameEnv
-from rl_card_lib.agents import DQNAgent, RandomAgent
+from rl_card_lib.agents import (
+    Agent,
+    DoubleDQNAgent,
+    DQNAgent,
+    GameAwareAgent,
+    GreedyLookaheadAgent,
+    HeuristicAgent,
+    MCTSAgent,
+    PPOAgent,
+    QLearningAgent,
+    RandomAgent,
+)
 from rl_card_lib.trainer import Trainer
 
 __all__ = [
-	"Card",
-	"Deck",
-	"CardGame",
-	"Player",
-	"Game",
-	"GymEnvWrapper",
-	"CardGameEnv",
-	"DQNAgent",
-	"RandomAgent",
-	"Trainer",
+    "Card",
+    "Deck",
+    "CardGame",
+    "Player",
+    "Game",
+    "GymEnvWrapper",
+    "CardGameEnv",
+    "Agent",
+    "GameAwareAgent",
+    "RandomAgent",
+    "HeuristicAgent",
+    "GreedyLookaheadAgent",
+    "MCTSAgent",
+    "QLearningAgent",
+    "DQNAgent",
+    "DoubleDQNAgent",
+    "PPOAgent",
+    "Trainer",
 ]

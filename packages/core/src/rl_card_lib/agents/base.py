@@ -8,11 +8,17 @@ import numpy as np
 class Agent(ABC):
     """
     Abstract base class for all agents.
-    
+
     Agents interact with card game environments by selecting actions
     based on observations and optionally learning from experience.
     """
-    
+
+    #: Set True by agents whose learn() takes a `next_legal_actions` keyword.
+    #: Bootstrapping over actions the next state does not actually allow biases
+    #: the TD target, but most agents ignore this, so Trainer only passes the
+    #: argument to those that opt in.
+    accepts_next_legal_actions: bool = False
+
     def __init__(self, name: str = "Agent"):
         """
         Initialize the agent.

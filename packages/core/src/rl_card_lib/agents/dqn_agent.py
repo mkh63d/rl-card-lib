@@ -139,12 +139,17 @@ class DQNAgent(Agent):
         
         self.state_size = state_size
         self.action_size = action_size
+        self.hidden_sizes = list(hidden_sizes)
+        self.learning_rate = learning_rate
         self.gamma = gamma
+        self.epsilon_start = epsilon_start
         self.epsilon = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
+        self.buffer_size = buffer_size
         self.batch_size = batch_size
         self.target_update_freq = target_update_freq
+        self.seed = seed
         
         # Set random seeds
         if seed is not None:
@@ -159,8 +164,8 @@ class DQNAgent(Agent):
             self.device = torch.device(device)
         
         # Create networks
-        self.q_network = QNetwork(state_size, action_size, hidden_sizes).to(self.device)
-        self.target_network = QNetwork(state_size, action_size, hidden_sizes).to(self.device)
+        self.q_network = self._create_network().to(self.device)
+        self.target_network = self._create_network().to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()
         
@@ -174,7 +179,19 @@ class DQNAgent(Agent):
         self.steps = 0
         self.episodes = 0
         self.train_steps = 0
-    
+
+    def _create_network(self) -> nn.Module:
+        """
+        Build one Q-network. Called twice, for the online and target copies.
+
+        Subclasses override this to change the architecture without
+        reimplementing __init__.
+
+        Returns:
+            An un-moved network module
+        """
+        return QNetwork(self.state_size, self.action_size, self.hidden_sizes)
+
     def select_action(
         self,
         observation: np.ndarray,

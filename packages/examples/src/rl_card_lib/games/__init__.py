@@ -2,5 +2,14 @@
 
 from rl_card_lib.games.klondike import KlondikeSolitaire
 from rl_card_lib.games.macao import Macao
+from rl_card_lib.games.heuristics import (
+    KlondikeHeuristicAgent,
+    MacaoHeuristicAgent,
+)
 
-__all__ = ["KlondikeSolitaire", "Macao"]
+__all__ = [
+    "KlondikeSolitaire",
+    "Macao",
+    "KlondikeHeuristicAgent",
+    "MacaoHeuristicAgent",
+]

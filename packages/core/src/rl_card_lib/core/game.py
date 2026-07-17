@@ -87,3 +87,20 @@ class Game(ABC):
 
     def copy(self) -> "Game":
         raise NotImplementedError("copy() must be implemented by subclass")
+
+    def determinize(self, observer_idx: int = 0, rng: Optional[Any] = None) -> "Game":
+        """
+        Return a copy with the cards hidden from `observer_idx` re-dealt at random.
+
+        Search agents call this so they plan over a state they could actually
+        have deduced, instead of reading face-down cards straight out of the
+        game object. The default assumes perfect information and just copies.
+
+        Args:
+            observer_idx: Player whose knowledge the sample must stay consistent with
+            rng: `random.Random` instance to draw from (None for the global one)
+
+        Returns:
+            A game whose visible state matches this one
+        """
+        return self.copy()
