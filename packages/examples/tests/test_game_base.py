@@ -1,5 +1,6 @@
 """Tests for CardGame base class behavior using example games."""
 
+import numpy as np
 import pytest
 
 from rl_card_lib.cardgames import CardGame
@@ -74,13 +75,31 @@ class TestCardGame:
         assert mask.dtype == bool
         assert mask[0] == True  # Draw should be legal
 
-    def test_game_copy_not_implemented(self):
-        """Test copy raises NotImplementedError."""
-        game = KlondikeSolitaire()
-        game.reset()
+    def test_game_copy_not_implemented_by_default(self):
+        """Test copy raises NotImplementedError for games that don't override it."""
+        class UncopyableGame(CardGame):
+            def reset(self): return np.zeros(1, dtype=np.float32)
+            def step(self, action): return np.zeros(1, dtype=np.float32), 0.0, False, False, {}
+            def get_legal_actions(self): return [0]
+            def get_observation(self): return np.zeros(1, dtype=np.float32)
+            def get_action_space_size(self): return 1
+            def get_observation_shape(self): return (1,)
+            def is_game_over(self): return False
 
         with pytest.raises(NotImplementedError):
-            game.copy()
+            UncopyableGame().copy()
+
+    def test_game_copy_is_independent(self):
+        """Test a copied game can be played without disturbing the original."""
+        game = KlondikeSolitaire()
+        game.reset()
+        before = game.get_observation().copy()
+
+        clone = game.copy()
+        for action in clone.get_legal_actions()[:5]:
+            clone.step(action)
+
+        assert np.array_equal(game.get_observation(), before)
 
     def test_game_default_render(self):
         """Test default render method from base class."""

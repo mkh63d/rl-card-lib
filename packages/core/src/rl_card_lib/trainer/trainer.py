@@ -50,6 +50,13 @@ class Trainer:
         self.agent = agent
         self.eval_env = eval_env or env
         self.checkpoint_dir = checkpoint_dir
+
+        # Rule-based and search agents read the game object rather than the
+        # observation vector. Bind them here so callers get one less step to
+        # forget; an agent bound elsewhere on purpose is left alone.
+        if hasattr(agent, "bind") and getattr(agent, "game", None) is None:
+            agent.bind(env)
+
         self.log_interval = log_interval
         self.eval_interval = eval_interval
         self.eval_episodes = eval_episodes
@@ -58,7 +65,44 @@ class Trainer:
         self.metrics = TrainingMetrics()
         self._episode_count = 0
         self._total_steps = 0
-    
+
+    def _learn(
+        self,
+        agent: Agent,
+        observation: np.ndarray,
+        action: int,
+        reward: float,
+        next_observation: np.ndarray,
+        done: bool,
+        info: dict,
+    ) -> Optional[dict]:
+        """
+        Hand a transition to an agent, including next-state legality if it wants it.
+
+        Agents that mask their bootstrap need to know which actions the next
+        state allows, which only the post-step info dict knows. Passing it
+        unconditionally would break every agent with a five-argument learn(), so
+        it goes only to those advertising accepts_next_legal_actions.
+
+        Args:
+            agent: Agent to update
+            observation: State before action
+            action: Action taken
+            reward: Reward received
+            next_observation: State after action
+            done: Whether episode ended
+            info: Info dict returned by the step, holding the next legal actions
+
+        Returns:
+            Whatever the agent's learn() returned
+        """
+        if getattr(agent, "accepts_next_legal_actions", False):
+            return agent.learn(
+                observation, action, reward, next_observation, done,
+                next_legal_actions=info.get("legal_actions"),
+            )
+        return agent.learn(observation, action, reward, next_observation, done)
+
     def train(
         self,
         episodes: int,
@@ -166,12 +210,13 @@ class Trainer:
             
             # Learn
             if training:
-                learn_result = self.agent.learn(
-                    observation, action, reward, next_observation, done
+                learn_result = self._learn(
+                    self.agent, observation, action, reward,
+                    next_observation, done, info,
                 )
                 if learn_result and "loss" in learn_result:
                     losses.append(learn_result["loss"])
-            
+
             observation = next_observation
             episode_reward += reward
             episode_steps += 1
@@ -258,52 +303,81 @@ class Trainer:
 
 class SelfPlayTrainer(Trainer):
     """
-    Trainer for self-play in multi-player games.
-    
-    Two copies of the agent play against each other,
-    with periodic updates of the opponent.
+    Trainer for multi-player games where the agent needs someone to play against.
+
+    By default the agent plays itself, which is the classic self-play setup: the
+    opponent improves exactly as fast as the agent, so the difficulty tracks it
+    and never becomes trivial or hopeless. Pass an `opponent` to train against a
+    fixed policy instead, which is what you want when self-play is drifting into
+    strategies that only work against a mirror of itself, or when you want the
+    win rate to mean something absolute rather than "half, by construction".
+
+    Only the agent's own transitions are learned from, and only its own rewards
+    count towards the episode reward.
+
+    Args:
+        env: Game environment
+        agent: Agent to train, always seated as player 0
+        opponent: Fixed policy for the other seats (None to play against self)
+        opponent_update_interval: Episodes between opponent updates
+        **kwargs: Additional arguments passed to Trainer
     """
-    
+
     def __init__(
         self,
         env: CardGameEnv,
         agent: Agent,
+        opponent: Optional[Agent] = None,
         opponent_update_interval: int = 1000,
         **kwargs
     ):
-        """
-        Initialize self-play trainer.
-        
-        Args:
-            env: Game environment
-            agent: Agent to train
-            opponent_update_interval: Episodes between opponent updates
-            **kwargs: Additional arguments passed to Trainer
-        """
         super().__init__(env, agent, **kwargs)
         self.opponent_update_interval = opponent_update_interval
-        self.opponent = agent  # Initially same as training agent
-    
+        self.self_play = opponent is None
+        self.opponent = agent if opponent is None else opponent
+
+        if (hasattr(self.opponent, "bind")
+                and getattr(self.opponent, "game", None) is None):
+            self.opponent.bind(env)
+
+    def _current_player(self, fallback: int) -> int:
+        """
+        Ask the game whose turn it is.
+
+        Alternating on every step would be wrong: a Macao four skips a turn, an
+        invalid action does not advance the game at all, and neither shows up in
+        a blind toggle.
+
+        Args:
+            fallback: Value to use for games that do not track a current player
+
+        Returns:
+            Index of the player to move
+        """
+        return int(getattr(self.env.game, "current_player_idx", fallback))
+
     def _run_episode(
         self,
         training: bool = True,
         max_steps: Optional[int] = None
     ) -> dict:
-        """Run self-play episode."""
+        """Run one episode of the agent against the opponent."""
         observation, info = self.env.reset()
         self.agent.reset()
-        
+        if not self.self_play:
+            self.opponent.reset()
+
         episode_reward = 0.0
         episode_steps = 0
         done = False
         losses = []
-        
-        current_player = 0  # Track whose turn it is
-        
+
+        current_player = self._current_player(0)
+
         while not done:
             # Select action based on current player
             legal_actions = info.get("legal_actions", None)
-            
+
             if current_player == 0:
                 # Training agent's turn
                 action = self.agent.select_action(observation, legal_actions)
@@ -312,30 +386,30 @@ class SelfPlayTrainer(Trainer):
                 self.opponent.eval()
                 action = self.opponent.select_action(observation, legal_actions)
                 self.opponent.train()
-            
+
             # Execute action
             next_observation, reward, terminated, truncated, info = self.env.step(action)
             done = terminated or truncated
-            
+
             # Only learn from agent's own actions
             if training and current_player == 0:
-                learn_result = self.agent.learn(
-                    observation, action, reward, next_observation, done
+                learn_result = self._learn(
+                    self.agent, observation, action, reward,
+                    next_observation, done, info,
                 )
                 if learn_result and "loss" in learn_result:
                     losses.append(learn_result["loss"])
                 episode_reward += reward
-            
+
             observation = next_observation
             episode_steps += 1
             self._total_steps += 1
-            
-            # Switch players
-            current_player = 1 - current_player
-            
+
+            current_player = self._current_player(1 - current_player)
+
             if max_steps and episode_steps >= max_steps:
                 break
-        
+
         return {
             "reward": episode_reward,
             "steps": episode_steps,

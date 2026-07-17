@@ -1,8 +1,16 @@
 """Klondike Solitaire game implementation."""
 
+import random
+from typing import Any, Optional
+
 import numpy as np
 
 from rl_card_lib.cardgames import Card, Suit, Rank, Deck, CardGame
+
+
+def _clone_cards(cards: list[Card]) -> list[Card]:
+    """Copy a pile so the clone's cards can be flipped without touching the original."""
+    return [Card(c.suit, c.rank, c.face_up) for c in cards]
 
 
 class KlondikeSolitaire(CardGame):
@@ -414,6 +422,83 @@ class KlondikeSolitaire(CardGame):
 
         # Game is stuck if no legal moves
         return len(self.get_legal_actions()) == 0
+
+    def copy(self) -> "KlondikeSolitaire":
+        """
+        Return an independent copy of the current position.
+
+        Bypasses __init__ so no cards are dealt and no shuffling happens.
+
+        Returns:
+            A game whose state matches this one but shares no mutable objects
+        """
+        clone = object.__new__(type(self))
+
+        # Game / CardGame state
+        clone.num_players = self.num_players
+        clone.players = []  # Klondike is single-player and never fills this
+        clone.current_player_idx = self.current_player_idx
+        clone.done = self.done
+        clone.winner = self.winner
+        clone._turn_count = self._turn_count
+        clone._history = list(self._history)
+        clone.deck = self.deck.copy()
+
+        # Klondike state
+        clone.draw_count = self.draw_count
+        clone.max_passes = self.max_passes
+        clone.tableaux = [_clone_cards(pile) for pile in self.tableaux]
+        clone.foundations = [_clone_cards(pile) for pile in self.foundations]
+        clone.stock = _clone_cards(self.stock)
+        clone.waste = _clone_cards(self.waste)
+        clone.passes = self.passes
+
+        return clone
+
+    def determinize(
+        self,
+        observer_idx: int = 0,
+        rng: Optional[Any] = None,
+    ) -> "KlondikeSolitaire":
+        """
+        Return a copy with the face-down cards shuffled among themselves.
+
+        The player cannot see the face-down tableau cards or the stock, so every
+        assignment of those cards to those slots is consistent with what has been
+        observed. Search agents sample one instead of reading the real cards.
+
+        Note this discards one thing a careful human would remember: stock cards
+        seen on an earlier pass are treated as unknown again once recycled.
+
+        Args:
+            observer_idx: Unused, Klondike has a single player
+            rng: `random.Random` instance to draw from (None for the global one)
+
+        Returns:
+            A game whose face-up cards match this one and whose hidden cards are re-dealt
+        """
+        rng = rng or random
+        clone = self.copy()
+
+        slots: list[tuple[list[Card], int]] = []
+        hidden: list[Card] = []
+
+        for pile in clone.tableaux:
+            for idx, card in enumerate(pile):
+                if not card.face_up:
+                    slots.append((pile, idx))
+                    hidden.append(card)
+
+        for idx, card in enumerate(clone.stock):
+            slots.append((clone.stock, idx))
+            hidden.append(card)
+
+        rng.shuffle(hidden)
+        for (pile, idx), card in zip(slots, hidden):
+            card.face_up = False
+            pile[idx] = card
+
+        return clone
 
     def render(self) -> str:
         """Render game state as string."""
