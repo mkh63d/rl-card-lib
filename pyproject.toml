@@ -72,6 +72,7 @@ pythonpath = [
     "packages/core/src",
     "packages/cardgames/src",
     "packages/examples/src",
+    "packages/report/src",
     "packages/visualizer/src",
 ]
 
@@ -81,6 +82,7 @@ source = [
     "packages/core/src/rl_card_lib",
     "packages/cardgames/src/rl_card_lib",
     "packages/examples/src/rl_card_lib",
+    "packages/report/src/rl_card_lib",
     "packages/visualizer/src/rl_card_lib",
 ]
 

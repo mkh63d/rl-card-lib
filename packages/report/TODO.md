@@ -1,0 +1,2 @@
+- Add JSON/YAML export helpers for training reports.
+- Add report helpers for other agent types.
