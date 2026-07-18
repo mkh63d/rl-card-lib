@@ -1,45 +1,49 @@
 # Core Package - TODO (migrate to game-agnostic core)
 
-This TODO lists the concrete steps to generalize the `core` package from card-specific concepts to a minimal, game-agnostic core. Items are ordered roughly by dependency and recommended implementation order.
+Status 2026-07-17: the core of the migration exists and is exercised — `Game`
+is the game-agnostic base (card games subclass it via `CardGame`),
+`GymEnvWrapper` adapts any `Game`, and both are exported. The remaining items
+are the deprecation/compat layer and extra example games, which only matter
+once external users exist.
 
 ## High-level Migration
-- [ ] Define `Game` abstract interface and public contract (reset, legal_actions, step, win_status, observation/action spaces)
-- [ ] Implement `GymEnvWrapper` to adapt any `Game` to a Gymnasium `Env`
-- [ ] Add `win_status()` helpers covering common patterns (single-winner, multi-agent zero-sum, draws)
-- [ ] Create compatibility module `extras.card` (or `examples.card`) to host `Card`, `Deck`, and other card-specific helpers
-- [ ] Add deprecation shims in the root API that alias `CardGame` -> `Game` with deprecation warnings
+- [x] `Game` abstract interface (reset, step, legal_actions, observation and
+  action space helpers, winner, copy/determinize) — `core/game.py`
+- [x] `GymEnvWrapper` adapting any `Game` to a Gymnasium-style env
+- [x] Generic API exported from `rl_card_lib.core` (`Game`, `GymEnvWrapper`,
+  `Trainer`)
+- [ ] `win_status()` helpers for common patterns (single-winner, zero-sum,
+  draws) — `winner`/`get_reward()` cover today's games
+- [ ] Compatibility module `extras.card` + deprecation shims aliasing
+  `CardGame` -> `Game` — deferred until something outside this repo imports
+  the old names
 
 ## Code Structure & API
-- [ ] Audit and rename modules/classes: replace `CardGame` with `Game` or provide `CardGame` as a thin subclass in extras
-- [ ] Export the generic API from `rl_card_lib.core.__init__` (`Game`, `Trainer`, `GymEnvWrapper`, `Agent`)
-- [ ] Add/verify `observation_space` and `action_space` helpers for Gym compatibility
-- [ ] Add type hints and public docstrings to new `Game` API
+- [x] `CardGame` is a thin subclass of `Game` (lives in cardgames, which is
+  the "extras" package in practice)
+- [x] Type hints and docstrings on the `Game` API
+- [x] `get_legal_action_mask()` / observation-shape helpers for Gym
+  compatibility
 
 ## Tests
-- [ ] Add unit tests that assert the `Game` contract (reset/step/legal_actions/win_status)
-- [ ] Create example game tests: simple grid-world, tic-tac-toe, and a card-based example moved into `extras.card`
-- [ ] Update `Trainer` tests to work with either a `Game` or a Gym env
+- [x] Game-contract tests (`tests/test_game_base.py`,
+  `packages/examples/tests/test_game_base.py`)
+- [x] Trainer works against wrapped games (root trainer suite)
+- [ ] Non-card example games (grid-world, tic-tac-toe) to prove the interface
+  carries beyond cards — worthwhile for the thesis's "universal library" claim
 
 ## Documentation & Examples
-- [ ] Update `packages/core/README.md` to document the generic `Game` contract (done)
-- [ ] Add `doc/migration.md` describing API differences and step-by-step migration guide for downstream users
-- [ ] Provide example notebooks/scripts for: (a) grid-world, (b) tic-tac-toe, (c) original card example in `extras.card`
-
-## Compatibility & Deprecation
-- [ ] Implement runtime deprecation warnings for old APIs and provide migration hints in warnings
-- [ ] Keep `extras.card` to avoid immediate breakage for downstream packages; mark it as optional in `pyproject.toml`
+- [x] `packages/core/README.md` documents the generic `Game` contract
+- [ ] `docs/migration.md` step-by-step migration guide
+- [ ] Example scripts for a non-card `Game`
 
 ## Packaging & Release
-- [ ] Update `pyproject.toml` metadata and description to reflect the generic core
-- [ ] Create `CHANGELOG.md` documenting the migration and breaking changes
-- [ ] Prepare a migration release (major/minor per semantic versioning) and release notes
+- [ ] Update `pyproject.toml` metadata to reflect the generic core
+- [x] Changelog: covered by the root `CHANGELOG.md` until packages version
+  independently
+- [ ] Migration release + notes (blocked on publishing at all)
 
 ## Follow-up / Nice-to-have
-- [ ] Add CI job(s) to run the core tests against multiple example games
-- [ ] Add Lint/typecheck (mypy) gating for the core package
-- [ ] Provide a small `cookiecutter`-style template demonstrating how to implement a `Game` subclass
-
----
-
-If you'd like, I can implement the `Game` interface skeleton and `GymEnvWrapper` now and update tests/examples accordingly. Which item should I start with?
-
+- [x] CI runs the core tests (root suite, Python 3.10-3.12)
+- [ ] mypy gating for the core package
+- [ ] Cookiecutter-style template for new `Game` subclasses

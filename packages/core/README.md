@@ -98,21 +98,17 @@ src/rl_card_lib/
 └── utils/       # Encoding, visualization, helpers
 ```
 
-## TODO / Migration checklist
+## Migration status
 
-The project README and other packages currently assume card-specific concepts. To complete the migration to a generic game core, implement the following tasks (rough ordering):
+The generic core exists: `Game` is the game-agnostic base class (documented
+under "Recommended API contract" above), `GymEnvWrapper` adapts any `Game` to
+a Gymnasium-style env, and the card-specific classes (`Card`, `Deck`,
+`CardGame`) live in the separate `rl-card-lib-cardgames` package, with
+`CardGame` a thin subclass of `Game`.
 
-1. Replace or alias `CardGame` with a generic `Game` interface and document the contract (see "Recommended API contract").
-2. Implement `GymEnvWrapper` that adapts any `Game` to Gymnasium `Env` and document how to map observations/actions.
-3. Add clear `win_status()` semantics and helpers for common terminal/result patterns (single-winner, multi-agent zero-sum, draws).
-4. Audit existing core modules for card-specific names (`Card`, `Deck`, `CardGame`) and move them into an optional `examples.card` or `extras.card` module to preserve backward compatibility.
-5. Add compatibility shims or deprecation warnings for the old card-specific API to ease migration for downstream packages.
-6. Expand unit tests to cover the generic `Game` contract and create example games (card, board, simple grid-world) that demonstrate the API.
-7. Update `packages/*/examples` to use the `Game` abstraction and the `GymEnvWrapper` where appropriate.
-8. Update `pyproject.toml` metadata, documentation links, and package descriptions to reflect the generic core purpose.
-9. Add migration guide in `doc/` describing API differences and recommended refactoring steps for users of the old card-specific API.
-
-If you want, I can apply a subset of these changes now (for example: add `Game` interface skeleton, gym wrapper, and update a few tests). Tell me which items to implement first.
+Remaining migration work is tracked in [TODO.md](TODO.md): deprecation shims
+for old import paths, non-card example games proving the interface, and a
+written migration guide.
 
 ## API Reference
 

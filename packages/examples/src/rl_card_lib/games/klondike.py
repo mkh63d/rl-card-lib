@@ -27,10 +27,16 @@ class KlondikeSolitaire(CardGame):
     - Waste pile (cards drawn from stock)
 
     Actions:
-    - Draw from stock to waste
+    - Draw from stock to waste (recycles the waste when the stock is empty)
     - Move card(s) between tableaux
     - Move card from tableau/waste to foundation
-    - Move card from foundation to tableau
+
+    Rewards (shaped mode): +1.0 per card to a foundation, +0.2 per face-down
+    card revealed (+0.1 for the reveal on a foundation move), +0.1 for playing
+    off the waste, -0.1 for recycling the waste, -0.01 per move, and
+    LOSS_REWARD when the deal dies. Non-revealing tableau moves pay nothing on
+    purpose: they are reversible, so any positive payment is farmable. Sparse
+    mode pays only the win/loss terminals.
     """
 
     # Action encoding:
@@ -38,22 +44,58 @@ class KlondikeSolitaire(CardGame):
     # 1-7: Move waste to tableau
     # 8-11: Move waste to foundation
     # 12-18: Move tableau top to foundation
-    # 19+: Move between tableaux (from_pile * 7 + to_pile)
+    # 19-67: Move between tableaux (19 + from_pile * 7 + to_pile)
+    #
+    # The tableau block names only the two piles, never the card. That is not a
+    # restriction: the face-up section of a tableau pile is always one strictly
+    # descending, alternating-color run, so for a given destination at most one
+    # card in the run can legally move there (its rank and color are forced by
+    # the destination's top card, and empty piles accept only the run's single
+    # king). The card the game picks is therefore the only card it could pick.
+    #
+    # 68 = 19 + 6 * 7 + 6 + 1 is the tightest bound the encoding allows; the
+    # seven from == to diagonal entries are wasted but keeping the formula
+    # simple is worth seven dead outputs (it used to be 132 dead ones).
 
-    MAX_ACTIONS = 200
+    MAX_ACTIONS = 68
 
-    def __init__(self, draw_count: int = 1, max_passes: int = None):
+    #: Reward paid on the terminal step of a lost deal, in both reward modes.
+    #: Without it a stuck deal is indistinguishable from running out of time.
+    LOSS_REWARD = -1.0
+
+    def __init__(
+        self,
+        draw_count: int = 1,
+        max_passes: Optional[int] = None,
+        reward_mode: str = "shaped",
+        seed: Optional[int] = None,
+    ):
         """
         Initialize Klondike Solitaire.
 
         Args:
             draw_count: Number of cards to draw from stock (1 or 3)
-            max_passes: Maximum passes through deck (None for unlimited)
+            max_passes: Maximum passes through the deck (None for unlimited).
+                Note that with unlimited passes a dead deal never runs out of
+                legal moves, so it can only end by truncation, never as a loss.
+            reward_mode: "shaped" pays per-move progress rewards (foundations,
+                reveals) plus a small step cost; "sparse" pays only +1 for a won
+                deal and LOSS_REWARD for a dead one. Sparse cannot be farmed and
+                needs no tuning, at the cost of a much weaker learning signal.
+            seed: Seed for this game's private RNG, used for shuffling. The
+                process-wide RNG is never touched.
         """
         super().__init__(num_players=1)
 
+        if reward_mode not in ("shaped", "sparse"):
+            raise ValueError(
+                f"reward_mode must be 'shaped' or 'sparse', got {reward_mode!r}"
+            )
+
         self.draw_count = draw_count
         self.max_passes = max_passes
+        self.reward_mode = reward_mode
+        self._rng = random.Random(seed)
 
         # Game state
         self.tableaux: list[list[Card]] = [[] for _ in range(7)]
@@ -64,10 +106,21 @@ class KlondikeSolitaire(CardGame):
 
         self.reset()
 
-    def reset(self) -> np.ndarray:
-        """Reset the game to initial state."""
+    def reset(self, seed: Optional[int] = None) -> np.ndarray:
+        """
+        Reset the game to a freshly dealt state.
+
+        Args:
+            seed: Reseeds this game's private RNG first, making the deal (and
+                every later shuffle) reproducible without touching global state
+
+        Returns:
+            The initial observation
+        """
+        if seed is not None:
+            self._rng = random.Random(seed)
         self.deck = Deck()
-        self.deck.shuffle()
+        self.deck.shuffle(rng=self._rng)
 
         # Clear all piles
         self.tableaux = [[] for _ in range(7)]
@@ -167,8 +220,10 @@ class KlondikeSolitaire(CardGame):
         """Get list of legal action indices."""
         legal = []
 
-        # Action 0: Draw from stock (or flip waste back to stock)
-        if self.stock or self.waste:
+        # Action 0: Draw from stock, or flip the waste back to the stock. The
+        # recycle is only legal while passes remain; without this check a deal
+        # that ran out of passes could still "draw" forever as a no-op.
+        if self.stock or (self.waste and self._can_recycle()):
             legal.append(0)
 
         # Actions 1-7: Move waste top to tableau 1-7
@@ -289,12 +344,27 @@ class KlondikeSolitaire(CardGame):
             to_pile = relative_action % 7
             reward = self._move_tableau_to_tableau(from_pile, to_pile)
 
-        # Check win condition
-        terminated = self._check_win()
-        truncated = False
-
         # Small penalty for each move to encourage efficiency
         reward -= 0.01
+
+        if self.reward_mode == "sparse":
+            reward = 0.0
+
+        won = self._check_win()
+        if won:
+            if self.reward_mode == "sparse":
+                reward = 1.0
+        elif not self.get_legal_actions():
+            # No legal moves left: the deal is dead. Ending it here (instead of
+            # only ever truncating) gives the agent an actual loss signal and
+            # keeps hundreds of pointless post-mortem moves out of the replay
+            # buffer. Reachable only with a finite max_passes, since otherwise
+            # draw/recycle stays legal forever.
+            self.done = True
+            reward += self.LOSS_REWARD
+
+        terminated = self.done
+        truncated = False
 
         info = {
             "foundations": [len(f) for f in self.foundations],
@@ -302,6 +372,10 @@ class KlondikeSolitaire(CardGame):
         }
 
         return self.get_observation(), reward, terminated, truncated, info
+
+    def _can_recycle(self) -> bool:
+        """Whether flipping the waste back into the stock is still allowed."""
+        return self.max_passes is None or self.passes + 1 < self.max_passes
 
     def _draw_from_stock(self) -> float:
         """Draw card(s) from stock to waste."""
@@ -312,10 +386,12 @@ class KlondikeSolitaire(CardGame):
                 self.waste.append(card)
             return 0.0
         elif self.waste:
+            if not self._can_recycle():
+                # Unreachable through legal play: get_legal_actions() withholds
+                # action 0 once the passes run out.
+                return -0.5
             # Reset: move waste back to stock
             self.passes += 1
-            if self.max_passes and self.passes >= self.max_passes:
-                return -0.5  # Penalty for running out of passes
             while self.waste:
                 card = self.waste.pop()
                 card.face_up = False
@@ -398,8 +474,13 @@ class KlondikeSolitaire(CardGame):
         self.tableaux[from_pile] = source[:move_from_idx]
         self.tableaux[to_pile].extend(cards_to_move)
 
-        # Flip newly exposed card
-        reward = 0.05 * len(cards_to_move)
+        # Only a reveal pays. Tableau shuffling used to earn 0.05 per card
+        # against a 0.01 step cost, and a non-revealing move is reversible, so
+        # moving a card back and forth was unbounded free reward: agents that
+        # optimized the reward farmed that loop instead of playing solitaire
+        # (measured: 139 of 150 moves, 5x fewer cards up than random play).
+        # At 0.0 the step cost makes every pointless shuffle a small net loss.
+        reward = 0.0
         if self.tableaux[from_pile] and not self.tableaux[from_pile][-1].face_up:
             self.tableaux[from_pile][-1].face_up = True
             reward += 0.2  # Bonus for revealing card
@@ -447,6 +528,11 @@ class KlondikeSolitaire(CardGame):
         # Klondike state
         clone.draw_count = self.draw_count
         clone.max_passes = self.max_passes
+        clone.reward_mode = self.reward_mode
+        # Same RNG state, own RNG object: the clone's future shuffles match the
+        # original's without either being able to advance the other.
+        clone._rng = random.Random()
+        clone._rng.setstate(self._rng.getstate())
         clone.tableaux = [_clone_cards(pile) for pile in self.tableaux]
         clone.foundations = [_clone_cards(pile) for pile in self.foundations]
         clone.stock = _clone_cards(self.stock)

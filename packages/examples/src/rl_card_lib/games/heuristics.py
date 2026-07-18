@@ -37,11 +37,11 @@ class KlondikeHeuristicAgent(HeuristicAgent):
     stalling on a card that is merely *probably* needed wastes more games than
     it saves.
 
-    Tableau-to-tableau moves that reveal nothing are scored *negative*. They are
-    legal, reversible and infinitely repeatable, which is exactly the loop the
-    library's TODO warns about: a scorer that liked them even slightly would
-    shuffle two piles back and forth forever. A short memory of recent moves
-    discourages the remaining cycles.
+    Tableau-to-tableau moves that reveal nothing are scored *negative*. They
+    are legal, reversible and infinitely repeatable — the same loop the
+    environment's reward once paid for (it no longer does): a scorer that liked
+    them even slightly would shuffle two piles back and forth forever. A short
+    memory of recent moves discourages the remaining cycles.
 
     Wins roughly 43% of draw-1 deals, in the range a thoughtful human reaches.
 
@@ -229,6 +229,9 @@ class MacaoHeuristicAgent(HeuristicAgent):
         Returns:
             Score, with 1000 reserved for the winning move
         """
+        if action >= game.SUIT_DECLARATION_OFFSET:
+            return self._score_declaration(game, action)
+
         if action == 53:
             return -100.0
 
@@ -272,3 +275,25 @@ class MacaoHeuristicAgent(HeuristicAgent):
         # are likelier to match the next discard.
         suit_count = sum(1 for held in player.hand if held.suit == card.suit)
         return score + 2.0 * suit_count
+
+    def _score_declaration(self, game: Any, action: int) -> float:
+        """
+        Rate a suit/rank declaration after an Ace or Jack.
+
+        Declares whatever the hand holds most of, which is what the game itself
+        hardcoded before declaring became an action: it maximizes the chance of
+        having a legal reply on the next turn.
+
+        Args:
+            game: Game to read the position from
+            action: Declaration action index (54-64)
+
+        Returns:
+            Count of matching cards in hand, as the score
+        """
+        hand = game.get_current_player().hand
+        if action < game.RANK_DECLARATION_OFFSET:
+            suit = Suit(action - game.SUIT_DECLARATION_OFFSET)
+            return float(sum(1 for card in hand if card.suit == suit))
+        rank = game.DECLARABLE_RANKS[action - game.RANK_DECLARATION_OFFSET]
+        return float(sum(1 for card in hand if card.rank == rank))

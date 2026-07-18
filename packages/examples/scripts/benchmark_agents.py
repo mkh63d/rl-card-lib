@@ -6,9 +6,11 @@ here (heuristic, lookahead, MCTS) play at full strength immediately, so their
 numbers are the bar; the learning agents are untrained at this point and should
 score near random, which is what makes this a useful "before" snapshot.
 
-Klondike reports cards moved to the foundations alongside reward on purpose: the
-two disagree, because the shaped reward contains a repeatable tableau-shuffle
-loop worth +0.04 a move (see TODO.md). Cards-up is the honest metric.
+Klondike reports cards moved to the foundations alongside reward. The two used
+to disagree wildly (the shaped reward once paid +0.04 a move for shuffling two
+tableau piles back and forth, and agents that optimized it farmed the loop);
+that payment is gone, so reward and cards-up should now agree in ranking.
+Cards-up remains the metric to trust if they ever diverge again.
 
 Usage:
     python benchmark_agents.py [--episodes N] [--game klondike|macao|both]
@@ -218,7 +220,6 @@ def main() -> None:
 
     if args.game in ("klondike", "both"):
         print(f"\n=== Klondike ({args.episodes} deals, same deals for every agent) ===")
-        print("    reward and cards_up disagree by design; see TODO.md reward loop")
         benchmark_klondike(args.episodes)
 
     if args.game in ("macao", "both"):

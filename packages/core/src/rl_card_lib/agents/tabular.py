@@ -29,7 +29,8 @@ class QLearningAgent(Agent):
         gamma: Discount factor for future rewards
         epsilon_start: Initial exploration rate
         epsilon_end: Minimum exploration rate
-        epsilon_decay: Multiplicative decay applied per learning step
+        epsilon_decay: Multiplicative decay applied to epsilon once per episode
+            (in reset()), so the schedule is independent of episode length
         optimistic_init: Q-value given to unseen states, above the reward scale
             to encourage trying unexplored actions
         precision: Decimal places the observation is rounded to before it is used
@@ -46,7 +47,7 @@ class QLearningAgent(Agent):
         gamma: float = 0.95,
         epsilon_start: float = 1.0,
         epsilon_end: float = 0.05,
-        epsilon_decay: float = 0.9999,
+        epsilon_decay: float = 0.995,
         optimistic_init: float = 0.0,
         precision: int = 2,
         seed: Optional[int] = None,
@@ -168,13 +169,18 @@ class QLearningAgent(Agent):
         q_values[action] += self.learning_rate * td_error
 
         self.train_steps += 1
-        if self.epsilon > self.epsilon_end:
-            self.epsilon *= self.epsilon_decay
 
         return {"loss": abs(float(td_error))}
 
     def reset(self) -> None:
-        """Reset episode counter."""
+        """
+        Count the episode and decay epsilon.
+
+        Decaying here rather than in learn() keeps the exploration schedule in
+        episodes, independent of how many steps each episode happens to take.
+        """
+        if self.episodes > 0 and self.epsilon > self.epsilon_end:
+            self.epsilon *= self.epsilon_decay
         self.episodes += 1
 
     @property

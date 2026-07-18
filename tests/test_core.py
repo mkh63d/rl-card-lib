@@ -12,19 +12,19 @@ class TestCard:
         card = Card(Suit.HEARTS, Rank.ACE)
         assert card.suit == Suit.HEARTS
         assert card.rank == Rank.ACE
-        assert card.face_up == True
+        assert card.face_up is True
     
     def test_card_face_down(self):
         """Test face-down card."""
         card = Card(Suit.SPADES, Rank.KING, face_up=False)
-        assert card.face_up == False
+        assert card.face_up is False
         assert str(card) == "[??]"
     
     def test_card_flip(self):
         """Test flipping a card."""
         card = Card(Suit.DIAMONDS, Rank.QUEEN, face_up=False)
         card.flip()
-        assert card.face_up == True
+        assert card.face_up is True
     
     def test_card_color(self):
         """Test card colors."""
@@ -399,7 +399,7 @@ class TestCardGame:
         game.reset()
         mask = game.get_legal_action_mask()
         assert mask.dtype == bool
-        assert mask[0] == True  # Draw should be legal
+        assert bool(mask[0]) is True  # Draw should be legal
 
     def test_game_copy_not_implemented_by_default(self):
         """Test copy raises NotImplementedError for games that don't override it."""
@@ -510,7 +510,7 @@ class TestPlayerHasCard:
         card = Card(Suit.HEARTS, Rank.ACE)
         player.add_card(card)
         
-        assert player.has_card(card) == True
+        assert player.has_card(card) is True
     
     def test_player_has_card_false(self):
         """Test has_card returns False when card doesn't exist."""
@@ -519,4 +519,4 @@ class TestPlayerHasCard:
         card2 = Card(Suit.SPADES, Rank.KING)
         player.add_card(card1)
         
-        assert player.has_card(card2) == False
+        assert player.has_card(card2) is False
