@@ -172,11 +172,52 @@ def moving_average(values: Iterable[float], window: int = 100) -> list[float]:
     return out
 
 
+def _exploration_gap_notes(
+    episodes: dict[str, Any], headline: Optional[dict],
+) -> list[str]:
+    """Flag a large gap between exploratory training and greedy evaluation.
+
+    The learning curve is measured while the agent explores; the headline is
+    measured with exploration off. When those disagree sharply the two charts
+    look contradictory, and the explanation -- the greedy policy is worse than
+    the exploring one -- is a finding rather than a plotting error.
+    """
+    if not headline or headline.get("source") != "baseline_eval":
+        return []
+    evaluated = headline.get("after")
+    series = episodes.get(headline.get("key"))
+    if evaluated is None or not series:
+        return []
+
+    tail = series[-min(len(series), 100):]
+    trained = float(np.mean(tail))
+    if trained <= 0 or evaluated < 0:
+        return []
+
+    if evaluated < 0.6 * trained:
+        return [
+            f"Greedy evaluation ({evaluated:.3g}) scores well below the "
+            f"exploratory training average ({trained:.3g}). The learning curve "
+            "is measured with exploration on and the headline with it off, so "
+            "the two charts are not directly comparable -- and the gap means "
+            "the learned greedy policy is worse than the behaviour that "
+            "produced it."
+        ]
+    if trained > 0 and evaluated > 1.6 * trained:
+        return [
+            f"Greedy evaluation ({evaluated:.3g}) scores well above the "
+            f"exploratory training average ({trained:.3g}), as expected when "
+            "exploration is still costing the agent episodes."
+        ]
+    return []
+
+
 def detect_notes(
     *,
     episodes: dict[str, Any],
     evaluations: Optional[list[dict]] = None,
     env_max_steps: Optional[int] = None,
+    headline: Optional[dict] = None,
 ) -> list[str]:
     """Findings worth stating in words, not just drawing.
 
@@ -226,6 +267,8 @@ def detect_notes(
     wins = episodes.get("win") or []
     if wins and sum(wins) == 0:
         notes.append("The agent never won during training.")
+
+    notes.extend(_exploration_gap_notes(episodes, headline))
 
     for entry in evaluations or []:
         reward_fields = ("mean_reward", "std_reward", "min_reward", "max_reward")
@@ -379,6 +422,7 @@ class RunRecord:
             episodes=episodes,
             evaluations=evaluations,
             env_max_steps=env_max_steps or record.env_max_steps(),
+            headline=record.headline,
         )
         record.validate()
         return record

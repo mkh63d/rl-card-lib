@@ -397,7 +397,7 @@ def _fig_headline_curve(plt, emitter, record, *, colour, window, spec, baselines
         ax.set_ylim(0, ceiling * 1.05)
 
     ax.set_ylabel(spec["headline_label"])
-    ax.set_title(f"{spec['headline_label']} per episode")
+    ax.set_title(f"{spec['headline_label']} per training episode (exploring)")
     _episode_axis(ax, len(values))
     ax.legend(loc="upper left")
 
@@ -409,8 +409,9 @@ def _fig_headline_curve(plt, emitter, record, *, colour, window, spec, baselines
     return emitter.emit(
         plt, fig, key, spec["headline_label"],
         caption=(
-            f"Raw per-episode value with a {window}-episode trailing average. "
-            "Dashed lines are the non-learning baselines."
+            f"Raw per-episode value with a {window}-episode trailing average, "
+            "measured during training with exploration on. Dashed lines are "
+            "the non-learning baselines, which are measured greedily."
         ),
         table=_series_table(["Episode", spec["headline_label"], f"Avg({window})"],
                             [list(range(len(values))), values,
@@ -750,10 +751,12 @@ def _cmp_curves(plt, emitter, game, records, baselines):
     for value in levels.values():
         ax.axhline(value, color=MUTED, linestyle="--", linewidth=1.0, zorder=1)
 
-    ax.set_ylabel(measure)
+    ax.set_ylabel(f"{measure} (exploring)")
     ax.set_xlabel("Episode")
     ax.set_xlim(0, longest - 1)
-    ax.set_title(f"{spec['label']}: {measure.lower()} over training")
+    # "while exploring" is not decoration: these are training episodes, so the
+    # values are not comparable with the greedy-evaluation headline chart.
+    ax.set_title(f"{spec['label']}: {measure.lower()} while exploring")
     # Below the axes: with reference lines near the top a corner legend
     # collides with them, and the direct labels already carry identity.
     ax.legend(
@@ -774,8 +777,10 @@ def _cmp_curves(plt, emitter, game, records, baselines):
     return emitter.emit(
         plt, fig, "comparison_curves", f"{spec['label']}: learning curves",
         caption=(
-            f"{window}-episode trailing average per learner. Dashed lines are "
-            "the non-learning baselines, which do not learn and so have no curve."
+            f"{window}-episode trailing average per learner, measured during "
+            "training with exploration on. Not comparable with the "
+            "greedy-evaluation figures below. Dashed lines are the "
+            "non-learning baselines, which have no learning curve."
         ),
         table=_series_table(columns, [list(range(longest))] + smoothed),
         scope="comparison",
@@ -820,15 +825,20 @@ def _cmp_headline(plt, emitter, game, records, baselines):
 
     ax.set_yticks(positions)
     ax.set_yticklabels(labels)
-    ax.set_xlabel(spec["headline_label"])
-    ax.set_title(f"{spec['label']}: {spec['headline_label'].lower()}")
+    ax.set_xlabel(f"{spec['headline_label']} (greedy)")
+    ax.set_title(
+        f"{spec['label']}: {spec['headline_label'].lower()}, greedy evaluation"
+    )
     ax.grid(axis="y", visible=False)
 
     return emitter.emit(
         plt, fig, "comparison_headline", f"{spec['label']}: final standing",
         caption=(
-            "Trained learners in colour, non-learning baselines in grey. "
-            "Baselines play at full strength immediately -- they are the bar."
+            "Measured after training with exploration off, on fixed deals. "
+            "Trained learners in colour, non-learning baselines in grey -- the "
+            "baselines play at full strength immediately and are the bar. "
+            "These values are lower than the learning curves above, which are "
+            "measured while exploring."
         ),
         table={
             "columns": ["Agent", spec["headline_label"], "Kind"],

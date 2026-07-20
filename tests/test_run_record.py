@@ -175,6 +175,50 @@ class TestNotes:
         assert any("floor" in note for note in notes)
 
 
+class TestExplorationGap:
+    """Training and evaluation measure different policies; say so."""
+
+    def headline(self, after):
+        return {"key": "cards_up", "source": "baseline_eval", "after": after}
+
+    def test_flags_a_greedy_policy_worse_than_exploration(self):
+        notes = detect_notes(
+            episodes={"cards_up": [20.0] * 50},
+            headline=self.headline(6.7),
+        )
+        assert any("worse than the behaviour" in note for note in notes)
+
+    def test_flags_a_greedy_policy_much_better(self):
+        notes = detect_notes(
+            episodes={"cards_up": [5.0] * 50},
+            headline=self.headline(20.0),
+        )
+        assert any("above the" in note for note in notes)
+
+    def test_silent_when_the_two_agree(self):
+        notes = detect_notes(
+            episodes={"cards_up": [10.0] * 50},
+            headline=self.headline(9.5),
+        )
+        assert not any("exploratory" in note for note in notes)
+
+    def test_silent_without_a_measured_headline(self):
+        """A training-summary fallback is not a greedy measurement."""
+        notes = detect_notes(
+            episodes={"cards_up": [20.0] * 50},
+            headline={"key": "cards_up", "source": "training_summary",
+                      "after": 1.0},
+        )
+        assert notes == []
+
+    def test_appears_on_a_real_record(self):
+        record = make_record(
+            episode_extras={"cards_up": [20] * 6},
+            baseline_before={"cards_up": 2.0}, baseline_after={"cards_up": 5.0},
+        )
+        assert any("not directly comparable" in note for note in record.notes)
+
+
 class TestRunStore:
     """Only the last run of each model survives, structurally."""
 
