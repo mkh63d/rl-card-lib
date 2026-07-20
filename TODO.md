@@ -119,6 +119,30 @@ see `_backpropagate` and `_edge_reward`):
   `MCTSAgent` is sampled search tunable by `simulations`. Documented in each
   class docstring.
 
+## Reporting
+
+- [x] **Training runs are recorded, not just printed.** `RunRecord` / `RunStore`
+  in `rl-card-lib-report` persist timestamps, hyperparameters, per-episode
+  series (including cards-to-foundation, exploration and Q-table growth) and the
+  before/after baseline comparison. Previously the richest numbers — the ones
+  `evaluate_klondike` / `evaluate_macao` compute — were printed and discarded,
+  and nothing recorded when a run happened.
+- [x] **Visual HTML report** — `run_sweep.py` writes `results/index.html`: one
+  self-contained page, overview table newest-first, comparison charts per game,
+  a detailed section per model, everything exportable to CSV/PNG/SVG.
+- [x] **Only the last run of each model is kept.** Structural: a run is keyed
+  `{game}__{agent}`, which is also its directory name, and both the run
+  directory and the checkpoint directory are purged *before* training so a crash
+  leaves an empty directory rather than a mixture of two runs.
+- [ ] **`Agent.checkpoint_suffix`.** `Trainer._save_checkpoint` hardcodes `.pt`
+  even for `QLearningAgent`, which pickles — so `checkpoint_ep400.pt` in a
+  tabular run is a pickle that `torch.load` cannot open. `purge_checkpoints`
+  globs both extensions defensively; the real fix is a class attribute the
+  trainer consults, kept out of the reporting change to keep its diff reviewable.
+- [ ] **Dark-mode figures.** The report is light-only on purpose (matplotlib
+  PNGs are baked at render time, and it is printed as an appendix). Supporting
+  both would mean rendering every figure twice.
+
 ## Experiments to run now that the rewards are trustworthy
 
 The code-level blockers are gone; these are measurement work, not fixes.

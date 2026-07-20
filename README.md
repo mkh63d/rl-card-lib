@@ -28,10 +28,13 @@ This is a monorepo containing multiple packages:
   - Training curves via `TrainingMetrics.plot()` in the core package
   - **Depends on**: `rl-card-lib-core`
 
-- **[`rl-card-lib-report`](packages/report/)** - Training parameter reports
-  - `TrainingReport.from_trainer(...)` collects env, trainer, agent, DQN and PPO settings
-  - Renders to Markdown (`to_markdown`) or JSON (`to_json`)
-  - **Depends on**: `rl-card-lib-core`
+- **[`rl-card-lib-report`](packages/report/)** - Training reports
+  - `TrainingReport.from_trainer(...)` collects env, trainer, agent, DQN, PPO,
+    Q-learning and search settings; renders to Markdown or JSON
+  - `RunRecord` / `RunStore` persist what a run *did* — per-episode series,
+    evaluations, before/after comparison, timings — one record per model
+  - `HtmlReport` renders a single self-contained page with charts and tables
+  - **Depends on**: `rl-card-lib-core`; matplotlib via the `charts` extra
 
 - **[`rl-card-lib-examples`](packages/examples/)** - Games, demos and training scripts
   - Klondike Solitaire (plus a perfect-information solvability search) and Macao
@@ -65,6 +68,12 @@ python packages/examples/scripts/quick_demo.py
 ### Training and Benchmarking
 
 ```bash
+# Train every learner on both games and write results/index.html
+python packages/examples/scripts/run_sweep.py --episodes 200
+
+# Re-render the report from stored records, training nothing
+python packages/examples/scripts/run_sweep.py --html-only
+
 # Train a chosen agent on a chosen game
 python packages/examples/scripts/train_agents.py
 
@@ -75,6 +84,17 @@ python packages/examples/scripts/benchmark_agents.py
 python packages/examples/scripts/train_klondike.py
 python packages/examples/scripts/train_macao.py
 ```
+
+### The training report
+
+`run_sweep.py` produces `results/index.html`: one self-contained page (no CDN,
+no sibling files) with an overview table sorted newest-run-first, comparison
+charts per game, and a detailed section per model. Every table exports to
+CSV/PNG and every figure to PNG/SVG. Only the last run of each model is kept —
+a run is keyed by `{game}__{agent}`, so re-running a pair replaces it.
+
+See [the report package](packages/report/README.md) for the record schema and
+the Python API.
 
 ### Run Tests
 

@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Added
+
+- **A visual HTML training report.** `python packages/examples/scripts/run_sweep.py`
+  trains every learner on both games and writes `results/index.html`: one
+  self-contained page (no CDN, no sibling files, figures embedded as data URIs)
+  with an overview table sorted newest-run-first, comparison charts per game,
+  and a detailed section per model. Every table exports to CSV/PNG, every figure
+  to PNG/SVG, and print rules make it a clean thesis appendix.
+- **`RunRecord` / `RunStore`** in `rl-card-lib-report`. `TrainingMetrics` records
+  four per-episode arrays — enough to plot a curve, not enough to explain one.
+  A record adds timestamps (nothing recorded one before, so "most recent first"
+  was not expressible), hyperparameters, the before/after baseline comparison,
+  and per-episode cards-to-foundation, exploration and Q-table growth. Stored as
+  `run.json` beside the unchanged `metrics.json`. A run is keyed
+  `{game}__{agent}`, so re-running a model replaces it rather than accumulating.
+  `RunRecord.from_metrics_json()` imports runs recorded before this existed.
+- **`rl_card_lib.harness`** — `build_learner`, the evaluation protocols and the
+  baseline agent sets, previously defined only inside `scripts/` and therefore
+  impossible to reuse without duplicating them.
+- **`TrainingReport` covers the remaining agents**: new `qlearning` section
+  (including `table_size`, `precision`, `optimistic_init`) and `search` section
+  (MCTS, GreedyLookahead), the `dueling` flag for Double DQN, and the trainer's
+  class and opponent.
+
 ### Fixed
 
 - **`SelfPlayTrainer` scored every evaluation episode as 0.0 reward.** The

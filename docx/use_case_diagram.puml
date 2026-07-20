@@ -105,6 +105,8 @@ engineer --> UC34
 engineer --> UC35
 engineer --> UC37
 engineer --> UC38
+engineer --> UC39
+engineer --> UC40
 engineer --> UC16
 engineer --> UC20
 engineer --> UC21
@@ -147,6 +149,8 @@ UC27 ..> UC22 : <<extend>>
 UC13 ..> UC11 : <<extend>>
 UC12 ..> UC11 : <<extend>>
 UC38 ..> UC21 : <<extend>>
+UC39 ..> UC21 : <<extend>>
+UC40 ..> UC39 : <<include>>
 UC40 ..> UC29 : <<extend>>
 
 ' Generalization

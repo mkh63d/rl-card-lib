@@ -19,7 +19,9 @@ Shows the complete modular structure of the library:
 - **trainer**: Training loop, self-play trainer with a frozen opponent snapshot, and metrics tracking
 - **utils**: Encoding utilities
 - **visualizer**: Rendering helpers for cards and boards
-- **report**: `TrainingReport`, which collects the run's parameters and renders them as Markdown or JSON
+- **report**: `TrainingReport` (the run's parameters, as Markdown or JSON),
+  `RunRecord`/`RunStore` (what the run did, persisted as `run.json`, one per
+  game+agent) and `HtmlReport` (a self-contained page with charts and tables)
 
 ### 2. Use Case Diagram (`use_case_diagram.puml`)
 Shows the main use cases for different actors:
