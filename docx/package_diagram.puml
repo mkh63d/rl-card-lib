@@ -69,8 +69,23 @@ package "rl_card_lib" as main {
             {abstract} +is_game_over(): bool
         }
 
+        class rules <<module>> {
+            +is_same_suit(a, b): bool
+            +is_alternating_color(a, b): bool
+            +is_next_lower(a, b): bool
+            +is_consecutive_decreasing(cards): bool
+            +can_stack_alternating_descending(moving, target): bool
+            +can_stack_same_suit_ascending(moving, target): bool
+            +count_by_rank(cards): dict
+            +count_by_suit(cards): dict
+            +filter_by_suit(cards, suit): list[Card]
+            +top_card(cards): Card
+            +is_standard_deck(cards): bool
+        }
+
         Card --> Suit
         Card --> Rank
+        rules ..> Card : operates on
         Deck "52" o-- "*" Card
         Player "1" o-- "*" Card
         CardGame "1" *-- "1" Deck
@@ -100,12 +115,19 @@ package "rl_card_lib" as main {
             +render(mode): str
         }
 
-        class Trainer {
+        class "Trainer" as CoreTrainer {
             +env: Any
             +agent: Any
             +max_steps: int
             +train(num_episodes): list[dict]
         }
+
+        note bottom of CoreTrainer
+            rl_card_lib.core.trainer.Trainer is a minimal
+            loop kept for the standalone core package.
+            The full training loop lives in
+            rl_card_lib.trainer.Trainer below.
+        end note
 
         Game <|-- CardGame
         GymEnvWrapper "1" *-- "1" Game
@@ -123,8 +145,41 @@ package "rl_card_lib" as main {
             +load(path): void
         }
 
+        abstract class GameAwareAgent {
+            +game: Game
+            +bind(source): GameAwareAgent
+        }
+
         class RandomAgent {
             +select_action(obs, legal_actions): int
+        }
+
+        abstract class HeuristicAgent {
+            {abstract} +score_action(game, action): float
+            +select_action(obs, legal_actions): int
+        }
+
+        class GreedyLookaheadAgent {
+            +depth: int
+            +score_action(game, action): float
+        }
+
+        class MCTSAgent {
+            +simulations: int
+            +exploration_weight: float
+            +rollout_depth: int
+            +determinizations: int
+            +rollout_policy: Callable
+            +select_action(obs, legal_actions): int
+        }
+
+        class QLearningAgent {
+            +q_table: dict[bytes, ndarray]
+            +learning_rate: float
+            +gamma: float
+            +epsilon: float
+            +select_action(obs, legal_actions): int
+            +learn(obs, action, reward, next_obs, done): dict
         }
 
         class DQNAgent {
@@ -150,11 +205,54 @@ package "rl_card_lib" as main {
             +__len__(): int
         }
 
+        class DoubleDQNAgent {
+            +select_action(obs, legal_actions): int
+            +learn(...): dict
+        }
+
+        class DuelingQNetwork {
+            +trunk: Sequential
+            +value_head: Sequential
+            +advantage_head: Sequential
+            +forward(x): Tensor
+        }
+
+        class MaskedReplayBuffer {
+            +push(state, action, reward, next_state, done, next_mask): void
+            +sample(batch_size): tuple
+        }
+
+        class PPOAgent {
+            +clip_epsilon: float
+            +gae_lambda: float
+            +rollout_steps: int
+            +entropy_coef: float
+            +select_action(obs, legal_actions): int
+            +learn(obs, action, reward, next_obs, done): dict
+        }
+
+        class ActorCritic {
+            +trunk: Sequential
+            +policy_head: Linear
+            +value_head: Linear
+            +forward(x): tuple
+        }
+
+        GameAwareAgent --|> Agent
         RandomAgent --|> Agent
+        HeuristicAgent --|> GameAwareAgent
+        GreedyLookaheadAgent --|> GameAwareAgent
+        MCTSAgent --|> GameAwareAgent
+        QLearningAgent --|> Agent
         DQNAgent --|> Agent
+        DoubleDQNAgent --|> DQNAgent
+        PPOAgent --|> Agent
         DQNAgent "1" *-- "1" QNetwork : q_network
         DQNAgent "1" *-- "1" QNetwork : target_network
         DQNAgent "1" *-- "1" ReplayBuffer
+        DoubleDQNAgent "1" *-- "2" DuelingQNetwork : online / target
+        DoubleDQNAgent "1" *-- "1" MaskedReplayBuffer
+        PPOAgent "1" *-- "1" ActorCritic
     }
 
     package "env" as env {
@@ -192,8 +290,18 @@ package "rl_card_lib" as main {
         }
 
         class SelfPlayTrainer {
+            +opponent: Agent
             +opponent_update_interval: int
+            +self_play: bool
+            +_snapshot_agent(): Agent
         }
+
+        note right of SelfPlayTrainer
+            In self-play the opponent is a frozen
+            snapshot of the agent, refreshed every
+            opponent_update_interval episodes.
+            None restores the zero-lag mirror match.
+        end note
 
         class TrainingMetrics {
             +rewards: list[float]
@@ -249,8 +357,42 @@ package "rl_card_lib" as main {
             +step(action): tuple
         }
 
+        class klondike_solver <<module>> {
+            +solve_klondike(game, max_nodes): bool | None
+        }
+
+        class KlondikeHeuristicAgent {
+            +score_action(game, action): float
+        }
+
+        class MacaoHeuristicAgent {
+            +score_action(game, action): float
+        }
+
         KlondikeSolitaire --|> CardGame
         Macao --|> CardGame
+        klondike_solver ..> KlondikeSolitaire : searches copies of
+        KlondikeHeuristicAgent --|> HeuristicAgent
+        MacaoHeuristicAgent --|> HeuristicAgent
+        KlondikeSolitaire ..> rules : uses
+        Macao ..> rules : uses
+    }
+
+    package "report" as report {
+        class TrainingReport {
+            +environment: dict
+            +trainer: dict
+            +agent: dict
+            +dqn: dict
+            +ppo: dict
+            +training: dict
+            {static} +from_trainer(trainer, episodes, max_steps_per_episode): TrainingReport
+            +as_dict(): dict
+            +to_markdown(): str
+            +to_json(indent): str
+        }
+
+        TrainingReport ..> Trainer : reads settings from
     }
 }
 

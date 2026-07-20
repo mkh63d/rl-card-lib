@@ -51,6 +51,11 @@ rectangle "RL Card Library" as system {
         usecase "Select Action" as UC17
         usecase "Train Agent Online" as UC18
         usecase "Save/Load Agent" as UC19
+        usecase "Create Heuristic Agent" as UC32
+        usecase "Create MCTS Search Agent" as UC33
+        usecase "Create PPO / Double DQN Agent" as UC34
+        usecase "Create Tabular Q-Learning Agent" as UC35
+        usecase "Bind Agent to Game" as UC36
     }
 
     ' Training use cases
@@ -60,7 +65,9 @@ rectangle "RL Card Library" as system {
         usecase "Track Metrics" as UC22
         usecase "Evaluate Agent" as UC23
         usecase "Create Checkpoints" as UC24
-        usecase "Self-Play Training" as UC25
+        usecase "Self-Play Training\n(frozen opponent snapshot)" as UC25
+        usecase "Benchmark Agents" as UC37
+        usecase "Generate Training Report\n(Markdown / JSON)" as UC38
     }
 
     ' Visualization use cases
@@ -75,6 +82,8 @@ rectangle "RL Card Library" as system {
         usecase "Play Klondike Solitaire" as UC29
         usecase "Play Macao" as UC30
         usecase "Implement Custom Game" as UC31
+        usecase "Reuse Rule Helpers" as UC39
+        usecase "Analyse Klondike Solvability" as UC40
     }
 }
 
@@ -85,9 +94,17 @@ developer --> UC7
 developer --> UC8
 developer --> UC9
 developer --> UC31
+developer --> UC39
+developer --> UC40
 
 ' ML Engineer relationships
 engineer --> UC15
+engineer --> UC32
+engineer --> UC33
+engineer --> UC34
+engineer --> UC35
+engineer --> UC37
+engineer --> UC38
 engineer --> UC16
 engineer --> UC20
 engineer --> UC21
@@ -105,6 +122,7 @@ designer --> UC3
 designer --> UC29
 designer --> UC30
 designer --> UC26
+designer --> UC39
 
 ' Include relationships
 UC7 ..> UC1 : <<include>>
@@ -117,16 +135,27 @@ UC17 ..> UC5 : <<include>>
 UC21 ..> UC11 : <<include>>
 UC21 ..> UC22 : <<include>>
 UC18 ..> UC17 : <<include>>
+UC32 ..> UC36 : <<include>>
+UC33 ..> UC36 : <<include>>
+UC37 ..> UC23 : <<include>>
+UC29 ..> UC39 : <<include>>
+UC30 ..> UC39 : <<include>>
 
 ' Extend relationships
 UC24 ..> UC21 : <<extend>>
 UC27 ..> UC22 : <<extend>>
 UC13 ..> UC11 : <<extend>>
 UC12 ..> UC11 : <<extend>>
+UC38 ..> UC21 : <<extend>>
+UC40 ..> UC29 : <<extend>>
 
 ' Generalization
 UC14 --|> UC17
 UC15 --|> UC17
+UC32 --|> UC17
+UC33 --|> UC17
+UC34 --|> UC17
+UC35 --|> UC17
 UC29 --|> UC1
 UC30 --|> UC1
 UC31 --|> UC1

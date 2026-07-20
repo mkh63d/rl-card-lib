@@ -19,6 +19,7 @@ participant "Trainer" as trainer
 participant "CardGameEnv" as env
 participant "CardGame\n(e.g., Klondike)" as game
 participant "DQNAgent" as agent
+participant "Opponent snapshot\n(SelfPlayTrainer only)" as opponent
 participant "QNetwork" as qnet
 participant "ReplayBuffer" as buffer
 participant "TrainingMetrics" as metrics
@@ -46,11 +47,35 @@ loop for episode in range(episodes)
     env --> trainer: (observation, info{legal_actions})
     deactivate env
 
+    trainer -> agent: reset()
+    activate agent
+    agent -> agent: epsilon *= epsilon_decay (floored at epsilon_end)
+    agent -> agent: episodes += 1
+    note right of agent
+        Epsilon decays once per episode, not per
+        learning step, so the exploration schedule
+        no longer depends on episode length.
+    end note
+    agent --> trainer: ready
+    deactivate agent
+
     trainer -> trainer: episode_reward = 0
 
     == Episode Loop (until done) ==
 
     loop while not done
+
+        opt SelfPlayTrainer and it is not the agent's seat
+            trainer -> opponent: select_action(observation, legal_actions)
+            activate opponent
+            opponent --> trainer: action
+            deactivate opponent
+            note right of trainer
+                The opponent is a frozen snapshot of the agent.
+                Its transitions are never pushed to the buffer
+                and its rewards do not count towards the episode.
+            end note
+        end
 
         trainer -> agent: select_action(observation, legal_actions)
         activate agent
@@ -120,6 +145,13 @@ loop for episode in range(episodes)
     end
 
     == Episode Complete ==
+
+    opt SelfPlayTrainer and episodes_since_snapshot >= opponent_update_interval
+        trainer -> opponent: refresh from agent weights
+        activate opponent
+        opponent --> trainer: new frozen snapshot
+        deactivate opponent
+    end
 
     trainer -> metrics: add_episode(metrics)
     activate metrics

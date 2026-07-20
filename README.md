@@ -9,30 +9,36 @@ This is a monorepo containing multiple packages:
 ### Core Packages
 
 - **[`rl-card-lib-core`](packages/core/)** - Foundation library
-  - Card, Deck, Player, CardGame base classes
-  - Agent framework and Trainer
-  - Gymnasium-compatible environment wrapper
+  - Game base class, Gymnasium environment wrappers (`CardGameEnv`, `MaskedCardGameEnv`)
+  - Agent framework: baselines, search agents and learners
+  - `Trainer` / `SelfPlayTrainer` and `TrainingMetrics`
   - **Status**: Core package - all others depend on this
 
 ### Extension Packages
 
-- **[`rl-card-lib-cardgames`](packages/cardgames/)** - Game implementations
-  - Klondike Solitaire
-  - Macao (multi-player)
-  - Framework for adding new games
+- **[`rl-card-lib-cardgames`](packages/cardgames/)** - Card primitives and rule helpers
+  - `Card`, `Suit`, `Rank`, `Deck`, `Player`, `CardGame`
+  - `cardgames.rules` - reusable predicates shared by games
+    (`can_stack_alternating_descending`, `is_alternating_color`, `count_by_rank`, ...)
   - **Depends on**: `rl-card-lib-core`
 
 - **[`rl-card-lib-visualizer`](packages/visualizer/)** - Visualization utilities
-  - Game state rendering
-  - Training metrics plotting
-  - Real-time progress monitoring
+  - Text rendering of cards and tableaux
+    (`render_cards`, `render_tableau`, `create_simple_board_view`)
+  - Training curves via `TrainingMetrics.plot()` in the core package
   - **Depends on**: `rl-card-lib-core`
 
-- **[`rl-card-lib-examples`](packages/examples/)** - Examples and demonstrations
-  - Quick start demo
-  - Training scripts
-  - Integration examples
+- **[`rl-card-lib-report`](packages/report/)** - Training parameter reports
+  - `TrainingReport.from_trainer(...)` collects env, trainer, agent, DQN and PPO settings
+  - Renders to Markdown (`to_markdown`) or JSON (`to_json`)
+  - **Depends on**: `rl-card-lib-core`
+
+- **[`rl-card-lib-examples`](packages/examples/)** - Games, demos and training scripts
+  - Klondike Solitaire (plus a perfect-information solvability search) and Macao
+  - Hand-written `KlondikeHeuristicAgent` / `MacaoHeuristicAgent`
+  - Quick demo, training and benchmarking scripts
   - **Depends on**: `rl-card-lib-core`, `rl-card-lib-cardgames`
+    (uses `rl-card-lib-report` and `rl-card-lib-visualizer` where available)
 
 ## 🚀 Quick Start
 
@@ -46,26 +52,41 @@ pip install -e .  # Installs root metapackage
 pip install -e ./packages/core
 pip install -e ./packages/cardgames
 pip install -e ./packages/visualizer
+pip install -e ./packages/report
 pip install -e ./packages/examples
 ```
 
 ### Quick Demo
 
 ```bash
-python examples/quick_demo.py
+python packages/examples/scripts/quick_demo.py
+```
+
+### Training and Benchmarking
+
+```bash
+# Train a chosen agent on a chosen game
+python packages/examples/scripts/train_agents.py
+
+# Compare the agent zoo on the same deals
+python packages/examples/scripts/benchmark_agents.py
+
+# Single-game training scripts
+python packages/examples/scripts/train_klondike.py
+python packages/examples/scripts/train_macao.py
 ```
 
 ### Run Tests
 
 ```bash
-# All tests (unit + integration)
+# Everything
 pytest
 
-# Only integration tests (root)
-pytest tests/
+# Library tests
+pytest tests/ -q
 
-# Only core package tests
-pytest packages/core/tests/
+# Example game tests (what CI runs separately)
+pytest packages/examples/tests/ -q
 
 # With coverage report
 pytest --cov --cov-report=html
@@ -74,9 +95,15 @@ pytest --cov --cov-report=html
 ## 📋 Features
 
 - ✅ Define custom card games with Gymnasium compatibility
-- ✅ DQN agent with experience replay
-- ✅ Built-in games: Klondike, Macao
-- ✅ Comprehensive training framework
+- ✅ An agent zoo spanning three families:
+  - **Baselines (no learning)**: `RandomAgent`, `HeuristicAgent`, `GreedyLookaheadAgent`
+  - **Search**: `MCTSAgent` (UCT with determinized hidden cards)
+  - **Learners**: `QLearningAgent`, `DQNAgent`, `DoubleDQNAgent` (double + dueling + masked
+    targets), `PPOAgent` (masked actor-critic)
+- ✅ Built-in games: Klondike (with a budgeted perfect-information solver), Macao
+- ✅ Reusable rule helpers in `rl_card_lib.cardgames.rules` for building new games
+- ✅ Training framework with self-play against a frozen opponent snapshot
+- ✅ Markdown/JSON training parameter reports
 - ✅ Visualization and metrics monitoring
 - ✅ Modular design - use only what you need
 
@@ -85,29 +112,35 @@ pytest --cov --cov-report=html
 - [Core Package](packages/core/README.md) - API and concepts
 - [Card Games Package](packages/cardgames/README.md) - Game implementations
 - [Visualizer Package](packages/visualizer/README.md) - Visualization tools
+- [Report Package](packages/report/README.md) - Training parameter reports
 - [Examples Package](packages/examples/README.md) - Usage examples
+- [Architecture Diagrams](docx/README.md) - PlantUML package, use case and sequence diagrams
 
 ## 🧪 Testing Strategy
 
-### Package-Level Tests
+### Library Tests
 
-Each package contains tests for its own functionality:
-
-```
-packages/core/tests/           # Core package tests
-packages/cardgames/tests/      # Game implementations tests
-packages/visualizer/tests/     # Visualization tests
-packages/examples/tests/       # Example validation tests
-```
-
-### Integration Tests
-
-Root-level tests verify cross-package integration:
+Root-level tests cover the library and the public API contracts:
 
 ```
-tests/                         # Integration tests
-tests/test_integration.py      # Cross-package workflows
-tests/test_public_api.py       # Public API contracts
+tests/test_core.py                 # Card, Deck, Player, CardGame
+tests/test_agents.py               # Baseline and DQN agents
+tests/test_new_agents.py           # Heuristic, MCTS, tabular, Double DQN, PPO
+tests/test_trainer.py              # Trainer and SelfPlayTrainer
+tests/test_reward_design.py        # Reward shaping and terminal conditions
+tests/test_klondike_solver.py      # Perfect-information solvability search
+tests/test_report.py               # TrainingReport rendering
+tests/test_utils.py                # Encoding helpers
+tests/test_public_api_imports.py   # Public API contracts
+```
+
+### Example Game Tests
+
+The example games ship their own suite, run separately in CI:
+
+```
+packages/examples/tests/test_game_base.py   # Shared game contract
+packages/examples/tests/test_games.py       # Klondike and Macao rules
 ```
 
 ### Coverage
@@ -144,12 +177,17 @@ black .
 isort .
 
 # Type checking
-mypy src/
+mypy packages
 
-# Linting
-flake8 src/
-pylint src/
+# Linting (same command CI runs)
+flake8 packages tests
+pylint packages
 ```
+
+### Continuous Integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `flake8 packages tests`,
+`pytest tests/ -q` and `pytest packages/examples/tests/ -q`.
 
 ## 📦 Publishing
 
