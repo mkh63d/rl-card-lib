@@ -25,7 +25,10 @@ from rl_card_lib.report.run_record import (
     RunRecord,
     RunStore,
     agent_label,
+    format_metric,
     game_spec,
+    metric_range,
+    metric_spec,
     utc_now,
 )
 
@@ -145,6 +148,13 @@ def _table(
     return "\n".join(out)
 
 
+def _column_header(key: str, env_max_steps=None) -> str:
+    """A column header that states the metric's range, e.g. 'Win rate (0-100%)'."""
+    label = metric_spec(key)["label"]
+    span = metric_range(key, env_max_steps=env_max_steps)
+    return f"{label} ({span})" if span else label
+
+
 def _agent_chip(record: RunRecord) -> str:
     colour = {
         "q_learning": "var(--q-learning)", "dqn": "var(--dqn)",
@@ -240,9 +250,27 @@ class HtmlReport:
         formats: tuple = ("png", "svg"),
         with_figures: bool = True,
         command: str = "",
+        include_games=None,
+        exclude_games=None,
     ) -> "HtmlReport":
+        """Render every stored run, or a chosen subset of games.
+
+        `include_games` / `exclude_games` have no default: a report covers
+        everything in the store unless told otherwise. They exist so someone
+        using this library for their own game can report on it alone, without
+        the bundled Klondike and Macao runs crowding the comparison.
+        """
         runs = store.load_runs()
         baselines = store.load_baselines()
+
+        if include_games:
+            wanted = set(include_games)
+            runs = [r for r in runs if r.game in wanted]
+            baselines = {g: b for g, b in baselines.items() if g in wanted}
+        if exclude_games:
+            unwanted = set(exclude_games)
+            runs = [r for r in runs if r.game not in unwanted]
+            baselines = {g: b for g, b in baselines.items() if g not in unwanted}
         run_figures: dict = {}
         comparison_figures: dict = {}
 
@@ -327,12 +355,17 @@ class HtmlReport:
             return "\n".join(out)
 
         columns = [
-            "Finished", "Game", "Agent", "Episodes", "Headline metric",
-            "Before → after", "Delta", "Train time", "Status",
+            "Finished", "Game", "Agent", "Episodes",
+            "Headline metric (range)", "Before → after", "Delta",
+            "Train time", "Status",
         ]
         rows = []
         for record in self.runs:
             headline = record.headline or {}
+            metric_name = headline.get("label", "")
+            span = metric_range(headline.get("key", "")) if headline else ""
+            if headline.get("max") and headline.get("key") == "cards_up":
+                span = f"0-{headline['max']:g} cards"
             status = (
                 '<span class="chip failed">failed</span>'
                 if record.status != "completed"
@@ -343,7 +376,9 @@ class HtmlReport:
                 _escape(game_spec(record.game)["label"]),
                 _agent_chip(record),
                 record.episode_count,
-                _escape(headline.get("label", "")) or NOT_RECORDED,
+                (f"{_escape(metric_name)} "
+                 f'<span class="chip">{_escape(span)}</span>')
+                if metric_name else NOT_RECORDED,
                 _headline_markup(record),
                 _delta_markup(headline.get("delta")),
                 _escape(_fmt_seconds((record.duration or {}).get("train_seconds"))),
@@ -422,12 +457,23 @@ class HtmlReport:
                 for key in row:
                     if key not in columns:
                         columns.append(key)
-            rows = [[row.get(key) for key in columns] for row in baseline.rows]
+            cap = (baseline.protocol or {}).get("max_steps")
+            headers = [
+                "Agent" if key == "agent" else _column_header(key, cap)
+                for key in columns
+            ]
+            rows = [
+                [row.get("agent") if key == "agent"
+                 else (_escape(format_metric(key, row.get(key))) or NOT_RECORDED)
+                 for key in columns]
+                for row in baseline.rows
+            ]
             protocol = ", ".join(
                 f"{k}: {v}" for k, v in (baseline.protocol or {}).items()
+                if v is not None
             )
             out.append(_table(
-                f"baselines_{game}", columns, rows,
+                f"baselines_{game}", headers, rows,
                 caption=_escape(protocol) if protocol else "",
             ))
         out.append("</section>")
@@ -495,11 +541,23 @@ class HtmlReport:
         )
 
     def _run_tables(self, record: RunRecord) -> str:
+        cap = record.env_max_steps()
         out = ["<h3>Summary</h3>"]
+        out.append(
+            '<p class="sub">Every row carries the range it is measured on: '
+            "these numbers mix rates, unbounded rewards and counts.</p>"
+        )
         summary = record.summary or {}
         out.append(_table(
-            f"{record.run_id}_summary", ["Metric", "Value"],
-            [[k.replace("_", " "), v] for k, v in summary.items()],
+            f"{record.run_id}_summary", ["Metric", "Value", "Range"],
+            [
+                [
+                    _escape(metric_spec(key)["label"]),
+                    _escape(format_metric(key, value)),
+                    _escape(metric_range(key, env_max_steps=cap)) or "—",
+                ]
+                for key, value in summary.items()
+            ],
         ))
 
         if record.evaluations:
@@ -509,9 +567,14 @@ class HtmlReport:
                 for key in entry:
                     if key not in columns:
                         columns.append(key)
+            headers = [_column_header(key, cap) for key in columns]
             out.append(_table(
-                f"{record.run_id}_evaluations", columns,
-                [[entry.get(key) for key in columns] for entry in record.evaluations],
+                f"{record.run_id}_evaluations", headers,
+                [
+                    [_escape(format_metric(key, entry.get(key))) or NOT_RECORDED
+                     for key in columns]
+                    for entry in record.evaluations
+                ],
             ))
 
         title, section = record.algorithm_section()

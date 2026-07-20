@@ -94,6 +94,132 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+#: What each recorded number actually means. Without this a reader cannot tell
+#: whether 0.21 is a rate, a reward or a fraction of something -- the report
+#: mixes 0-1 rates, unbounded rewards and counts in the same tables.
+#:
+#: `kind` drives formatting: "rate" renders as a percentage, "duration" as
+#: h/m/s, "count" and "value" as plain numbers.
+METRICS: dict[str, dict[str, Any]] = {
+    "win_rate": {"label": "Win rate", "kind": "rate", "min": 0.0, "max": 1.0},
+    "draw_rate": {"label": "Draw rate", "kind": "rate", "min": 0.0, "max": 1.0},
+    "win_rate_vs_random": {"label": "Win rate vs random", "kind": "rate",
+                           "min": 0.0, "max": 1.0},
+    "win_rate_vs_heuristic": {"label": "Win rate vs heuristic", "kind": "rate",
+                              "min": 0.0, "max": 1.0},
+    "draw_rate_vs_random": {"label": "Draw rate vs random", "kind": "rate",
+                            "min": 0.0, "max": 1.0},
+    "draw_rate_vs_heuristic": {"label": "Draw rate vs heuristic", "kind": "rate",
+                               "min": 0.0, "max": 1.0},
+    "cards_up": {"label": "Cards to foundation", "kind": "count",
+                 "min": 0, "max": 52, "unit": "cards"},
+    "epsilon": {"label": "Exploration rate", "kind": "rate",
+                "min": 0.0, "max": 1.0},
+    "table_size": {"label": "Q-table entries", "kind": "count", "min": 0,
+                   "unit": "states", "note": "unbounded; grows with training"},
+    "reward": {"label": "Episode reward", "kind": "value",
+               "note": "shaped; unbounded"},
+    "mean_reward": {"label": "Mean reward", "kind": "value",
+                    "note": "shaped; unbounded"},
+    "std_reward": {"label": "Reward std dev", "kind": "value", "min": 0},
+    "min_reward": {"label": "Min reward", "kind": "value"},
+    "max_reward": {"label": "Max reward", "kind": "value"},
+    "loss": {"label": "Learning loss", "kind": "value", "min": 0,
+             "note": "unbounded; diverges when unstable"},
+    "steps": {"label": "Episode length", "kind": "count", "min": 0,
+              "unit": "steps", "note": "capped by the environment"},
+    "mean_steps": {"label": "Mean episode length", "kind": "count", "min": 0,
+                   "unit": "steps"},
+    "total_episodes": {"label": "Episodes", "kind": "count", "min": 0},
+    "total_wins": {"label": "Wins", "kind": "count", "min": 0},
+    "training_time": {"label": "Training time", "kind": "duration", "min": 0},
+    "wall_clock": {"label": "Episode wall clock", "kind": "duration", "min": 0},
+    "seconds": {"label": "Wall clock", "kind": "duration", "min": 0},
+    "episode": {"label": "Episode", "kind": "count", "min": 0},
+    "win": {"label": "Won", "kind": "count", "min": 0, "max": 1,
+            "note": "1 = win, 0 = not"},
+}
+
+
+def metric_spec(key: str) -> dict[str, Any]:
+    """Describe one metric, falling back to an unbounded value."""
+    if key in METRICS:
+        return METRICS[key]
+    return {"label": str(key).replace("_", " "), "kind": "value"}
+
+
+def metric_range(key: str, *, env_max_steps: Optional[int] = None) -> str:
+    """Human-readable range for a metric, e.g. '0-100%' or '0-52 cards'.
+
+    Returned as text rather than a pair because it is only ever displayed;
+    an empty string means "no meaningful bound", which is itself information.
+    """
+    spec = metric_spec(key)
+    kind = spec.get("kind")
+    low, high = spec.get("min"), spec.get("max")
+
+    if key in ("steps", "mean_steps") and env_max_steps:
+        return f"0-{env_max_steps} steps"
+
+    if kind == "rate":
+        return "0-100%"
+    if kind == "duration":
+        return "seconds"
+    if low is not None and high is not None:
+        unit = spec.get("unit", "")
+        return f"{low:g}-{high:g}{' ' + unit if unit else ''}"
+    if low is not None:
+        unit = spec.get("unit", "")
+        note = spec.get("note", "")
+        base = f"{low:g}+{' ' + unit if unit else ''}"
+        return f"{base} ({note})" if note else base
+    return spec.get("note", "unbounded")
+
+
+def format_metric(key: str, value: Any) -> str:
+    """Render a value in the units its metric is actually measured in."""
+    if value is None:
+        return ""
+    spec = metric_spec(key)
+    kind = spec.get("kind")
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return str(value)
+    if kind == "rate":
+        return f"{value:.1%}"
+    if kind == "duration":
+        return f"{value:,.1f}s"
+    if kind == "count":
+        return f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
+    if abs(value) >= 1000 or (value != 0 and abs(value) < 0.01):
+        return f"{value:,.4g}"
+    return f"{value:,.3f}"
+
+
+def register_game(name: str, **spec: Any) -> dict[str, Any]:
+    """Declare how a custom game should be reported.
+
+    Without this a game the library does not ship is reported with a neutral
+    default -- win rate as the headline, no game-specific curve. Registering
+    it lets the report name the metric the game is actually judged on::
+
+        register_game(
+            "hearts",
+            label="Hearts",
+            headline_key="penalty_points",
+            headline_label="Penalty points",
+            headline_max=26,
+            episode_curves=["penalty_points"],
+        )
+
+    Returns the stored spec. Unspecified fields keep the neutral defaults.
+    """
+    merged = dict(game_spec(name))
+    merged.update(spec)
+    merged.setdefault("label", name.replace("_", " ").title())
+    GAME_SPEC[name] = merged
+    return merged
+
+
 def game_spec(game: str) -> dict[str, Any]:
     """Look up a game's reporting spec, falling back to a neutral default."""
     if game in GAME_SPEC:
@@ -881,13 +1007,18 @@ def purge_checkpoints(
 __all__ = [
     "SCHEMA_VERSION",
     "GAME_SPEC",
+    "METRICS",
     "EPISODE_SERIES",
     "RunRecord",
     "RunStore",
     "BaselineSet",
     "agent_label",
     "detect_notes",
+    "format_metric",
     "game_spec",
+    "metric_range",
+    "metric_spec",
+    "register_game",
     "host_info",
     "moving_average",
     "purge_checkpoints",

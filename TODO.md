@@ -134,6 +134,40 @@ see `_backpropagate` and `_edge_reward`):
   `{game}__{agent}`, which is also its directory name, and both the run
   directory and the checkpoint directory are purged *before* training so a crash
   leaves an empty directory rather than a mixture of two runs.
+- [x] **Metric ranges are stated.** Summary, evaluation and baseline tables mix
+  0-1 rates, unbounded shaped rewards and counts; each column and row now
+  carries its scale (`0-100%`, `0-52 cards`, `0-300 steps`, `unbounded`) from a
+  `METRICS` registry, and rates render as percentages.
+- [x] **Figures open full-screen.** Clicking a chart opens it in a modal over a
+  dimmed page; clicking anywhere or pressing Escape closes it.
+- [x] **Custom games can be reported alone.** `--games` / `--exclude-games` /
+  `--exclude-builtin-games` on both `run_sweep.py` (as `--report-*`) and the
+  report CLI, with no default — the report covers the whole store unless told
+  otherwise. `register_game(...)` lets a custom game declare its headline
+  metric, label and bound instead of falling back to the neutral win-rate spec.
+
+### Custom games: what still assumes Klondike or Macao
+
+The reporting layer is generic; the *sweep* is not. Someone using this library
+for their own game can already record runs and get a report — `RunRecord`,
+`RunStore`, `HtmlReport` and `game_spec()` are game-agnostic, and unknown games
+fall back to a neutral spec — but they have to drive training themselves.
+
+- [ ] **`run_sweep.py` hardcodes the two bundled games.** `GAMES`, `MAX_STEPS`,
+  `build_env()` and `evaluate()` are literals; a third game cannot be swept
+  without editing the script. Wants a small registry — game name to env factory,
+  step cap, trainer class and evaluation protocol — that `register_game()` feeds.
+- [ ] **Evaluation protocols are game-specific functions.** `evaluate_klondike`
+  and `evaluate_macao_suite` are hand-written; a custom game needs its own and
+  no interface declares what one must return beyond "a dict of floats".
+- [ ] **Baselines are per-game literals.** `klondike_baseline_agents()` /
+  `macao_baseline_agents()` name their agents by hand. `RandomAgent` and
+  `GreedyLookaheadAgent` are generic and could be derived from any `Game`.
+- [ ] **`METRICS` is a module-level dict.** A custom metric renders with a
+  neutral "unbounded" range until it is added; there is no `register_metric()`.
+- [ ] **No worked example.** A `docs/custom_game.md` walking one third game from
+  `Game` subclass to report would prove the seams are actually usable.
+
 - [ ] **`Agent.checkpoint_suffix`.** `Trainer._save_checkpoint` hardcodes `.pt`
   even for `QLearningAgent`, which pickles — so `checkpoint_ep400.pt` in a
   tabular run is a pickle that `torch.load` cannot open. `purge_checkpoints`

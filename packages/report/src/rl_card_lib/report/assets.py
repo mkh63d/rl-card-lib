@@ -128,7 +128,44 @@ figure {
   margin: 0; background: var(--surface); border: 1px solid var(--border);
   border-radius: 10px; padding: 14px 16px 12px;
 }
-figure img { width: 100%; height: auto; display: block; }
+figure img { width: 100%; height: auto; display: block; cursor: zoom-in; border-radius: 4px; }
+figure img:hover { outline: 2px solid var(--rule); outline-offset: 2px; }
+
+/* ---- lightbox ---- */
+.lightbox {
+  position: fixed; inset: 0; z-index: 100;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(11, 11, 11, 0.82);
+  padding: 32px;
+  cursor: zoom-out;
+  animation: lb-fade 120ms ease-out;
+}
+.lightbox.open { display: flex; }
+@keyframes lb-fade { from { opacity: 0; } to { opacity: 1; } }
+.lightbox figure {
+  margin: 0; background: var(--surface); border-radius: 10px;
+  padding: 16px 18px 14px; max-width: min(1400px, 96vw); max-height: 94vh;
+  display: flex; flex-direction: column; cursor: zoom-out;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+}
+.lightbox img {
+  max-width: 100%; max-height: calc(94vh - 110px);
+  width: auto; height: auto; object-fit: contain; cursor: zoom-out;
+}
+.lightbox img:hover { outline: none; }
+.lightbox .lb-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 16px; margin-bottom: 10px;
+}
+.lightbox .lb-head h4 { margin: 0; font-size: 15px; }
+.lightbox figcaption { font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
+.lightbox .lb-close {
+  font: inherit; font-size: 13px; line-height: 1; cursor: pointer;
+  background: var(--surface); color: var(--ink-2);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 5px 10px;
+}
+.lightbox .lb-close:hover { background: var(--plane); color: var(--ink); }
+.lightbox .lb-hint { font-size: 12px; color: var(--muted); }
 figure figcaption { font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
 figure .fig-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 figure .fig-head h4 { margin: 0; font-size: 14px; }
@@ -164,6 +201,7 @@ footer.page { border-top: 1px solid var(--rule); padding-top: 18px; color: var(-
   body { background: #fff; }
   nav.toc { display: none; }
   .toolbar { display: none; }
+  .lightbox { display: none !important; }
   figure, .card, .tile, .table-block { break-inside: avoid; page-break-inside: avoid; }
   section { break-before: auto; }
   details { display: none; }
@@ -274,6 +312,77 @@ JS = """
   function nameOf(block) {
     return (block.getAttribute("data-name") || "table").replace(/[^a-z0-9_.-]+/gi, "_");
   }
+
+  // ---- lightbox: click a figure to inspect it full-screen ----------------
+  var box = null;
+  var lastFocus = null;
+
+  function ensureBox() {
+    if (box) { return box; }
+    box = document.createElement("div");
+    box.className = "lightbox";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    box.innerHTML =
+      '<figure>' +
+      '<div class="lb-head"><h4></h4>' +
+      '<button type="button" class="lb-close">Close</button></div>' +
+      '<img alt="">' +
+      "<figcaption></figcaption>" +
+      '<div class="lb-hint">Click outside the image, press Escape, or use ' +
+      "Close to dismiss.</div>" +
+      "</figure>";
+    document.body.appendChild(box);
+    return box;
+  }
+
+  function openBox(img) {
+    var node = ensureBox();
+    var source = img.closest("figure");
+    var heading = source ? source.querySelector("h4") : null;
+    var caption = source ? source.querySelector("figcaption") : null;
+
+    node.querySelector("h4").textContent = heading ? heading.textContent : "";
+    var target = node.querySelector("img");
+    target.src = img.src;
+    target.alt = img.alt || "";
+    var text = node.querySelector("figcaption");
+    text.textContent = caption ? caption.textContent : "";
+    text.style.display = caption ? "" : "none";
+
+    lastFocus = document.activeElement;
+    node.classList.add("open");
+    // Stop the page behind from scrolling under the overlay.
+    document.body.style.overflow = "hidden";
+    node.querySelector(".lb-close").focus();
+  }
+
+  function closeBox() {
+    if (!box || !box.classList.contains("open")) { return; }
+    box.classList.remove("open");
+    box.querySelector("img").src = "";
+    document.body.style.overflow = "";
+    if (lastFocus && lastFocus.focus) { lastFocus.focus(); }
+  }
+
+  document.addEventListener("click", function (event) {
+    if (box && event.target.closest(".lightbox")) {
+      // Any click inside the overlay dismisses it, including on the image:
+      // that is what a reader expects from a zoomed figure, and there is
+      // nothing inside to interact with.
+      closeBox();
+      return;
+    }
+    var img = event.target.closest("figure img");
+    if (img && img.src) {
+      openBox(img);
+      return;
+    }
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") { closeBox(); }
+  });
 
   document.addEventListener("click", function (event) {
     var button = event.target.closest("[data-export]");

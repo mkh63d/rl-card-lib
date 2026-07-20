@@ -218,6 +218,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-embed", action="store_true",
                         help="Reference figures on disk instead of embedding")
     parser.add_argument("--no-figures", action="store_true")
+    # Report-side filters, with no default: the page covers everything in the
+    # store unless asked otherwise. For reporting on your own game alone.
+    parser.add_argument("--report-games", default=None,
+                        help="Only report these games, comma-separated")
+    parser.add_argument("--report-exclude-games", default=None,
+                        help="Report every game except these, comma-separated")
+    parser.add_argument("--report-exclude-builtin-games", action="store_true",
+                        help="Shorthand for --report-exclude-games klondike,macao")
     parser.add_argument("--keep-going", action="store_true",
                         help="Continue the sweep when one run fails")
     parser.add_argument("--quiet", dest="verbose", action="store_false",
@@ -296,8 +304,17 @@ def main(argv=None) -> int:
     command = "python packages/examples/scripts/run_sweep.py " + " ".join(
         sys.argv[1:]
     )
+
+    def split(value):
+        return [v.strip() for v in value.split(",") if v.strip()] if value else None
+
+    exclude = split(args.report_exclude_games) or []
+    if args.report_exclude_builtin_games:
+        exclude = sorted(set(exclude) | {"klondike", "macao"})
+
     report = HtmlReport.build(
         store, embed=not args.no_embed, with_figures=not args.no_figures,
+        include_games=split(args.report_games), exclude_games=exclude or None,
         command=command.strip(),
     )
     out = report.write(os.path.join(args.results_dir, "index.html"))

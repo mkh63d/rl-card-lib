@@ -122,7 +122,44 @@ figure {
   margin: 0; background: var(--surface); border: 1px solid var(--border);
   border-radius: 10px; padding: 14px 16px 12px;
 }
-figure img { width: 100%; height: auto; display: block; }
+figure img { width: 100%; height: auto; display: block; cursor: zoom-in; border-radius: 4px; }
+figure img:hover { outline: 2px solid var(--rule); outline-offset: 2px; }
+
+/* ---- lightbox ---- */
+.lightbox {
+  position: fixed; inset: 0; z-index: 100;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(11, 11, 11, 0.82);
+  padding: 32px;
+  cursor: zoom-out;
+  animation: lb-fade 120ms ease-out;
+}
+.lightbox.open { display: flex; }
+@keyframes lb-fade { from { opacity: 0; } to { opacity: 1; } }
+.lightbox figure {
+  margin: 0; background: var(--surface); border-radius: 10px;
+  padding: 16px 18px 14px; max-width: min(1400px, 96vw); max-height: 94vh;
+  display: flex; flex-direction: column; cursor: zoom-out;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+}
+.lightbox img {
+  max-width: 100%; max-height: calc(94vh - 110px);
+  width: auto; height: auto; object-fit: contain; cursor: zoom-out;
+}
+.lightbox img:hover { outline: none; }
+.lightbox .lb-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 16px; margin-bottom: 10px;
+}
+.lightbox .lb-head h4 { margin: 0; font-size: 15px; }
+.lightbox figcaption { font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
+.lightbox .lb-close {
+  font: inherit; font-size: 13px; line-height: 1; cursor: pointer;
+  background: var(--surface); color: var(--ink-2);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 5px 10px;
+}
+.lightbox .lb-close:hover { background: var(--plane); color: var(--ink); }
+.lightbox .lb-hint { font-size: 12px; color: var(--muted); }
 figure figcaption { font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
 figure .fig-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 figure .fig-head h4 { margin: 0; font-size: 14px; }
@@ -158,6 +195,7 @@ footer.page { border-top: 1px solid var(--rule); padding-top: 18px; color: var(-
   body { background: #fff; }
   nav.toc { display: none; }
   .toolbar { display: none; }
+  .lightbox { display: none !important; }
   figure, .card, .tile, .table-block { break-inside: avoid; page-break-inside: avoid; }
   section { break-before: auto; }
   details { display: none; }
@@ -188,7 +226,7 @@ footer.page { border-top: 1px solid var(--rule); padding-top: 18px; color: var(-
 <th>Game</th>
 <th>Agent</th>
 <th class="num">Episodes</th>
-<th>Headline metric</th>
+<th>Headline metric (range)</th>
 <th>Before → after</th>
 <th>Delta</th>
 <th>Train time</th>
@@ -199,7 +237,7 @@ footer.page { border-top: 1px solid var(--rule); padding-top: 18px; color: var(-
 <td>Klondike Solitaire</td>
 <td><span class="chip swatch" style="--dot:var(--q-learning)">Q-learning</span></td>
 <td class="num">200</td>
-<td>Cards to foundation</td>
+<td>Cards to foundation &lt;span class=&quot;chip&quot;&gt;0-52 cards&lt;/span&gt;</td>
 <td>11.4 → 14.3</td>
 <td><span class="delta-up">▲ +2.87</span></td>
 <td>35.2s</td>
@@ -219,41 +257,41 @@ footer.page { border-top: 1px solid var(--rule); padding-top: 18px; color: var(-
 <div class="table-block" data-name="baselines_klondike">
 <div class="toolbar"><button type="button" data-export="copy" title="Copy as TSV">Copy</button><button type="button" data-export="csv" title="Download CSV">CSV</button><button type="button" data-export="png" title="Download PNG">PNG</button></div>
 <div class="table-scroll"><table>
-<caption>episodes: 30, max_steps: 300, seed: 0, mcts_simulations: 20, opponent: None</caption>
+<caption>episodes: 30, max_steps: 300, seed: 0, mcts_simulations: 20</caption>
 <thead><tr>
-<th>agent</th>
-<th class="num">reward</th>
-<th class="num">cards_up</th>
-<th class="num">win_rate</th>
-<th class="num">seconds</th>
+<th>Agent</th>
+<th>Episode reward (shaped; unbounded)</th>
+<th>Cards to foundation (0-52 cards)</th>
+<th>Win rate (0-100%)</th>
+<th>Wall clock (seconds)</th>
 </tr></thead><tbody>
 <tr>
 <td>Random</td>
-<td class="num">14.76</td>
-<td class="num">14.43</td>
-<td class="num">0</td>
-<td class="num">2.505</td>
+<td>14.763</td>
+<td>14.43</td>
+<td>0.0%</td>
+<td>2.5s</td>
 </tr>
 <tr>
 <td>Heuristic</td>
-<td class="num">27.22</td>
-<td class="num">26.1</td>
-<td class="num">0.4</td>
-<td class="num">2.309</td>
+<td>27.222</td>
+<td>26.10</td>
+<td>40.0%</td>
+<td>2.3s</td>
 </tr>
 <tr>
 <td>GreedyLookahead(1)</td>
-<td class="num">10.01</td>
-<td class="num">10.27</td>
-<td class="num">0</td>
-<td class="num">8.707</td>
+<td>10.013</td>
+<td>10.27</td>
+<td>0.0%</td>
+<td>8.7s</td>
 </tr>
 <tr>
 <td>MCTS(20)</td>
-<td class="num">30.22</td>
-<td class="num">29.13</td>
-<td class="num">0.4333</td>
-<td class="num">532.9</td>
+<td>30.215</td>
+<td>29.13</td>
+<td>43.3%</td>
+<td>532.9s</td>
 </tr>
 </tbody></table></div></div>
 </section>
@@ -271,48 +309,59 @@ footer.page { border-top: 1px solid var(--rule); padding-top: 18px; color: var(-
 <li>The agent never won during training.</li>
 </ul></div>
 <h3>Summary</h3>
+<p class="sub">Every row carries the range it is measured on: these numbers mix rates, unbounded rewards and counts.</p>
 <div class="table-block" data-name="klondike__q_learning_summary">
 <div class="toolbar"><button type="button" data-export="copy" title="Copy as TSV">Copy</button><button type="button" data-export="csv" title="Download CSV">CSV</button><button type="button" data-export="png" title="Download PNG">PNG</button></div>
 <div class="table-scroll"><table>
 <thead><tr>
 <th>Metric</th>
-<th class="num">Value</th>
+<th>Value</th>
+<th>Range</th>
 </tr></thead><tbody>
 <tr>
-<td>total episodes</td>
-<td class="num">200</td>
+<td>Episodes</td>
+<td>200</td>
+<td>0+</td>
 </tr>
 <tr>
-<td>total wins</td>
-<td class="num">0</td>
+<td>Wins</td>
+<td>0</td>
+<td>0+</td>
 </tr>
 <tr>
-<td>win rate</td>
-<td class="num">0</td>
+<td>Win rate</td>
+<td>0.0%</td>
+<td>0-100%</td>
 </tr>
 <tr>
-<td>mean reward</td>
-<td class="num">11.64</td>
+<td>Mean reward</td>
+<td>11.641</td>
+<td>shaped; unbounded</td>
 </tr>
 <tr>
-<td>std reward</td>
-<td class="num">8.322</td>
+<td>Reward std dev</td>
+<td>8.322</td>
+<td>0+</td>
 </tr>
 <tr>
-<td>max reward</td>
-<td class="num">44.2</td>
+<td>Max reward</td>
+<td>44.200</td>
+<td>unbounded</td>
 </tr>
 <tr>
-<td>min reward</td>
-<td class="num">-2.5</td>
+<td>Min reward</td>
+<td>-2.500</td>
+<td>unbounded</td>
 </tr>
 <tr>
-<td>mean steps</td>
-<td class="num">300</td>
+<td>Mean episode length</td>
+<td>300</td>
+<td>0-300 steps</td>
 </tr>
 <tr>
-<td>training time</td>
-<td class="num">35.16</td>
+<td>Training time</td>
+<td>35.2s</td>
+<td>seconds</td>
 </tr>
 </tbody></table></div></div>
 <h3>Evaluation history</h3>
@@ -320,103 +369,103 @@ footer.page { border-top: 1px solid var(--rule); padding-top: 18px; color: var(-
 <div class="toolbar"><button type="button" data-export="copy" title="Copy as TSV">Copy</button><button type="button" data-export="csv" title="Download CSV">CSV</button><button type="button" data-export="png" title="Download PNG">PNG</button></div>
 <div class="table-scroll"><table>
 <thead><tr>
-<th class="num">episode</th>
-<th class="num">mean_reward</th>
-<th class="num">std_reward</th>
-<th class="num">min_reward</th>
-<th class="num">max_reward</th>
-<th class="num">win_rate</th>
-<th class="num">mean_steps</th>
+<th>Episode (0+)</th>
+<th>Mean reward (shaped; unbounded)</th>
+<th>Reward std dev (0+)</th>
+<th>Min reward (unbounded)</th>
+<th>Max reward (unbounded)</th>
+<th>Win rate (0-100%)</th>
+<th>Mean episode length (0-300 steps)</th>
 </tr></thead><tbody>
 <tr>
-<td class="num">20</td>
-<td class="num">11.35</td>
-<td class="num">6.092</td>
-<td class="num">2.9</td>
-<td class="num">27.4</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>20</td>
+<td>11.350</td>
+<td>6.092</td>
+<td>2.900</td>
+<td>27.400</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">40</td>
-<td class="num">10.56</td>
-<td class="num">5.591</td>
-<td class="num">1.9</td>
-<td class="num">21.8</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>40</td>
+<td>10.555</td>
+<td>5.591</td>
+<td>1.900</td>
+<td>21.800</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">60</td>
-<td class="num">14.51</td>
-<td class="num">7.83</td>
-<td class="num">-0.1</td>
-<td class="num">30.8</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>60</td>
+<td>14.515</td>
+<td>7.830</td>
+<td>-0.100</td>
+<td>30.800</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">80</td>
-<td class="num">12.86</td>
-<td class="num">8.451</td>
-<td class="num">1.1</td>
-<td class="num">34.5</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>80</td>
+<td>12.860</td>
+<td>8.451</td>
+<td>1.100</td>
+<td>34.500</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">100</td>
-<td class="num">10.4</td>
-<td class="num">8.376</td>
-<td class="num">1.9</td>
-<td class="num">40.7</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>100</td>
+<td>10.400</td>
+<td>8.376</td>
+<td>1.900</td>
+<td>40.700</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">120</td>
-<td class="num">8.55</td>
-<td class="num">6.631</td>
-<td class="num">-1.2</td>
-<td class="num">24</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>120</td>
+<td>8.550</td>
+<td>6.631</td>
+<td>-1.200</td>
+<td>24.000</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">140</td>
-<td class="num">8.73</td>
-<td class="num">4.418</td>
-<td class="num">2.4</td>
-<td class="num">19.5</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>140</td>
+<td>8.730</td>
+<td>4.418</td>
+<td>2.400</td>
+<td>19.500</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">160</td>
-<td class="num">10.01</td>
-<td class="num">7.476</td>
-<td class="num">0.4</td>
-<td class="num">31.8</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>160</td>
+<td>10.010</td>
+<td>7.476</td>
+<td>0.400</td>
+<td>31.800</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">180</td>
-<td class="num">10.95</td>
-<td class="num">7.535</td>
-<td class="num">-0.2</td>
-<td class="num">26.7</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>180</td>
+<td>10.950</td>
+<td>7.535</td>
+<td>-0.200</td>
+<td>26.700</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 <tr>
-<td class="num">200</td>
-<td class="num">11.69</td>
-<td class="num">7.976</td>
-<td class="num">1.4</td>
-<td class="num">33.4</td>
-<td class="num">0</td>
-<td class="num">300</td>
+<td>200</td>
+<td>11.685</td>
+<td>7.976</td>
+<td>1.400</td>
+<td>33.400</td>
+<td>0.0%</td>
+<td>300</td>
 </tr>
 </tbody></table></div></div>
 <h3>Q-learning hyperparameters</h3>
@@ -632,6 +681,77 @@ footer.page { border-top: 1px solid var(--rule); padding-top: 18px; color: var(-
   function nameOf(block) {
     return (block.getAttribute("data-name") || "table").replace(/[^a-z0-9_.-]+/gi, "_");
   }
+
+  // ---- lightbox: click a figure to inspect it full-screen ----------------
+  var box = null;
+  var lastFocus = null;
+
+  function ensureBox() {
+    if (box) { return box; }
+    box = document.createElement("div");
+    box.className = "lightbox";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    box.innerHTML =
+      '<figure>' +
+      '<div class="lb-head"><h4></h4>' +
+      '<button type="button" class="lb-close">Close</button></div>' +
+      '<img alt="">' +
+      "<figcaption></figcaption>" +
+      '<div class="lb-hint">Click outside the image, press Escape, or use ' +
+      "Close to dismiss.</div>" +
+      "</figure>";
+    document.body.appendChild(box);
+    return box;
+  }
+
+  function openBox(img) {
+    var node = ensureBox();
+    var source = img.closest("figure");
+    var heading = source ? source.querySelector("h4") : null;
+    var caption = source ? source.querySelector("figcaption") : null;
+
+    node.querySelector("h4").textContent = heading ? heading.textContent : "";
+    var target = node.querySelector("img");
+    target.src = img.src;
+    target.alt = img.alt || "";
+    var text = node.querySelector("figcaption");
+    text.textContent = caption ? caption.textContent : "";
+    text.style.display = caption ? "" : "none";
+
+    lastFocus = document.activeElement;
+    node.classList.add("open");
+    // Stop the page behind from scrolling under the overlay.
+    document.body.style.overflow = "hidden";
+    node.querySelector(".lb-close").focus();
+  }
+
+  function closeBox() {
+    if (!box || !box.classList.contains("open")) { return; }
+    box.classList.remove("open");
+    box.querySelector("img").src = "";
+    document.body.style.overflow = "";
+    if (lastFocus && lastFocus.focus) { lastFocus.focus(); }
+  }
+
+  document.addEventListener("click", function (event) {
+    if (box && event.target.closest(".lightbox")) {
+      // Any click inside the overlay dismisses it, including on the image:
+      // that is what a reader expects from a zoomed figure, and there is
+      // nothing inside to interact with.
+      closeBox();
+      return;
+    }
+    var img = event.target.closest("figure img");
+    if (img && img.src) {
+      openBox(img);
+      return;
+    }
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") { closeBox(); }
+  });
 
   document.addEventListener("click", function (event) {
     var button = event.target.closest("[data-export]");

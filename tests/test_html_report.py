@@ -237,6 +237,111 @@ class TestWrite:
         assert list(out.parent.iterdir()) == [out]
 
 
+class TestMetricRanges:
+    """Rates, rewards and counts share tables; each must state its scale."""
+
+    def test_summary_carries_a_range_column(self, store):
+        page = build(store)
+        assert "<th>Range</th>" in page or "Range" in page
+        assert "0-100%" in page
+
+    def test_rates_render_as_percentages(self, store):
+        assert "%" in build(store)
+
+    def test_evaluation_headers_state_the_range(self, store):
+        assert "Win rate (0-100%)" in build(store)
+
+    def test_headline_metric_shows_its_bound(self, tmp_path):
+        store = RunStore(tmp_path)
+        store.save_run(make_record(
+            baseline_before={"cards_up": 3.0}, baseline_after={"cards_up": 11.0},
+        ))
+        assert "0-52 cards" in build(store)
+
+
+class TestLightbox:
+    """Figures open full-screen; clicking anywhere dismisses."""
+
+    def test_ships_the_overlay_code(self, store):
+        page = build(store)
+        assert "lightbox" in page
+        assert "zoom-in" in page and "zoom-out" in page
+
+    def test_escape_closes(self, store):
+        assert 'event.key === "Escape"' in build(store)
+
+    def test_hidden_when_printing(self, store):
+        assert ".lightbox { display: none !important; }" in build(store)
+
+
+class TestGameFiltering:
+    """No default: the report covers the store unless told otherwise."""
+
+    def test_unfiltered_includes_everything(self, store):
+        report = HtmlReport.build(store, with_figures=False)
+        assert {r.game for r in report.runs} == {"klondike", "macao"}
+
+    def test_include_selects_one_game(self, store):
+        report = HtmlReport.build(
+            store, with_figures=False, include_games=["macao"],
+        )
+        assert {r.game for r in report.runs} == {"macao"}
+        assert "Klondike Solitaire" not in report.to_html()
+
+    def test_exclude_drops_the_builtins(self, tmp_path):
+        store = RunStore(tmp_path)
+        store.save_run(make_record(game="klondike", agent="dqn"))
+        store.save_run(make_record(game="hearts", agent="ppo"))
+
+        report = HtmlReport.build(
+            store, with_figures=False, exclude_games=["klondike", "macao"],
+        )
+        assert [r.game for r in report.runs] == ["hearts"]
+
+    def test_baselines_are_filtered_too(self, tmp_path):
+        store = RunStore(tmp_path)
+        store.save_run(make_record(game="hearts", agent="ppo"))
+        store.save_baselines(BaselineSet(
+            game="klondike", rows=[{"agent": "Random", "cards_up": 2.9}],
+        ))
+        report = HtmlReport.build(
+            store, with_figures=False, exclude_games=["klondike"],
+        )
+        assert report.baselines == {}
+
+    def test_a_custom_game_renders_with_a_neutral_spec(self, tmp_path):
+        store = RunStore(tmp_path)
+        store.save_run(make_record(game="hearts", agent="ppo"))
+        page = HtmlReport.build(store, with_figures=False).to_html()
+        assert "Hearts" in page
+
+
+class TestRegisterGame:
+    """A custom game can declare the metric it is judged on."""
+
+    def test_registers_a_headline_metric(self):
+        from rl_card_lib.report.run_record import GAME_SPEC, game_spec, register_game
+
+        try:
+            register_game(
+                "hearts", label="Hearts", headline_key="penalty_points",
+                headline_label="Penalty points", headline_max=26,
+            )
+            spec = game_spec("hearts")
+            assert spec["headline_key"] == "penalty_points"
+            assert spec["headline_label"] == "Penalty points"
+            assert spec["episode_curves"] == []  # neutral default kept
+        finally:
+            GAME_SPEC.pop("hearts", None)
+
+    def test_unregistered_game_falls_back(self):
+        from rl_card_lib.report.run_record import game_spec
+
+        spec = game_spec("some_unknown_game")
+        assert spec["label"] == "Some Unknown Game"
+        assert spec["headline_key"] == "win_rate"
+
+
 class TestCli:
     def test_renders_from_a_store(self, tmp_path, store, capsys):
         out = tmp_path / "index.html"
