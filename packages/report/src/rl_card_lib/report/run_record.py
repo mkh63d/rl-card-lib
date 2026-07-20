@@ -655,17 +655,22 @@ class BaselineSet:
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(_jsonable(self.as_dict()), indent=indent, default=str)
 
-    def headline_values(self) -> dict[str, float]:
-        """Reference levels to draw, keyed by baseline name."""
-        key = game_spec(self.game)["headline_key"]
+    def values_for(self, key: str) -> dict[str, float]:
+        """Reference levels for one measure, keyed by baseline name.
+
+        Strictly the requested measure: a caller plotting win rate must not be
+        handed cards-up values, which would put two units on one axis.
+        """
         out: dict[str, float] = {}
         for row in self.rows:
             value = row.get(key)
-            if value is None:
-                value = row.get("win_rate")
             if value is not None:
                 out[str(row.get("agent", "?"))] = float(value)
         return out
+
+    def headline_values(self) -> dict[str, float]:
+        """Reference levels for this game's headline metric."""
+        return self.values_for(game_spec(self.game)["headline_key"])
 
 
 class RunStore:
