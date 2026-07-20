@@ -17,32 +17,34 @@ Usage:
 """
 
 import argparse
-import random
-import time
-
-import numpy as np
 
 from rl_card_lib.agents import (
     DoubleDQNAgent,
     DQNAgent,
-    GreedyLookaheadAgent,
     MCTSAgent,
     PPOAgent,
     QLearningAgent,
-    RandomAgent,
 )
-from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games import (
     KlondikeHeuristicAgent,
     KlondikeSolitaire,
     Macao,
-    MacaoHeuristicAgent,
+)
+from rl_card_lib.harness import (
+    klondike_baseline_agents,
+    macao_baseline_agents,
+    run_klondike_baselines,
+    run_macao_baselines,
 )
 
 
 def benchmark_klondike(episodes: int, max_steps: int = 300) -> list[dict]:
     """
     Play every agent over the same deals and report how far each one gets.
+
+    The non-learning agents come from the shared harness; the untrained
+    learners are added here because they only make sense as a "before"
+    snapshot, not as a reusable baseline.
 
     Args:
         episodes: Deals to play per agent
@@ -55,76 +57,27 @@ def benchmark_klondike(episodes: int, max_steps: int = 300) -> list[dict]:
     state_size = probe.get_observation_shape()[0]
     action_size = probe.get_action_space_size()
 
-    def build_agents():
-        return [
-            ("Random", RandomAgent(action_size=action_size, seed=0)),
-            ("Heuristic", KlondikeHeuristicAgent(seed=0)),
-            ("GreedyLookahead(1)", GreedyLookaheadAgent(depth=1, seed=0)),
-            # Klondike deals run to hundreds of moves, and MCTS pays its whole
-            # simulation budget on every one of them, so the budget here is
-            # what finishes in minutes rather than what plays best.
-            ("MCTS(20)", MCTSAgent(simulations=20, rollout_depth=15, seed=0)),
-            ("MCTS(20)+heur", MCTSAgent(
-                simulations=20, rollout_depth=15,
-                rollout_policy=KlondikeHeuristicAgent(seed=0), seed=0,
-            )),
-            ("QLearning (untrained)", QLearningAgent(action_size=action_size, seed=0)),
-            ("DQN (untrained)", DQNAgent(
-                state_size=state_size, action_size=action_size,
-                hidden_sizes=[128], device="cpu", seed=0,
-            )),
-            ("DoubleDQN (untrained)", DoubleDQNAgent(
-                state_size=state_size, action_size=action_size,
-                hidden_sizes=[128], device="cpu", seed=0,
-            )),
-            ("PPO (untrained)", PPOAgent(
-                state_size=state_size, action_size=action_size,
-                hidden_sizes=[128], device="cpu", seed=0,
-            )),
-        ]
-
-    results = []
-    for name, agent in build_agents():
-        rewards, cards_up, wins = [], [], 0
-        started = time.time()
-
-        for seed in range(episodes):
-            random.seed(seed)
-            np.random.seed(seed)
-
-            game = KlondikeSolitaire()
-            env = CardGameEnv(game, max_steps=max_steps)
-            if hasattr(agent, "bind"):
-                agent.bind(env)
-
-            observation, info = env.reset()
-            agent.reset()
-            total = 0.0
-
-            for _ in range(max_steps):
-                action = agent.select_action(observation, info.get("legal_actions"))
-                observation, reward, terminated, truncated, info = env.step(action)
-                total += reward
-                if terminated or truncated:
-                    break
-
-            rewards.append(total)
-            cards_up.append(sum(len(pile) for pile in game.foundations))
-            wins += 1 if game.winner == 0 else 0
-
-        results.append({
-            "agent": name,
-            "reward": float(np.mean(rewards)),
-            "cards_up": float(np.mean(cards_up)),
-            "win_rate": wins / episodes,
-            "seconds": time.time() - started,
-        })
-        print(f"  {name:24s} reward={results[-1]['reward']:7.2f}  "
-              f"cards_up={results[-1]['cards_up']:5.1f}  "
-              f"wins={results[-1]['win_rate']:5.1%}  "
-              f"({results[-1]['seconds']:.1f}s)", flush=True)
-
-    return results
+    agents = klondike_baseline_agents(seed=0)
+    agents.insert(4, ("MCTS(20)+heur", MCTSAgent(
+        simulations=20, rollout_depth=15,
+        rollout_policy=KlondikeHeuristicAgent(seed=0), seed=0,
+    )))
+    agents += [
+        ("QLearning (untrained)", QLearningAgent(action_size=action_size, seed=0)),
+        ("DQN (untrained)", DQNAgent(
+            state_size=state_size, action_size=action_size,
+            hidden_sizes=[128], device="cpu", seed=0,
+        )),
+        ("DoubleDQN (untrained)", DoubleDQNAgent(
+            state_size=state_size, action_size=action_size,
+            hidden_sizes=[128], device="cpu", seed=0,
+        )),
+        ("PPO (untrained)", PPOAgent(
+            state_size=state_size, action_size=action_size,
+            hidden_sizes=[128], device="cpu", seed=0,
+        )),
+    ]
+    return run_klondike_baselines(agents, episodes, max_steps)
 
 
 def benchmark_macao(episodes: int, max_steps: int = 200) -> list[dict]:
@@ -142,72 +95,26 @@ def benchmark_macao(episodes: int, max_steps: int = 200) -> list[dict]:
     state_size = probe.get_observation_shape()[0]
     action_size = probe.get_action_space_size()
 
-    def build_agents():
-        return [
-            ("Random", RandomAgent(action_size=action_size, seed=0)),
-            ("Heuristic", MacaoHeuristicAgent(seed=0)),
-            ("GreedyLookahead(1)", GreedyLookaheadAgent(depth=1, seed=0)),
-            ("MCTS(40)", MCTSAgent(simulations=40, rollout_depth=20, seed=0)),
-            ("MCTS(40)x4det", MCTSAgent(
-                simulations=40, determinizations=4, rollout_depth=20, seed=0
-            )),
-            ("QLearning (untrained)", QLearningAgent(action_size=action_size, seed=0)),
-            ("DQN (untrained)", DQNAgent(
-                state_size=state_size, action_size=action_size,
-                hidden_sizes=[128], device="cpu", seed=0,
-            )),
-            ("DoubleDQN (untrained)", DoubleDQNAgent(
-                state_size=state_size, action_size=action_size,
-                hidden_sizes=[128], device="cpu", seed=0,
-            )),
-            ("PPO (untrained)", PPOAgent(
-                state_size=state_size, action_size=action_size,
-                hidden_sizes=[128], device="cpu", seed=0,
-            )),
-        ]
-
-    results = []
-    for name, agent in build_agents():
-        wins, draws = 0, 0
-        started = time.time()
-
-        for seed in range(episodes):
-            random.seed(seed)
-            np.random.seed(seed)
-
-            game = Macao(num_players=2)
-            env = CardGameEnv(game, max_steps=max_steps)
-            if hasattr(agent, "bind"):
-                agent.bind(env)
-            opponent = RandomAgent(action_size=action_size, seed=seed)
-
-            observation, info = env.reset()
-            agent.reset()
-
-            for _ in range(max_steps):
-                actor = game.current_player_idx
-                chooser = agent if actor == 0 else opponent
-                action = chooser.select_action(observation, info.get("legal_actions"))
-                observation, _, terminated, truncated, info = env.step(action)
-                if terminated or truncated:
-                    break
-
-            if game.winner == 0:
-                wins += 1
-            elif game.winner is None:
-                draws += 1
-
-        results.append({
-            "agent": name,
-            "win_rate": wins / episodes,
-            "draw_rate": draws / episodes,
-            "seconds": time.time() - started,
-        })
-        print(f"  {name:24s} wins={results[-1]['win_rate']:5.1%}  "
-              f"draws={results[-1]['draw_rate']:5.1%}  "
-              f"({results[-1]['seconds']:.1f}s)", flush=True)
-
-    return results
+    agents = macao_baseline_agents(seed=0)
+    agents.insert(4, ("MCTS(40)x4det", MCTSAgent(
+        simulations=40, determinizations=4, rollout_depth=20, seed=0,
+    )))
+    agents += [
+        ("QLearning (untrained)", QLearningAgent(action_size=action_size, seed=0)),
+        ("DQN (untrained)", DQNAgent(
+            state_size=state_size, action_size=action_size,
+            hidden_sizes=[128], device="cpu", seed=0,
+        )),
+        ("DoubleDQN (untrained)", DoubleDQNAgent(
+            state_size=state_size, action_size=action_size,
+            hidden_sizes=[128], device="cpu", seed=0,
+        )),
+        ("PPO (untrained)", PPOAgent(
+            state_size=state_size, action_size=action_size,
+            hidden_sizes=[128], device="cpu", seed=0,
+        )),
+    ]
+    return run_macao_baselines(agents, episodes, max_steps)
 
 
 def main() -> None:
