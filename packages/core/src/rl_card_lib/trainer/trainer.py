@@ -449,15 +449,20 @@ class SelfPlayTrainer(Trainer):
             next_observation, reward, terminated, truncated, info = self.env.step(action)
             done = terminated or truncated
 
-            # Only learn from agent's own actions
-            if training and current_player == 0:
-                learn_result = self._learn(
-                    self.agent, observation, action, reward,
-                    next_observation, done, info,
-                )
-                if learn_result and "loss" in learn_result:
-                    losses.append(learn_result["loss"])
+            # The agent is only paid for its own plays, but it is paid whether
+            # or not it is learning: gating the accumulator on `training` made
+            # every evaluation episode report a reward of exactly 0.0.
+            if current_player == 0:
                 episode_reward += reward
+
+                # Only learn from the agent's own actions, and only in training.
+                if training:
+                    learn_result = self._learn(
+                        self.agent, observation, action, reward,
+                        next_observation, done, info,
+                    )
+                    if learn_result and "loss" in learn_result:
+                        losses.append(learn_result["loss"])
 
             observation = next_observation
             episode_steps += 1

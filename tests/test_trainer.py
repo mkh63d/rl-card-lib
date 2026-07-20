@@ -257,6 +257,64 @@ class TestSelfPlayTrainer:
         # Should have tracked losses
         assert len(metrics.losses) > 0
 
+    def test_evaluation_episodes_accumulate_reward(self, trainer):
+        """Evaluation must pay the agent for its own plays.
+
+        The accumulator used to sit behind `if training and ...`, so every
+        evaluation episode reported exactly 0.0 and each recorded Macao
+        evaluation had mean/std/min/max reward of 0.0.
+        """
+        rewards = [
+            trainer._run_episode(training=False, max_steps=40)["reward"]
+            for _ in range(10)
+        ]
+        assert any(reward != 0.0 for reward in rewards)
+
+    def test_evaluate_reports_nonzero_reward(self, trainer):
+        result = trainer.evaluate(episodes=10, verbose=False)
+        assert result["mean_reward"] != 0.0
+
+    def test_training_episodes_still_accumulate_reward(self, trainer):
+        rewards = [
+            trainer._run_episode(training=True, max_steps=40)["reward"]
+            for _ in range(10)
+        ]
+        assert any(reward != 0.0 for reward in rewards)
+
+    def test_evaluation_does_not_learn(self):
+        """Reward accumulates outside training, but learning must not.
+
+        Without this, dropping the `training` guard entirely would still pass
+        the reward tests above.
+        """
+        from rl_card_lib.agents.base import Agent
+
+        class CountingAgent(Agent):
+            def __init__(self):
+                super().__init__(name="CountingAgent")
+                self.learn_calls = 0
+
+            def select_action(self, obs, legal_actions=None):
+                return legal_actions[0] if legal_actions else 0
+
+            def learn(self, obs, action, reward, next_obs, done):
+                self.learn_calls += 1
+                return {"loss": 0.5}
+
+            def save(self, path): pass
+            def load(self, path): pass
+
+        game = Macao(num_players=2)
+        env = CardGameEnv(game, max_steps=20)
+        agent = CountingAgent()
+        trainer = SelfPlayTrainer(env, agent, opponent_update_interval=5)
+
+        trainer._run_episode(training=False, max_steps=20)
+        assert agent.learn_calls == 0
+
+        trainer._run_episode(training=True, max_steps=20)
+        assert agent.learn_calls > 0
+
 
 class TestTrainerVerbose:
     """Tests for verbose mode."""

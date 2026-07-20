@@ -4,6 +4,14 @@
 
 ### Fixed
 
+- **`SelfPlayTrainer` scored every evaluation episode as 0.0 reward.** The
+  episode-reward accumulator sat inside `if training and current_player == 0`,
+  so it never ran during evaluation. Consequence: every recorded Macao
+  evaluation has `mean_reward`, `std_reward`, `min_reward` and `max_reward`
+  of exactly `0.0` — those numbers are an artifact, not a measurement, and
+  must be re-measured rather than reinterpreted. Only `win_rate` and
+  `mean_steps` were ever meaningful there. The agent is still paid only for
+  its own plays, and learning is still training-only.
 - **Klondike reward loop.** Non-revealing tableau-to-tableau moves no longer
   pay `0.05 * cards_moved`; they now net `-0.01` (the step cost). The old
   payment was reversible and therefore unbounded free reward — agents that
