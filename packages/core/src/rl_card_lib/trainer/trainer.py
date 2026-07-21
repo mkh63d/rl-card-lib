@@ -1,6 +1,6 @@
 """Training loop and utilities."""
 
-from typing import Optional, Callable
+from typing import Any, Optional, Callable
 import copy
 import time
 import numpy as np
@@ -339,7 +339,7 @@ class SelfPlayTrainer(Trainer):
         agent: Agent,
         opponent: Optional[Agent] = None,
         opponent_update_interval: Optional[int] = 1000,
-        **kwargs
+        **kwargs: Any
     ):
         super().__init__(env, agent, **kwargs)
         self.opponent_update_interval = opponent_update_interval

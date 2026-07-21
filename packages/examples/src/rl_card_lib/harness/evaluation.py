@@ -16,11 +16,12 @@ import random
 
 import numpy as np
 
+from rl_card_lib.agents import Agent
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games import KlondikeSolitaire, Macao
 
 
-def evaluate_klondike(agent, episodes: int, max_steps: int = 300) -> dict:
+def evaluate_klondike(agent: Agent, episodes: int, max_steps: int = 300) -> dict:
     """
     Play fixed deals and report reward, foundation progress and wins.
 
@@ -70,7 +71,9 @@ def evaluate_klondike(agent, episodes: int, max_steps: int = 300) -> dict:
     }
 
 
-def evaluate_macao(agent, opponent, episodes: int, max_steps: int = 200) -> dict:
+def evaluate_macao(
+    agent: Agent, opponent: Agent, episodes: int, max_steps: int = 200
+) -> dict:
     """
     Play fixed games against an opponent and report the win rate.
 
@@ -119,7 +122,7 @@ def evaluate_macao(agent, opponent, episodes: int, max_steps: int = 200) -> dict
     return {"win_rate": wins / episodes, "draw_rate": draws / episodes}
 
 
-def evaluate_macao_suite(agent, opponents: dict, episodes: int,
+def evaluate_macao_suite(agent: Agent, opponents: dict, episodes: int,
                          max_steps: int = 200) -> dict:
     """Evaluate against several named opponents in one pass.
 
