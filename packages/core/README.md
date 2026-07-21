@@ -32,49 +32,80 @@ pip install -e "./packages/core[dev]"
 
 ## Quick Start
 
-The following demonstrates the minimal `Game` interface this package expects. Implementations may be synchronous turn-based games, simultaneous-move games, or episodic environments.
+A `Game` implements seven abstract methods and maintains a few plain
+attributes. `step` returns the five-element Gymnasium tuple.
 
 ```python
-from rl_card_lib.core import Game, Trainer, GymEnvWrapper
+from rl_card_lib.core import Game
+from rl_card_lib.env import CardGameEnv
+from rl_card_lib.trainer import Trainer
+import numpy as np
 
 class MyGame(Game):
-    def __init__(self, *, num_players=1):
-        super().__init__(num_players=num_players)
-        # initialize state
+    def __init__(self):
+        super().__init__(num_players=1)
+        self.reset()
 
-    def reset(self):
-        # return initial observation
+    def reset(self) -> np.ndarray:
+        # start a new game; set self.done / self.winner; return the observation
+        self.done = False
+        self.winner = None
+        return self.get_observation()
+
+    def step(self, action: int):
+        # apply the action, update state, and return the Gymnasium 5-tuple
+        # (observation, reward, terminated, truncated, info)
+        ...
+        return self.get_observation(), reward, self.done, False, {}
+
+    def get_legal_actions(self) -> list[int]:
         ...
 
-    def legal_actions(self, player_id):
-        # return iterable of legal actions for the player
+    def get_observation(self) -> np.ndarray:
         ...
 
-    def step(self, action, player_id=None):
-        # apply action, update state
-        # return observation, reward, done, info
+    def get_action_space_size(self) -> int:
         ...
 
-    def win_status(self):
-        # return per-player terminal/win/lose/draw status
+    def get_observation_shape(self) -> tuple[int, ...]:
         ...
 
-# Use Gym wrapper for existing RL algorithms
-game = MyGame()
-env = GymEnvWrapper(game)
+    def is_game_over(self) -> bool:
+        return self.done
 
-# Trainer accepts either a Gym-like env or a Game directly
-trainer = Trainer(env, agent=None)
-trainer.train(num_episodes=100)
+# CardGameEnv adapts a Game to the Gymnasium API the agents and Trainer use.
+env = CardGameEnv(MyGame(), max_steps=200)
+trainer = Trainer(env, agent=my_agent)
+trainer.train(episodes=100)
 ```
 
-## Recommended API contract
+## API contract
 
-- `reset() -> observation`
-- `legal_actions(player_id) -> list[action]`
-- `step(action, player_id=None) -> (observation, reward, done, info)`
-- `win_status() -> dict[player_id -> {terminal: bool, result: "win"|"loss"|"draw"}]`
-- `observation_space` and `action_space` (optional helpers for Gym compatibility)
+**Abstract — you must implement these seven:**
+
+- `reset() -> np.ndarray`
+- `step(action: int) -> (obs, reward, terminated, truncated, info)`
+- `get_legal_actions() -> list[int]`
+- `get_observation() -> np.ndarray`
+- `get_action_space_size() -> int`
+- `get_observation_shape() -> tuple[int, ...]`
+- `is_game_over() -> bool`
+
+**Plain attributes you maintain:** `done`, `winner` (winning player index or
+`None`), `current_player_idx`, `num_players`.
+
+**Provided with sensible defaults — override only when needed:**
+
+- `copy() -> Game` — deep copy by default; the search agents rely on it
+- `determinize(observer_idx, rng) -> Game` — `self.copy()` by default; override
+  for hidden-information games
+- `get_reward(player_idx) -> float` — `0.0` by default; override for multiplayer
+  so MCTS can see each player's terminal payoff
+- `render()`, `action_to_string()`, `get_current_player()`, `next_player()`,
+  `get_legal_action_mask()`, `get_winner()`, `log_action()`, `get_history()`
+
+See [docs/custom_game.md](../../docs/custom_game.md) for a full walkthrough,
+including how to register a game for the training sweep and the HTML report.
 
 ## Dependencies
 
@@ -101,7 +132,7 @@ src/rl_card_lib/
 ## Migration status
 
 The generic core exists: `Game` is the game-agnostic base class (documented
-under "Recommended API contract" above), `GymEnvWrapper` adapts any `Game` to
+under "API contract" above), `GymEnvWrapper` adapts any `Game` to
 a Gymnasium-style env, and the card-specific classes (`Card`, `Deck`,
 `CardGame`) live in the separate `rl-card-lib-cardgames` package, with
 `CardGame` a thin subclass of `Game`.

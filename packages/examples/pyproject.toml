@@ -26,6 +26,7 @@ dependencies = [
 	"rl-card-lib-core>=0.1.0",
 	"rl-card-lib-cardgames>=0.1.0",
 	"rl-card-lib-visualizer>=0.1.0",
+	"rl-card-lib-report>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -44,7 +45,10 @@ Homepage = "https://github.com/mkh63d/rl-card-lib"
 Repository = "https://github.com/mkh63d/rl-card-lib"
 
 [tool.setuptools.packages.find]
-where = ["."]
+# src-layout, like every other package here. This read "." before, which
+# discovered scripts/ and tests/ instead of the library and left
+# rl_card_lib.games unimportable from an install.
+where = ["src"]
 
 [tool.black]
 line-length = 88
@@ -65,5 +69,5 @@ python_files = ["test_*.py"]
 
 [tool.coverage.run]
 branch = true
-source = ["."]
+source = ["src/rl_card_lib"]
 

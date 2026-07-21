@@ -27,7 +27,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Charts and the HTML report. Optional so that the JSON and Markdown half of
+# this package stays importable without matplotlib, matching how
+# TrainingMetrics.plot() degrades in core.
+charts = [
+	"matplotlib>=3.5.0",
+]
 dev = [
+	"matplotlib>=3.5.0",
 	"pytest>=7.0.0",
 	"pytest-cov>=4.0.0",
 	"black>=23.0.0",

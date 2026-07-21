@@ -23,18 +23,9 @@ Usage:
 
 import argparse
 import os
-import random
 import time
 
-import numpy as np
-
-from rl_card_lib.agents import (
-    DoubleDQNAgent,
-    DQNAgent,
-    PPOAgent,
-    QLearningAgent,
-    RandomAgent,
-)
+from rl_card_lib.agents import RandomAgent
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games import (
     KlondikeHeuristicAgent,
@@ -42,157 +33,13 @@ from rl_card_lib.games import (
     Macao,
     MacaoHeuristicAgent,
 )
+from rl_card_lib.harness import (
+    LEARNERS,
+    build_learner,
+    evaluate_klondike,
+    evaluate_macao,
+)
 from rl_card_lib.trainer import SelfPlayTrainer, Trainer
-
-LEARNERS = ("q_learning", "dqn", "double_dqn", "ppo")
-
-
-def build_learner(kind: str, state_size: int, action_size: int, seed: int):
-    """
-    Construct one learning agent by name.
-
-    Args:
-        kind: One of LEARNERS
-        state_size: Observation width
-        action_size: Number of actions
-        seed: Random seed
-
-    Returns:
-        The constructed agent
-    """
-    if kind == "q_learning":
-        return QLearningAgent(
-            action_size=action_size,
-            learning_rate=0.1,
-            gamma=0.95,
-            epsilon_start=1.0,
-            epsilon_end=0.05,
-            epsilon_decay=0.995,  # per episode: floor at ~600 episodes
-            seed=seed,
-        )
-    if kind == "dqn":
-        return DQNAgent(
-            state_size=state_size, action_size=action_size,
-            hidden_sizes=[256, 128], learning_rate=5e-4, gamma=0.95,
-            epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995,
-            buffer_size=50_000, batch_size=64, target_update_freq=500,
-            device="cpu", seed=seed,
-        )
-    if kind == "double_dqn":
-        return DoubleDQNAgent(
-            state_size=state_size, action_size=action_size,
-            hidden_sizes=[256, 128], learning_rate=5e-4, gamma=0.95,
-            epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995,
-            buffer_size=50_000, batch_size=64, target_update_freq=500,
-            dueling=True, device="cpu", seed=seed,
-        )
-    if kind == "ppo":
-        return PPOAgent(
-            state_size=state_size, action_size=action_size,
-            hidden_sizes=[256, 128], learning_rate=3e-4, gamma=0.95,
-            gae_lambda=0.95, clip_epsilon=0.2, epochs=4, minibatch_size=64,
-            rollout_steps=1024, entropy_coef=0.01, device="cpu", seed=seed,
-        )
-    raise ValueError(f"Unknown agent {kind!r}, expected one of {LEARNERS}")
-
-
-def evaluate_klondike(agent, episodes: int, max_steps: int = 300) -> dict:
-    """
-    Play fixed deals and report reward, foundation progress and wins.
-
-    Args:
-        agent: Agent to evaluate (switched to eval mode)
-        episodes: Deals to play
-        max_steps: Move cap per deal
-
-    Returns:
-        Dict of averaged metrics
-    """
-    was_training = agent.training
-    agent.eval()
-
-    rewards, cards_up, wins = [], [], 0
-    for seed in range(episodes):
-        random.seed(10_000 + seed)
-        np.random.seed(10_000 + seed)
-
-        game = KlondikeSolitaire()
-        env = CardGameEnv(game, max_steps=max_steps)
-        if hasattr(agent, "bind"):
-            agent.bind(env)
-
-        observation, info = env.reset()
-        agent.reset()
-        total = 0.0
-
-        for _ in range(max_steps):
-            action = agent.select_action(observation, info.get("legal_actions"))
-            observation, reward, terminated, truncated, info = env.step(action)
-            total += reward
-            if terminated or truncated:
-                break
-
-        rewards.append(total)
-        cards_up.append(sum(len(pile) for pile in game.foundations))
-        wins += 1 if game.winner == 0 else 0
-
-    if was_training:
-        agent.train()
-
-    return {
-        "reward": float(np.mean(rewards)),
-        "cards_up": float(np.mean(cards_up)),
-        "win_rate": wins / episodes,
-    }
-
-
-def evaluate_macao(agent, opponent, episodes: int, max_steps: int = 200) -> dict:
-    """
-    Play fixed games against an opponent and report the win rate.
-
-    Args:
-        agent: Agent to evaluate (switched to eval mode)
-        opponent: Policy to play against
-        episodes: Games to play
-        max_steps: Move cap per game
-
-    Returns:
-        Dict of averaged metrics
-    """
-    was_training = agent.training
-    agent.eval()
-
-    wins, draws = 0, 0
-    for seed in range(episodes):
-        random.seed(10_000 + seed)
-        np.random.seed(10_000 + seed)
-
-        game = Macao(num_players=2)
-        env = CardGameEnv(game, max_steps=max_steps)
-        for participant in (agent, opponent):
-            if hasattr(participant, "bind"):
-                participant.bind(env)
-
-        observation, info = env.reset()
-        agent.reset()
-
-        for _ in range(max_steps):
-            actor = game.current_player_idx
-            chooser = agent if actor == 0 else opponent
-            action = chooser.select_action(observation, info.get("legal_actions"))
-            observation, _, terminated, truncated, info = env.step(action)
-            if terminated or truncated:
-                break
-
-        if game.winner == 0:
-            wins += 1
-        elif game.winner is None:
-            draws += 1
-
-    if was_training:
-        agent.train()
-
-    return {"win_rate": wins / episodes, "draw_rate": draws / episodes}
 
 
 def train_klondike(kind: str, episodes: int, seed: int, checkpoint_dir: str) -> dict:

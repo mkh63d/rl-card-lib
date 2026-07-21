@@ -2,8 +2,56 @@
 
 ## Unreleased
 
+### Added
+
+- **Custom games are fully supported, end to end.** A user can add their own
+  game and get the full training sweep and HTML report without editing library
+  code. `register_sweep_game()` (harness) declares how to run a game — env
+  factory, step cap, trainer, evaluation protocol, baselines, per-episode
+  series — and forwards presentation to `report.register_game()`. Klondike and
+  Macao register themselves through this same API and are the worked examples;
+  no game-name branch survives in the sweep or report. `Game.copy()` now
+  deep-copies by default, so the search agents work for a naive custom game.
+  `register_metric()`, palette-cycled colours for custom agents, and
+  `higher_is_better=False` headlines round it out. See
+  [docs/custom_game.md](docs/custom_game.md).
+- **The report stores a custom game's own metrics.** `RunRecord` previously
+  dropped any per-episode series outside a fixed four, and a custom
+  `headline_max` never reached the page — both fixed.
+
+
+- **A visual HTML training report.** `python packages/examples/scripts/run_sweep.py`
+  trains every learner on both games and writes `results/index.html`: one
+  self-contained page (no CDN, no sibling files, figures embedded as data URIs)
+  with an overview table sorted newest-run-first, comparison charts per game,
+  and a detailed section per model. Every table exports to CSV/PNG, every figure
+  to PNG/SVG, and print rules make it a clean thesis appendix.
+- **`RunRecord` / `RunStore`** in `rl-card-lib-report`. `TrainingMetrics` records
+  four per-episode arrays — enough to plot a curve, not enough to explain one.
+  A record adds timestamps (nothing recorded one before, so "most recent first"
+  was not expressible), hyperparameters, the before/after baseline comparison,
+  and per-episode cards-to-foundation, exploration and Q-table growth. Stored as
+  `run.json` beside the unchanged `metrics.json`. A run is keyed
+  `{game}__{agent}`, so re-running a model replaces it rather than accumulating.
+  `RunRecord.from_metrics_json()` imports runs recorded before this existed.
+- **`rl_card_lib.harness`** — `build_learner`, the evaluation protocols and the
+  baseline agent sets, previously defined only inside `scripts/` and therefore
+  impossible to reuse without duplicating them.
+- **`TrainingReport` covers the remaining agents**: new `qlearning` section
+  (including `table_size`, `precision`, `optimistic_init`) and `search` section
+  (MCTS, GreedyLookahead), the `dueling` flag for Double DQN, and the trainer's
+  class and opponent.
+
 ### Fixed
 
+- **`SelfPlayTrainer` scored every evaluation episode as 0.0 reward.** The
+  episode-reward accumulator sat inside `if training and current_player == 0`,
+  so it never ran during evaluation. Consequence: every recorded Macao
+  evaluation has `mean_reward`, `std_reward`, `min_reward` and `max_reward`
+  of exactly `0.0` — those numbers are an artifact, not a measurement, and
+  must be re-measured rather than reinterpreted. Only `win_rate` and
+  `mean_steps` were ever meaningful there. The agent is still paid only for
+  its own plays, and learning is still training-only.
 - **Klondike reward loop.** Non-revealing tableau-to-tableau moves no longer
   pay `0.05 * cards_moved`; they now net `-0.01` (the step cost). The old
   payment was reversible and therefore unbounded free reward — agents that

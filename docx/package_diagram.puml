@@ -385,6 +385,8 @@ package "rl_card_lib" as main {
             +agent: dict
             +dqn: dict
             +ppo: dict
+            +qlearning: dict
+            +search: dict
             +training: dict
             {static} +from_trainer(trainer, episodes, max_steps_per_episode): TrainingReport
             +as_dict(): dict
@@ -392,7 +394,72 @@ package "rl_card_lib" as main {
             +to_json(indent): str
         }
 
+        class RunRecord {
+            +run_id: str
+            +game: str
+            +agent: str
+            +timestamps: dict
+            +duration: dict
+            +config: dict
+            +episodes: dict
+            +summary: dict
+            +evaluations: list
+            +baseline_comparison: dict
+            +headline: dict
+            +notes: list
+            {static} +from_training(...): RunRecord
+            {static} +from_metrics_json(path, game, agent): RunRecord
+            +series(name): list
+            +moving_average(name, window): list
+            +validate()
+            +to_json(indent): str
+        }
+
+        class RunStore {
+            +root: Path
+            +run_dir(game, agent): Path
+            +reset_run_dir(game, agent): Path
+            +save_run(record): Path
+            +save_baselines(baselines): Path
+            +load_runs(): list
+            +load_baselines(): dict
+        }
+
+        class BaselineSet {
+            +game: str
+            +measured_at: str
+            +protocol: dict
+            +rows: list
+            +values_for(key): dict
+        }
+
+        class Figure {
+            +key: str
+            +title: str
+            +caption: str
+            +png_path: str
+            +svg_path: str
+            +png_base64: str
+            +table: dict
+        }
+
+        class HtmlReport {
+            +runs: list
+            +baselines: dict
+            +run_figures: dict
+            +comparison_figures: dict
+            {static} +build(store, embed, formats): HtmlReport
+            +to_html(): str
+            +write(path): Path
+        }
+
         TrainingReport ..> Trainer : reads settings from
+        RunRecord ..> TrainingMetrics : copies series from
+        RunRecord ..> TrainingReport : embeds config from
+        RunStore o-- RunRecord : one per game+agent
+        RunStore o-- BaselineSet
+        HtmlReport ..> RunStore : reads
+        HtmlReport o-- Figure
     }
 }
 

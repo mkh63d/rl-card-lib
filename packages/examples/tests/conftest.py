@@ -9,6 +9,7 @@ EXTRA_PATHS = [
     ROOT / "packages" / "core" / "src",
     ROOT / "packages" / "cardgames" / "src",
     ROOT / "packages" / "visualizer" / "src",
+    ROOT / "packages" / "report" / "src",
 ]
 
 for path in EXTRA_PATHS:

@@ -401,22 +401,41 @@ class TestCardGame:
         assert mask.dtype == bool
         assert bool(mask[0]) is True  # Draw should be legal
 
-    def test_game_copy_not_implemented_by_default(self):
-        """Test copy raises NotImplementedError for games that don't override it."""
+    def test_game_copy_deepcopies_by_default(self):
+        """A game that does not override copy() gets an independent deep copy,
+        so the search agents work for it without a hand-written clone."""
         import numpy as np
         from rl_card_lib.cardgames import CardGame
 
-        class UncopyableGame(CardGame):
-            def reset(self): return np.zeros(1, dtype=np.float32)
-            def step(self, action): return np.zeros(1, dtype=np.float32), 0.0, False, False, {}
+        class PlainGame(CardGame):
+            def __init__(self):
+                super().__init__(num_players=1)
+                self.moves = []
+
+            def reset(self):
+                return np.zeros(1, dtype=np.float32)
+
+            def step(self, action):
+                self.moves.append(action)
+                return np.zeros(1, dtype=np.float32), 0.0, False, False, {}
+
             def get_legal_actions(self): return [0]
+
             def get_observation(self): return np.zeros(1, dtype=np.float32)
+
             def get_action_space_size(self): return 1
+
             def get_observation_shape(self): return (1,)
+
             def is_game_over(self): return False
 
-        with pytest.raises(NotImplementedError):
-            UncopyableGame().copy()
+        game = PlainGame()
+        clone = game.copy()
+        clone.step(3)
+
+        assert clone is not game
+        assert clone.moves == [3]
+        assert game.moves == []
 
     def test_game_copy_is_independent(self):
         """Test a copied game can be played without disturbing the original."""

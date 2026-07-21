@@ -119,6 +119,76 @@ see `_backpropagate` and `_edge_reward`):
   `MCTSAgent` is sampled search tunable by `simulations`. Documented in each
   class docstring.
 
+## Reporting
+
+- [x] **Training runs are recorded, not just printed.** `RunRecord` / `RunStore`
+  in `rl-card-lib-report` persist timestamps, hyperparameters, per-episode
+  series (including cards-to-foundation, exploration and Q-table growth) and the
+  before/after baseline comparison. Previously the richest numbers — the ones
+  `evaluate_klondike` / `evaluate_macao` compute — were printed and discarded,
+  and nothing recorded when a run happened.
+- [x] **Visual HTML report** — `run_sweep.py` writes `results/index.html`: one
+  self-contained page, overview table newest-first, comparison charts per game,
+  a detailed section per model, everything exportable to CSV/PNG/SVG.
+- [x] **Only the last run of each model is kept.** Structural: a run is keyed
+  `{game}__{agent}`, which is also its directory name, and both the run
+  directory and the checkpoint directory are purged *before* training so a crash
+  leaves an empty directory rather than a mixture of two runs.
+- [x] **Metric ranges are stated.** Summary, evaluation and baseline tables mix
+  0-1 rates, unbounded shaped rewards and counts; each column and row now
+  carries its scale (`0-100%`, `0-52 cards`, `0-300 steps`, `unbounded`) from a
+  `METRICS` registry, and rates render as percentages.
+- [x] **Figures open full-screen.** Clicking a chart opens it in a modal over a
+  dimmed page; clicking anywhere or pressing Escape closes it.
+- [x] **Custom games can be reported alone.** `--games` / `--exclude-games` /
+  `--exclude-builtin-games` on both `run_sweep.py` (as `--report-*`) and the
+  report CLI, with no default — the report covers the whole store unless told
+  otherwise. `register_game(...)` lets a custom game declare its headline
+  metric, label and bound instead of falling back to the neutral win-rate spec.
+
+### Custom games: fully generic (resolved 2026-07-21)
+
+A user can now add their own game and get the full sweep and report without
+editing library code. Klondike and Macao register themselves through the same
+public API a custom game uses ([`games/registration.py`](packages/examples/src/rl_card_lib/games/registration.py));
+no game-name branch survives in the sweep or the report. Proven end to end by
+sweeping a custom non-card game through the public API alone.
+
+- [x] **`run_sweep.py` is registry-driven.** `SweepGame` +
+  `register_sweep_game()` in the harness hold env factory, step cap, trainer
+  choice, evaluation protocol, baseline budget and per-episode extras;
+  `register_sweep_game` forwards presentation to `report.register_game`.
+- [x] **Evaluation protocol is a per-game callable** on the sweep spec,
+  returning a `dict[str, float]`; baselines are scored with the same protocol,
+  so their rows carry the headline metric (fixing Macao reference lines).
+- [x] **Baselines are derived generically.** Random + GreedyLookahead for any
+  game, MCTS when the game is copyable, a heuristic only when supplied; an
+  unregistered game degrades to no baselines instead of raising.
+- [x] **`register_metric()`** added; `metric_range()` and `register_game()`
+  auto-register the headline metric's bound, so a custom metric shows its scale.
+- [x] **Custom episode series are stored and charted** — `RunRecord` no longer
+  drops keys outside a fixed whitelist. Custom agents get distinct palette
+  colours; headlines support `higher_is_better=False`.
+- [x] **`Game.copy()` deep-copies by default**, so the search agents work for a
+  naive custom game with no hand-written clone.
+- [x] **Worked example**: [`docs/custom_game.md`](docs/custom_game.md), plus the
+  bundled games' own registrations as the reference.
+- [ ] **A non-card example game in the tree** (tic-tac-toe / grid-world) would
+  still strengthen the "universal library" claim beyond cards; the seams are
+  proven, an in-repo example is not yet shipped.
+- [ ] **`validate_game(game)` contract checker** — report which methods a custom
+  game satisfies and which optional capabilities (search, determinization,
+  multiplayer payoffs) it unlocks. Nice DX, not required for the loop.
+
+- [ ] **`Agent.checkpoint_suffix`.** `Trainer._save_checkpoint` hardcodes `.pt`
+  even for `QLearningAgent`, which pickles — so `checkpoint_ep400.pt` in a
+  tabular run is a pickle that `torch.load` cannot open. `purge_checkpoints`
+  globs both extensions defensively; the real fix is a class attribute the
+  trainer consults, kept out of the reporting change to keep its diff reviewable.
+- [ ] **Dark-mode figures.** The report is light-only on purpose (matplotlib
+  PNGs are baked at render time, and it is printed as an appendix). Supporting
+  both would mean rendering every figure twice.
+
 ## Experiments to run now that the rewards are trustworthy
 
 The code-level blockers are gone; these are measurement work, not fixes.

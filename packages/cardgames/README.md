@@ -36,7 +36,8 @@ pip install -e "./packages/cardgames[dev]"
 
 ```python
 from rl_card_lib.games import KlondikeSolitaire
-from rl_card_lib.core import CardGameEnv, Trainer
+from rl_card_lib.env import CardGameEnv
+from rl_card_lib.trainer import Trainer
 from rl_card_lib.agents import DQNAgent
 
 game = KlondikeSolitaire()
@@ -44,7 +45,7 @@ env = CardGameEnv(game)
 agent = DQNAgent(state_size=100, action_size=20)
 
 trainer = Trainer(env, agent)
-trainer.train(num_episodes=5000)
+trainer.train(episodes=5000)
 ```
 
 ### Play Game Manually
@@ -53,12 +54,14 @@ trainer.train(num_episodes=5000)
 from rl_card_lib.games import KlondikeSolitaire
 
 game = KlondikeSolitaire()
+game.reset()
 done = False
 while not done:
-    actions = game.get_legal_actions(0)
-    # Choose action (manual or agent)
-    reward, done = game.step(action)
-    print(game.get_state())
+    actions = game.get_legal_actions()
+    action = actions[0]  # choose an action (here, the first legal one)
+    obs, reward, terminated, truncated, info = game.step(action)
+    done = terminated or truncated
+    print(game.render())
 ```
 
 ## Dependencies
@@ -102,10 +105,10 @@ To add a new game:
 1. Create a new file in `games/` directory
 2. Subclass `CardGame` from core
 3. Implement required abstract methods:
-   - `deal_cards()` - Initialize game state
-   - `get_legal_actions(player_id)` - Return available actions
-   - `step(action)` - Execute action and return (reward, done)
-   - `get_state()` - Return current game state
+   - `reset()` - Initialize game state and return the observation
+   - `get_legal_actions()` - Return available actions
+   - `step(action)` - Execute action; returns `(observation, reward, terminated, truncated, info)`
+   - `render()` - Return a printable view of the current game state
 4. Add tests in `tests/test_games.py`
 5. Export in `games/__init__.py`
 

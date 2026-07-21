@@ -57,4 +57,7 @@ class CardGame(Game, ABC):
         return self.winner
 
     def copy(self) -> "CardGame":
-        raise NotImplementedError("copy() must be implemented by subclass")
+        """Return an independent copy; deep-copied by default (see Game.copy)."""
+        import copy as _copy
+
+        return _copy.deepcopy(self)

@@ -7,15 +7,40 @@ from typing import Any, Optional
 
 from rl_card_lib.agents.base import Agent
 
+# The learning agents pull in heavy optional deps (torch). Catch ImportError
+# (dep absent) plus OSError (present but its compiled libs fail to load, e.g.
+# a torch DLL/CUDA error on import) so the report still builds from whatever
+# agents are usable. Anything else propagates -- we don't want to hide a real
+# bug inside an agent module behind a blanket except.
 try:
     from rl_card_lib.agents.dqn_agent import DQNAgent
-except Exception:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     DQNAgent = None
 
 try:
+    from rl_card_lib.agents.double_dqn_agent import DoubleDQNAgent
+except (ImportError, OSError):  # pragma: no cover - optional dependency
+    DoubleDQNAgent = None
+
+try:
     from rl_card_lib.agents.ppo_agent import PPOAgent
-except Exception:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     PPOAgent = None
+
+try:
+    from rl_card_lib.agents.tabular import QLearningAgent
+except (ImportError, OSError):  # pragma: no cover - optional dependency
+    QLearningAgent = None
+
+try:
+    from rl_card_lib.agents.mcts_agent import MCTSAgent
+except (ImportError, OSError):  # pragma: no cover - optional dependency
+    MCTSAgent = None
+
+try:
+    from rl_card_lib.agents.heuristic import GreedyLookaheadAgent
+except (ImportError, OSError):  # pragma: no cover - optional dependency
+    GreedyLookaheadAgent = None
 
 
 @dataclass
@@ -27,6 +52,8 @@ class TrainingReport:
     agent: dict[str, Any]
     dqn: Optional[dict[str, Any]] = None
     ppo: Optional[dict[str, Any]] = None
+    qlearning: Optional[dict[str, Any]] = None
+    search: Optional[dict[str, Any]] = None
     training: Optional[dict[str, Any]] = None
 
     @classmethod
@@ -43,6 +70,8 @@ class TrainingReport:
         agent_info = _collect_agent_info(agent)
         dqn_info = _collect_dqn_info(agent)
         ppo_info = _collect_ppo_info(agent)
+        qlearning_info = _collect_qlearning_info(agent)
+        search_info = _collect_search_info(agent)
         training_info = _collect_training_info(episodes, max_steps_per_episode)
 
         return cls(
@@ -51,6 +80,8 @@ class TrainingReport:
             agent=agent_info,
             dqn=dqn_info,
             ppo=ppo_info,
+            qlearning=qlearning_info,
+            search=search_info,
             training=training_info,
         )
 
@@ -66,6 +97,10 @@ class TrainingReport:
             data["dqn"] = self.dqn
         if self.ppo:
             data["ppo"] = self.ppo
+        if self.qlearning:
+            data["qlearning"] = self.qlearning
+        if self.search:
+            data["search"] = self.search
         return data
 
     def to_markdown(self) -> str:
@@ -77,6 +112,8 @@ class TrainingReport:
         _append_section(lines, "Agent", self.agent)
         _append_section(lines, "DQN", self.dqn)
         _append_section(lines, "PPO", self.ppo)
+        _append_section(lines, "Q-learning", self.qlearning)
+        _append_section(lines, "Search", self.search)
 
         return "\n".join(lines).strip()
 
@@ -142,15 +179,28 @@ def _collect_trainer_info(trainer: Any) -> dict[str, Any]:
     if trainer is None:
         return info
 
+    info["type"] = trainer.__class__.__name__
+
     for name in [
         "log_interval",
         "eval_interval",
         "eval_episodes",
         "checkpoint_interval",
         "checkpoint_dir",
+        "opponent_update_interval",
+        "self_play",
     ]:
         if hasattr(trainer, name):
             info[name] = getattr(trainer, name)
+
+    opponent = getattr(trainer, "opponent", None)
+    if opponent is not None:
+        agent = getattr(trainer, "agent", None)
+        # In a mirror match the opponent *is* the agent; say so rather than
+        # repeating the agent's class name and implying a second policy.
+        info["opponent"] = (
+            "self" if opponent is agent else opponent.__class__.__name__
+        )
 
     return info
 
@@ -194,7 +244,69 @@ def _collect_dqn_info(agent: Optional[Agent]) -> Optional[dict[str, Any]]:
         info["buffer_size"] = _get_buffer_size(agent)
         info["hidden_sizes"] = _get_hidden_sizes(agent)
 
+        # Dueling is a DoubleDQNAgent-only architectural switch. It has to be
+        # read before the None-filter below, and it must survive being False.
+        if DoubleDQNAgent is not None and isinstance(agent, DoubleDQNAgent):
+            info["dueling"] = bool(getattr(agent, "dueling", False))
+
         return {k: v for k, v in info.items() if v is not None}
+
+    return None
+
+
+def _collect_qlearning_info(agent: Optional[Agent]) -> Optional[dict[str, Any]]:
+    if agent is None or QLearningAgent is None:
+        return None
+    if not isinstance(agent, QLearningAgent):
+        return None
+
+    info: dict[str, Any] = {
+        "action_size": agent.action_size,
+        "learning_rate": agent.learning_rate,
+        "gamma": agent.gamma,
+        "epsilon_start": getattr(agent, "epsilon_start", None),
+        "epsilon": agent.epsilon,
+        "epsilon_end": agent.epsilon_end,
+        "epsilon_decay": agent.epsilon_decay,
+        "optimistic_init": getattr(agent, "optimistic_init", None),
+        # Observation values are rounded to this many decimals before being
+        # used as a table key, so it sets how coarsely states are merged.
+        "precision": getattr(agent, "precision", None),
+        # The headline cost of tabular Q-learning: one entry per distinct
+        # rounded observation, and it only ever grows.
+        "table_size": getattr(agent, "table_size", None),
+        "seed": getattr(agent, "seed", None),
+    }
+
+    return {k: v for k, v in info.items() if v is not None}
+
+
+def _collect_search_info(agent: Optional[Agent]) -> Optional[dict[str, Any]]:
+    if agent is None:
+        return None
+
+    if MCTSAgent is not None and isinstance(agent, MCTSAgent):
+        info: dict[str, Any] = {
+            "type": "MCTSAgent",
+            "simulations": agent.simulations,
+            "exploration_weight": agent.exploration_weight,
+            "rollout_depth": agent.rollout_depth,
+            "gamma": agent.gamma,
+            "determinizations": agent.determinizations,
+            "use_determinization": agent.use_determinization,
+        }
+        policy = getattr(agent, "rollout_policy", None)
+        info["rollout_policy"] = (
+            "random" if policy is None else policy.__class__.__name__
+        )
+        return info
+
+    if GreedyLookaheadAgent is not None and isinstance(agent, GreedyLookaheadAgent):
+        return {
+            "type": "GreedyLookaheadAgent",
+            "depth": agent.depth,
+            "gamma": agent.gamma,
+        }
 
     return None
 

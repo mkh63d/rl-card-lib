@@ -86,7 +86,17 @@ class Game(ABC):
         return mask
 
     def copy(self) -> "Game":
-        raise NotImplementedError("copy() must be implemented by subclass")
+        """Return an independent copy of this game state.
+
+        The default is a deep copy, so search agents (GreedyLookaheadAgent,
+        MCTSAgent) work out of the box for any pure-Python game without the
+        author writing a clone. Games with large state or an RNG whose stream
+        must be reproduced exactly override this for speed and control -- the
+        two bundled games do -- but a custom game is not required to.
+        """
+        import copy as _copy
+
+        return _copy.deepcopy(self)
 
     def determinize(self, observer_idx: int = 0, rng: Optional[Any] = None) -> "Game":
         """

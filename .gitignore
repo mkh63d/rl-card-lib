@@ -89,3 +89,11 @@ Thumbs.db
 *.log
 metrics.json
 training_plot.png
+
+# Generated training reports. Regenerated on every sweep and heavy (an
+# embedded index.html runs to several MB), so the store itself is ignored --
+# but results/example/ is committed as a reference for the artifact format.
+# Listed as results/* rather than results/ so the negation below can apply:
+# git cannot un-ignore a path inside an ignored directory.
+results/*
+!results/example/

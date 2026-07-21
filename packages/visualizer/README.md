@@ -31,24 +31,27 @@ pip install -e "./packages/visualizer[dev]"
 
 ```python
 from rl_card_lib.games import KlondikeSolitaire
-from rl_card_lib.visualizer.visualization import render_game_state
+from rl_card_lib.visualizer import render_cards, create_simple_board_view
 
 game = KlondikeSolitaire()
-# Play some moves...
+game.reset()
 
-render_game_state(game)  # Display game state
+print(render_cards(game.stock[:7]))  # render a row of cards
+print(create_simple_board_view({     # labelled board of piles
+    "foundations": game.foundations,
+    "waste": game.waste,
+}))
 ```
 
 ### Plot Training Metrics
 
 ```python
 from rl_card_lib.trainer import Trainer
-from rl_card_lib.visualizer.visualization import plot_metrics
 
 trainer = Trainer(env, agent)
-metrics = trainer.train(num_episodes=1000)
+metrics = trainer.train(episodes=1000)  # returns a TrainingMetrics
 
-plot_metrics(metrics)  # Visualize training progress
+metrics.plot()  # plot reward / win-rate curves
 ```
 
 ## Dependencies
@@ -73,7 +76,7 @@ plot_metrics(metrics)  # Visualize training progress
 pytest tests/ -v
 
 # With coverage
-pytest tests/ --cov=rl_card_lib.utils.visualization --cov-report=html
+pytest tests/ --cov=rl_card_lib.visualizer --cov-report=html
 ```
 
 ## Architecture
