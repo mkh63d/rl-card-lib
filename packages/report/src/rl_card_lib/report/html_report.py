@@ -363,9 +363,9 @@ class HtmlReport:
         for record in self.runs:
             headline = record.headline or {}
             metric_name = headline.get("label", "")
+            # register_game auto-registers the headline metric with its bound,
+            # so metric_range knows it for any game -- no per-game special case.
             span = metric_range(headline.get("key", "")) if headline else ""
-            if headline.get("max") and headline.get("key") == "cards_up":
-                span = f"0-{headline['max']:g} cards"
             status = (
                 '<span class="chip failed">failed</span>'
                 if record.status != "completed"

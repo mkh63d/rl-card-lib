@@ -148,6 +148,25 @@ def metric_spec(key: str) -> dict[str, Any]:
     return {"label": str(key).replace("_", " "), "kind": "value"}
 
 
+def register_metric(key: str, **fields: Any) -> dict[str, Any]:
+    """Declare how a custom metric is measured, so it renders with a scale.
+
+    Mirrors register_game. Without it a custom metric renders with a neutral
+    "unbounded" range even when a bound is known::
+
+        register_metric("penalty_points", label="Penalty points",
+                        kind="count", min=0, max=26, unit="points")
+
+    Returns the stored spec.
+    """
+    merged = dict(metric_spec(key))
+    merged.update({k: v for k, v in fields.items() if v is not None})
+    merged.setdefault("label", str(key).replace("_", " "))
+    merged.setdefault("kind", "value")
+    METRICS[key] = merged
+    return merged
+
+
 def metric_range(key: str, *, env_max_steps: Optional[int] = None) -> str:
     """Human-readable range for a metric, e.g. '0-100%' or '0-52 cards'.
 
@@ -217,6 +236,29 @@ def register_game(name: str, **spec: Any) -> dict[str, Any]:
     merged.update(spec)
     merged.setdefault("label", name.replace("_", " ").title())
     GAME_SPEC[name] = merged
+
+    # Register the headline metric too, so its declared bound reaches the range
+    # column instead of showing "unbounded". The kind is inferred from the
+    # format and the presence of a bound: a percent format is a rate, a bound
+    # without one is a count, otherwise an unbounded value.
+    headline_key = merged.get("headline_key")
+    if headline_key and headline_key not in METRICS:
+        fmt = merged.get("headline_format", "")
+        maximum = merged.get("headline_max")
+        if "%" in fmt:
+            kind = "rate"
+        elif maximum is not None:
+            kind = "count"
+        else:
+            kind = "value"
+        register_metric(
+            headline_key,
+            label=merged.get("headline_label"),
+            kind=kind,
+            min=0 if kind in ("rate", "count") else None,
+            max=maximum if kind != "rate" else 1.0,
+            unit=merged.get("headline_unit") or None,
+        )
     return merged
 
 
@@ -498,7 +540,14 @@ class RunRecord:
         episodes["win"] = _jsonable(list(metrics.wins))
         episodes["loss"] = _jsonable(list(metrics.losses))
 
-        for name in ("epsilon", "wall_clock", "cards_up", "table_size"):
+        # Store every series a recorder supplied, not a fixed set: a custom
+        # game records its own progress signal (say, penalty_points) exactly
+        # the way the bundled games record cards_up. The four known extras keep
+        # their keys and their leading position for schema stability; anything
+        # else is kept verbatim so register_game(episode_curves=[...]) has
+        # data to draw.
+        known_extras = ("epsilon", "wall_clock", "cards_up", "table_size")
+        for name in (*known_extras, *(k for k in extras if k not in known_extras)):
             values = extras.get(name)
             # A series of all-None (PPO has no epsilon) is the same as absent.
             if not values or all(v is None for v in values):
@@ -751,9 +800,14 @@ class RunRecord:
         array silently zipped against a full one.
         """
         count = self.episode_count
-        for name in EPISODE_SERIES:
-            values = self.episodes.get(name)
-            if values and len(values) != count:
+        # Every list in the episodes dict is a per-episode series and must be
+        # aligned, including custom ones a bundled EPISODE_SERIES cannot name.
+        # The non-series keys are the count and the epsilon-source tag.
+        reserved = {"count", "epsilon_source"}
+        for name, values in self.episodes.items():
+            if name in reserved or not isinstance(values, list):
+                continue
+            if len(values) != count:
                 raise ValueError(
                     f"{self.run_id}: episode series {name!r} has "
                     f"{len(values)} entries, expected {count}"
@@ -1019,6 +1073,7 @@ __all__ = [
     "metric_range",
     "metric_spec",
     "register_game",
+    "register_metric",
     "host_info",
     "moving_average",
     "purge_checkpoints",

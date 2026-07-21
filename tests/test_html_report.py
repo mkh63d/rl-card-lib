@@ -342,6 +342,51 @@ class TestRegisterGame:
         assert spec["headline_key"] == "win_rate"
 
 
+class TestMetricRegistration:
+    """A custom headline's declared bound must reach the range column."""
+
+    def test_register_metric_sets_a_range(self):
+        from rl_card_lib.report.run_record import (
+            METRICS, metric_range, register_metric,
+        )
+
+        try:
+            register_metric("penalty_points", label="Penalty points",
+                            kind="count", min=0, max=26, unit="points")
+            assert metric_range("penalty_points") == "0-26 points"
+        finally:
+            METRICS.pop("penalty_points", None)
+
+    def test_register_game_auto_registers_its_headline_metric(self):
+        from rl_card_lib.report.run_record import (
+            GAME_SPEC, METRICS, metric_range, register_game,
+        )
+
+        try:
+            register_game(
+                "hearts", headline_key="penalty_points",
+                headline_label="Penalty points", headline_max=26,
+                headline_unit="points", headline_format="{:.1f}",
+            )
+            # The bound now reaches the page without a per-game literal.
+            assert metric_range("penalty_points") == "0-26 points"
+        finally:
+            GAME_SPEC.pop("hearts", None)
+            METRICS.pop("penalty_points", None)
+
+    def test_cards_up_bound_still_shows_without_the_literal(self, tmp_path):
+        store = RunStore(tmp_path)
+        store.save_run(make_record(
+            baseline_before={"cards_up": 3.0}, baseline_after={"cards_up": 11.0},
+        ))
+        assert "0-52 cards" in build(store)
+
+    def test_unknown_metric_reports_unbounded(self):
+        from rl_card_lib.report.run_record import metric_range
+
+        assert metric_range("something_never_declared") == "unbounded"
+
+
 class TestCli:
     def test_renders_from_a_store(self, tmp_path, store, capsys):
         out = tmp_path / "index.html"

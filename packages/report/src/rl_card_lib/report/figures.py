@@ -374,7 +374,42 @@ def render_run_figures(
         if figure is not None:
             figures.append(figure)
 
+    # Any declared episode curve that is not the headline (which the builder
+    # above already drew). This is what makes register_game(episode_curves=[...])
+    # reach the page for a custom game's own progress signal.
+    headline_key = spec.get("headline_key")
+    for key in spec.get("episode_curves", []):
+        if key == headline_key:
+            continue
+        figure = _fig_episode_curve(plt, emitter, record, key, colour, window)
+        if figure is not None:
+            figures.append(figure)
+
     return figures
+
+
+def _fig_episode_curve(plt, emitter, record, key, colour, window):
+    """A game-declared per-episode curve, generically drawn from its metric spec."""
+    from rl_card_lib.report.run_record import metric_spec
+
+    values = record.series(key)
+    if not values:
+        return None
+
+    label = metric_spec(key)["label"]
+    fig, ax = plt.subplots(figsize=(7.2, 3.0))
+    smooth = _raw_and_average(ax, values, colour, f"Avg({window})", window)
+    ax.set_ylabel(label)
+    ax.set_title(f"{label} per training episode (exploring)")
+    _episode_axis(ax, len(values))
+    ax.legend(loc="upper left")
+
+    return emitter.emit(
+        plt, fig, key, label,
+        caption=f"Per-episode {label.lower()} with a {window}-episode trailing average.",
+        table=_series_table(["Episode", label, f"Avg({window})"],
+                            [list(range(len(values))), values, smooth]),
+    )
 
 
 def _fig_headline_curve(plt, emitter, record, *, colour, window, spec, baselines):

@@ -92,6 +92,32 @@ class TestRunRecord:
         with pytest.raises(ValueError):
             make_record(episodes=6, episode_extras={"cards_up": [1, 2]})
 
+    def test_stores_a_custom_episode_series(self):
+        """A custom game's own progress signal must survive, not be dropped."""
+        record = make_record(
+            episodes=6, episode_extras={"penalty_points": [5, 4, 3, 2, 1, 0]},
+        )
+        assert record.series("penalty_points") == [5, 4, 3, 2, 1, 0]
+
+    def test_custom_series_round_trips(self):
+        record = make_record(
+            episodes=4, episode_extras={"pieces_captured": [0, 1, 1, 3]},
+        )
+        restored = RunRecord.from_dict(json.loads(record.to_json()))
+        assert restored.series("pieces_captured") == [0, 1, 1, 3]
+
+    def test_custom_series_is_length_checked(self):
+        with pytest.raises(ValueError, match="penalty_points"):
+            make_record(episodes=6, episode_extras={"penalty_points": [5, 4, 3]})
+
+    def test_known_extras_keep_their_keys(self):
+        record = make_record(
+            episodes=3,
+            episode_extras={"cards_up": [1, 2, 3], "custom": [4, 5, 6]},
+        )
+        assert record.episodes["cards_up"] == [1, 2, 3]
+        assert record.episodes["custom"] == [4, 5, 6]
+
 
 class TestHeadline:
     """The headline metric differs per game and must say where it came from."""
