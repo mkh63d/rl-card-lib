@@ -387,6 +387,31 @@ class TestMetricRegistration:
         assert metric_range("something_never_declared") == "unbounded"
 
 
+class TestDeltaPolarity:
+    """The delta colour follows whether the change is an improvement."""
+
+    def test_up_is_good_by_default(self):
+        from rl_card_lib.report.html_report import _delta_markup
+
+        assert "delta-up" in _delta_markup(5.0)
+        assert "delta-down" in _delta_markup(-5.0)
+
+    def test_down_is_good_when_lower_is_better(self):
+        from rl_card_lib.report.html_report import _delta_markup
+
+        # a decrease is an improvement (green), but the arrow still points down
+        markup = _delta_markup(-5.0, higher_is_better=False)
+        assert "delta-up" in markup
+        assert "▼" in markup
+
+    def test_up_is_bad_when_lower_is_better(self):
+        from rl_card_lib.report.html_report import _delta_markup
+
+        markup = _delta_markup(5.0, higher_is_better=False)
+        assert "delta-down" in markup
+        assert "▲" in markup
+
+
 class TestCli:
     def test_renders_from_a_store(self, tmp_path, store, capsys):
         out = tmp_path / "index.html"

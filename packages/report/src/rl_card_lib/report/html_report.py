@@ -24,6 +24,7 @@ from rl_card_lib.report.run_record import (
     BaselineSet,
     RunRecord,
     RunStore,
+    agent_color,
     agent_label,
     format_metric,
     game_spec,
@@ -156,21 +157,25 @@ def _column_header(key: str, env_max_steps=None) -> str:
 
 
 def _agent_chip(record: RunRecord) -> str:
-    colour = {
-        "q_learning": "var(--q-learning)", "dqn": "var(--dqn)",
-        "double_dqn": "var(--double-dqn)", "ppo": "var(--ppo)",
-    }.get(record.agent, "var(--muted)")
+    # The same palette-cycling colour the figures use, so a custom agent's chip
+    # and its curve match. Inline hex rather than a CSS var, because a custom
+    # agent has no var.
+    colour = agent_color(record.agent)
     return (
         f'<span class="chip swatch" style="--dot:{colour}">'
         f"{_escape(agent_label(record.agent))}</span>"
     )
 
 
-def _delta_markup(delta, spec: str = "{:+.3g}") -> str:
+def _delta_markup(delta, spec: str = "{:+.3g}", *, higher_is_better: bool = True) -> str:
     if delta is None:
         return NOT_RECORDED
-    css = "delta-up" if delta >= 0 else "delta-down"
-    arrow = "▲" if delta >= 0 else "▼"
+    # The arrow shows the direction of change; the colour shows whether that
+    # change is an improvement, which depends on the metric's polarity.
+    rising = delta >= 0
+    good = rising if higher_is_better else not rising
+    css = "delta-up" if good else "delta-down"
+    arrow = "▲" if rising else "▼"
     return f'<span class="{css}">{arrow} {_escape(spec.format(delta))}</span>'
 
 
@@ -380,7 +385,10 @@ class HtmlReport:
                  f'<span class="chip">{_escape(span)}</span>')
                 if metric_name else NOT_RECORDED,
                 _headline_markup(record),
-                _delta_markup(headline.get("delta")),
+                _delta_markup(
+                    headline.get("delta"),
+                    higher_is_better=headline.get("higher_is_better", True),
+                ),
                 _escape(_fmt_seconds((record.duration or {}).get("train_seconds"))),
                 status,
             ])
@@ -500,8 +508,14 @@ class HtmlReport:
             _fmt(headline.get("after"), headline.get("format", "{:.3f}")),
             f'of {headline["max"]:g} possible' if headline.get("max") else "",
         ))
-        out.append(self._tile("Change", _delta_markup(headline.get("delta")),
-                              "before → after training"))
+        out.append(self._tile(
+            "Change",
+            _delta_markup(
+                headline.get("delta"),
+                higher_is_better=headline.get("higher_is_better", True),
+            ),
+            "before → after training",
+        ))
         out.append(self._tile("Episodes", f"{record.episode_count:,}",
                               _escape(spec["trainer"])))
         out.append(self._tile(

@@ -215,6 +215,21 @@ class TestHousekeeping:
         assert agent_color("dqn") != agent_color("ppo")
         assert agent_color("unknown_agent")  # never blank
 
+    def test_custom_agents_get_distinct_colours(self):
+        """Two custom agents on one axis must be distinguishable by colour."""
+        from rl_card_lib.report.run_record import PALETTE
+
+        a = agent_color("custom_alpha_xyz")
+        b = agent_color("custom_beta_xyz")
+        assert a != b
+        assert a in PALETTE and b in PALETTE
+        # bundled learners keep their slots, so a custom agent never steals one
+        assert a not in {AGENT_COLORS[k] for k in AGENT_COLORS}
+
+    def test_colour_is_stable_for_a_name(self):
+        first = agent_color("custom_stable_xyz")
+        assert agent_color("custom_stable_xyz") == first
+
     def test_no_figures_are_left_open(self, tmp_path):
         render(make_record(), tmp_path)
         render_comparison_figures([make_record()], {}, tmp_path)

@@ -151,6 +151,29 @@ class TestHeadline:
         assert record.headline["key"] == "win_rate"
         assert record.headline["label"] == "Win rate in training"
 
+    def test_higher_is_better_defaults_true(self):
+        record = make_record(
+            baseline_before={"cards_up": 3.0}, baseline_after={"cards_up": 11.0},
+        )
+        assert record.headline["higher_is_better"] is True
+
+    def test_lower_is_better_from_the_game_spec(self):
+        from rl_card_lib.report.run_record import GAME_SPEC, register_game
+
+        try:
+            register_game(
+                "golf", headline_key="score", headline_label="Score",
+                higher_is_better=False, episode_curves=[],
+            )
+            record = make_record(
+                game="golf", agent="dqn",
+                baseline_before={"score": 40.0}, baseline_after={"score": 25.0},
+            )
+            assert record.headline["higher_is_better"] is False
+            assert record.headline["delta"] == pytest.approx(-15.0)
+        finally:
+            GAME_SPEC.pop("golf", None)
+
 
 class TestEpsilonReconstruction:
     def test_matches_the_per_episode_decay(self):

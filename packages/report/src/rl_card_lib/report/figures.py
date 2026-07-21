@@ -27,23 +27,15 @@ from typing import Any, Optional
 import numpy as np
 
 from rl_card_lib.report.run_record import (
+    AGENT_COLORS,
     BaselineSet,
     RunRecord,
+    agent_color,
     agent_label,
     game_spec,
+    metric_spec,
     moving_average,
 )
-
-# Validated categorical slots 1-4 (blue, green, magenta, yellow). Magenta and
-# yellow sit below 3:1 on the light surface, so every figure ships a legend and
-# a table view -- the relief the contrast warning requires.
-AGENT_COLORS = {
-    "q_learning": "#2a78d6",
-    "dqn": "#008300",
-    "double_dqn": "#e87ba4",
-    "ppo": "#eda100",
-}
-FALLBACK_COLOR = "#4a3aa7"
 
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
@@ -59,10 +51,6 @@ CRITICAL = "#d03b3b"
 TABLE_ROWS = 200
 
 _STYLE_APPLIED = False
-
-
-def agent_color(agent: str) -> str:
-    return AGENT_COLORS.get(agent, FALLBACK_COLOR)
 
 
 def charts_available() -> bool:
@@ -390,8 +378,6 @@ def render_run_figures(
 
 def _fig_episode_curve(plt, emitter, record, key, colour, window):
     """A game-declared per-episode curve, generically drawn from its metric spec."""
-    from rl_card_lib.report.run_record import metric_spec
-
     values = record.series(key)
     if not values:
         return None
@@ -425,8 +411,13 @@ def _fig_headline_curve(plt, emitter, record, *, colour, window, spec, baselines
     ceiling = spec.get("headline_max")
     if ceiling:
         ax.axhline(ceiling, color=AXIS, linewidth=1.0, alpha=0.8)
+        # "all 52" reads for an integer count; a rate ceiling of 1.0 would
+        # otherwise annotate as the nonsensical "all 1".
+        is_count = metric_spec(spec.get("headline_key", "")).get("kind") == "count"
+        label = f"all {int(ceiling)}" if is_count and float(ceiling).is_integer() \
+            else f"max {ceiling:g}"
         ax.annotate(
-            f"all {int(ceiling)}", xy=(0, ceiling), xytext=(2, -10),
+            label, xy=(0, ceiling), xytext=(2, -10),
             textcoords="offset points", fontsize=7, color=MUTED,
         )
         ax.set_ylim(0, ceiling * 1.05)
@@ -666,7 +657,7 @@ def _fig_evaluation(plt, emitter, record, *, colour, **_):
     )
 
 
-def _fig_before_after(plt, emitter, record, *, colour, **_):
+def _fig_before_after(plt, emitter, record, *, colour, spec=None, **_):
     """What training actually bought, measured on fixed deals."""
     comparison = record.baseline_comparison or {}
     before, after = comparison.get("before"), comparison.get("after")
@@ -678,6 +669,12 @@ def _fig_before_after(plt, emitter, record, *, colour, **_):
     if not keys:
         return None
 
+    # Only the headline metric may declare that lower is better; the rest keep
+    # the higher-is-better default (per-metric polarity is out of scope).
+    spec = spec or {}
+    headline_key = spec.get("headline_key")
+    headline_up = spec.get("higher_is_better", True)
+
     positions = np.arange(len(keys))
     width = 0.36
     fig, ax = plt.subplots(figsize=(7.2, 3.0))
@@ -688,11 +685,14 @@ def _fig_before_after(plt, emitter, record, *, colour, **_):
 
     for i, key in enumerate(keys):
         delta = after[key] - before[key]
+        rising = delta >= 0
+        up_is_good = headline_up if key == headline_key else True
+        good = rising if up_is_good else not rising
         ax.annotate(
-            f"{'▲' if delta >= 0 else '▼'} {delta:+.3g}",
+            f"{'▲' if rising else '▼'} {delta:+.3g}",
             xy=(i, max(before[key], after[key])), xytext=(0, 5),
             textcoords="offset points", ha="center", fontsize=8,
-            color=GOOD if delta >= 0 else CRITICAL,
+            color=GOOD if good else CRITICAL,
         )
 
     ax.set_xticks(positions)
@@ -832,12 +832,15 @@ def _cmp_headline(plt, emitter, game, records, baselines):
     if not learners:
         return None
 
-    learners.sort(key=lambda row: row[1])
+    # Best-at-top in both regimes: ascending when higher wins, descending when
+    # lower wins (penalty points), since barh puts the last row at the top.
+    higher_is_better = spec.get("higher_is_better", True)
+    learners.sort(key=lambda row: row[1], reverse=not higher_is_better)
     reference = [
         (name, value, MUTED)
         for name, value in sorted(
             (baselines.headline_values() if baselines else {}).items(),
-            key=lambda kv: kv[1],
+            key=lambda kv: kv[1], reverse=not higher_is_better,
         )
     ]
 

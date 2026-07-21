@@ -88,6 +88,53 @@ AGENT_LABELS = {
     "ppo": "PPO",
 }
 
+# The validated 8-slot categorical palette, in order. Lives here rather than in
+# figures.py because the HTML chips need it too and this module carries no
+# matplotlib dependency. Slots below 3:1 on the light surface (magenta, yellow,
+# aqua) are why every figure ships a legend and a table view.
+PALETTE = (
+    "#2a78d6",  # 1 blue
+    "#008300",  # 2 green
+    "#e87ba4",  # 3 magenta
+    "#eda100",  # 4 yellow
+    "#1baf7a",  # 5 aqua
+    "#eb6834",  # 6 orange
+    "#4a3aa7",  # 7 violet
+    "#e34948",  # 8 red
+)
+# Past the eight hues the palette cannot stay colourblind-distinct, so further
+# agents share this muted ink and lean on their direct labels.
+FALLBACK_COLOR = "#898781"
+
+# The four bundled learners keep their historical slots 1-4 so existing figures
+# are unchanged. Insertion-ordered so a custom agent takes slot 5 onward, and
+# colour follows the agent, never its rank.
+AGENT_COLORS = {
+    "q_learning": PALETTE[0],
+    "dqn": PALETTE[1],
+    "double_dqn": PALETTE[2],
+    "ppo": PALETTE[3],
+}
+_ASSIGNED_COLORS = dict(AGENT_COLORS)
+
+
+def agent_color(agent: str) -> str:
+    """A stable colour for an agent, cycling the palette for custom names.
+
+    A custom agent takes the next free palette slot the first time it is seen
+    and keeps it thereafter, so two custom agents on one axis are
+    distinguishable. Beyond eight, agents share the muted ink.
+    """
+    if agent in _ASSIGNED_COLORS:
+        return _ASSIGNED_COLORS[agent]
+    used = set(_ASSIGNED_COLORS.values())
+    for hue in PALETTE:
+        if hue not in used:
+            _ASSIGNED_COLORS[agent] = hue
+            return hue
+    _ASSIGNED_COLORS[agent] = FALLBACK_COLOR
+    return FALLBACK_COLOR
+
 
 def utc_now() -> str:
     """Timestamp with an explicit offset, so sorting never depends on locale."""
@@ -227,10 +274,13 @@ def register_game(name: str, **spec: Any) -> dict[str, Any]:
             headline_key="penalty_points",
             headline_label="Penalty points",
             headline_max=26,
+            higher_is_better=False,          # fewer penalty points is better
             episode_curves=["penalty_points"],
         )
 
-    Returns the stored spec. Unspecified fields keep the neutral defaults.
+    Returns the stored spec. Unspecified fields keep the neutral defaults. The
+    headline metric is auto-registered with its bound, and `higher_is_better`
+    (default True) flips the delta colour and the standings order.
     """
     merged = dict(game_spec(name))
     merged.update(spec)
@@ -274,6 +324,7 @@ def game_spec(game: str) -> dict[str, Any]:
         "headline_unit": "",
         "headline_max": 1.0,
         "headline_format": "{:.1%}",
+        "higher_is_better": True,
         "episode_curves": [],
         "opponents": [],
         "secondary": ["reward"],
@@ -753,7 +804,12 @@ class RunRecord:
             "delta": (
                 None if (before is None or after is None) else float(after - before)
             ),
-            "higher_is_better": True,
+            # A game may declare that lower is better (penalty points); the
+            # training-summary fallback is always a win rate, where higher wins.
+            "higher_is_better": (
+                True if source == "training_summary"
+                else spec.get("higher_is_better", True)
+            ),
         }
 
     def series(self, name: str) -> Optional[list]:
