@@ -119,9 +119,11 @@ length, exploration schedule, Q-table growth, evaluation, before/after. Per game
 learning curves, final standing, cost versus result, evaluation panels.
 
 Charts whose data was never recorded are skipped rather than drawn empty — PPO
-has no epsilon, Macao has no cards-up. A loss spanning more than three orders of
-magnitude switches to a symlog axis and says so in the caption; it is never
-clipped, because a divergence is a result.
+has no epsilon, Macao has no cards-up. A diverged loss — its peak dwarfing the
+median, or simply huge in absolute terms even when the median is itself inflated
+— switches to a symlog axis and says so in the caption; it is never clipped,
+because a divergence is a result. The chart and the run's text note share one
+`loss_divergence()` test, so they can never disagree about what diverged.
 
 Colour follows the agent rather than its rank, so filtering a series never
 repaints the others. Non-learning baselines are muted dashed reference lines,

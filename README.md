@@ -118,8 +118,9 @@ pytest --cov --cov-report=html
 - ✅ An agent zoo spanning three families:
   - **Baselines (no learning)**: `RandomAgent`, `HeuristicAgent`, `GreedyLookaheadAgent`
   - **Search**: `MCTSAgent` (UCT with determinized hidden cards)
-  - **Learners**: `QLearningAgent`, `DQNAgent`, `DoubleDQNAgent` (double + dueling + masked
-    targets), `PPOAgent` (masked actor-critic)
+  - **Learners**: `QLearningAgent`, `DQNAgent` (masked targets), `DoubleDQNAgent`
+    (adds double-Q + dueling + Huber loss on top of the shared masking),
+    `PPOAgent` (masked actor-critic)
 - ✅ Built-in games: Klondike (with a budgeted perfect-information solver), Macao
 - ✅ Reusable rule helpers in `rl_card_lib.cardgames.rules` for building new games
 - ✅ Training framework with self-play against a frozen opponent snapshot
