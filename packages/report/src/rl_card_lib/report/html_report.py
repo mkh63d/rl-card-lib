@@ -349,10 +349,18 @@ class HtmlReport:
 
     def _overview(self) -> str:
         out = ['<section id="overview">', "<h2>Overview</h2>"]
+        # Name each present game's headline metric, so the sentence is true for
+        # whatever games are in the store rather than the two bundled ones.
+        headlines = []
+        for game in self._games():
+            spec = game_spec(game)
+            headlines.append(f"{spec['headline_label'].lower()} for "
+                             f"{spec['label']}")
+        detail = (f" The headline metric differs per game: "
+                  f"{'; '.join(headlines)}.") if headlines else ""
         out.append(
-            '<p class="sub">Sorted by finish time, newest first. The headline '
-            "metric differs per game: cards to the foundation on Klondike, win "
-            "rate against a fixed opponent on Macao.</p>"
+            '<p class="sub">Sorted by finish time, newest first.'
+            f"{_escape(detail)}</p>"
         )
 
         if not self.runs:
@@ -643,18 +651,26 @@ class HtmlReport:
                 rows,
             ))
 
+        caveats = [
+            "Evaluation seeds the global RNG once per episode, so before/after "
+            "evaluations perturb the training RNG stream. This is deterministic "
+            "and reproducible, but results depend on where evaluations are placed.",
+            "Only the most recent run of each model is stored; re-running a "
+            "model replaces its record, figures and checkpoints.",
+        ]
+        # A Klondike-specific caveat, shown only when Klondike is in the store.
+        if any(game_spec(g).get("headline_key") == "cards_up"
+               for g in self._games()):
+            caveats.insert(
+                1,
+                "Klondike reports cards to the foundation as its headline "
+                "because reward shaping has changed since earlier runs and "
+                "cards-up is invariant to it.",
+            )
         out.append(
             '<div class="notes"><h4>Caveats that apply throughout</h4><ul>'
-            "<li>Evaluation seeds the global RNG once per episode, so "
-            "before/after evaluations perturb the training RNG stream. This is "
-            "deterministic and reproducible, but results depend on where "
-            "evaluations are placed.</li>"
-            "<li>Klondike reports cards to the foundation as its headline "
-            "because reward shaping has been changed since earlier runs and "
-            "cards-up is invariant to it.</li>"
-            "<li>Only the most recent run of each model is stored; re-running "
-            "a model replaces its record, figures and checkpoints.</li>"
-            "</ul></div>"
+            + "".join(f"<li>{c}</li>" for c in caveats)
+            + "</ul></div>"
         )
         out.append("</section>")
         return "\n".join(out)

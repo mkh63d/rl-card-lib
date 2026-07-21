@@ -18,7 +18,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from rl_card_lib.report import RunStore
+from rl_card_lib.report import RunStore, game_spec
 from rl_card_lib.report.html_report import HtmlReport
 
 README = """# Example report artifacts
@@ -66,10 +66,16 @@ def main(argv=None) -> int:
             return 1
     else:
         # Prefer a run that exercises the most of the format: real
-        # hyperparameters, a measured headline, and game-specific curves.
+        # hyperparameters, a game-specific episode curve, and a measured
+        # baseline comparison. "Has an episode curve" is game-agnostic --
+        # cards_up for Klondike, a custom series for someone else's game.
+        def has_episode_curve(record):
+            spec = game_spec(record.game)
+            return any(record.series(k) for k in spec.get("episode_curves", []))
+
         chosen = max(runs, key=lambda r: (
             r.config is not None,
-            bool(r.series("cards_up")),
+            has_episode_curve(r),
             bool(r.baseline_comparison),
             r.episode_count,
         ))
