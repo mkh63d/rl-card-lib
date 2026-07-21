@@ -32,6 +32,7 @@ from rl_card_lib.harness import (
     agent_class_name,
     build_learner,
     checkpoint_suffix,
+    library_reference_store,
     make_episode_recorder,
     measure_baselines,
     registered_sweep_games,
@@ -210,6 +211,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Report every game except these, comma-separated")
     parser.add_argument("--report-exclude-builtin-games", action="store_true",
                         help="Shorthand for --report-exclude-games klondike,macao")
+    parser.add_argument("--no-reference", action="store_true",
+                        help="Do not fold the committed library reference runs "
+                             "into the report for the bundled example games")
     parser.add_argument("--keep-going", action="store_true",
                         help="Continue the sweep when one run fails")
     parser.add_argument("--quiet", dest="verbose", action="store_false",
@@ -306,6 +310,7 @@ def main(argv=None) -> int:
     report = HtmlReport.build(
         store, embed=not args.no_embed, with_figures=not args.no_figures,
         include_games=split(args.report_games), exclude_games=exclude or None,
+        reference_store=None if args.no_reference else library_reference_store(),
         command=command.strip(),
     )
     out = report.write(os.path.join(args.results_dir, "index.html"))

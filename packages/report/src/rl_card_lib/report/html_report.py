@@ -25,7 +25,6 @@ from rl_card_lib.report.run_record import (
     RunRecord,
     RunStore,
     agent_color,
-    agent_label,
     format_metric,
     game_spec,
     metric_range,
@@ -163,7 +162,7 @@ def _agent_chip(record: RunRecord) -> str:
     colour = agent_color(record.agent)
     return (
         f'<span class="chip swatch" style="--dot:{colour}">'
-        f"{_escape(agent_label(record.agent))}</span>"
+        f"{_escape(record.agent_display)}</span>"
     )
 
 
@@ -235,6 +234,40 @@ def _figure_block(figure, *, table_name: str) -> str:
     return "\n".join(out)
 
 
+def _merge_reference(
+    runs: list[RunRecord], baselines: dict, reference_store: RunStore,
+) -> tuple[list[RunRecord], dict]:
+    """Fold committed library runs/baselines in as comparison points.
+
+    Only games the user is already reporting on gain reference data, and only
+    runs the user did not produce themselves (their own run of an agent wins).
+    The reference store holds nothing but the bundled example games, so a
+    custom game -- absent from it -- silently gets no reference and no game
+    name is special-cased here.
+    """
+    games_present = {r.game for r in runs}
+    if not games_present:
+        return runs, baselines
+
+    have = {r.run_id for r in runs}
+    for record in reference_store.load_runs():
+        if record.game not in games_present or record.run_id in have:
+            continue
+        record.reference = True
+        runs.append(record)
+
+    for game, baseline in reference_store.load_baselines().items():
+        if game in games_present and game not in baselines:
+            baselines[game] = baseline
+
+    # The user's own runs first, then the library reference; each group stays
+    # newest-first. Stable sort, so the reference key is applied last.
+    runs.sort(key=lambda r: r.run_id)
+    runs.sort(key=lambda r: r.finished_at, reverse=True)
+    runs.sort(key=lambda r: r.reference)
+    return runs, baselines
+
+
 @dataclass
 class HtmlReport:
     """The rendered page and everything it was built from."""
@@ -257,6 +290,7 @@ class HtmlReport:
         command: str = "",
         include_games=None,
         exclude_games=None,
+        reference_store: RunStore | None = None,
     ) -> "HtmlReport":
         """Render every stored run, or a chosen subset of games.
 
@@ -264,6 +298,10 @@ class HtmlReport:
         everything in the store unless told otherwise. They exist so someone
         using this library for their own game can report on it alone, without
         the bundled Klondike and Macao runs crowding the comparison.
+
+        `reference_store` folds a second, read-only store of committed library
+        runs in as comparison points -- but only for games the user is already
+        reporting on, so a custom game (absent from that store) gets nothing.
         """
         runs = store.load_runs()
         baselines = store.load_baselines()
@@ -276,6 +314,8 @@ class HtmlReport:
             unwanted = set(exclude_games)
             runs = [r for r in runs if r.game not in unwanted]
             baselines = {g: b for g, b in baselines.items() if g not in unwanted}
+        if reference_store is not None:
+            runs, baselines = _merge_reference(runs, baselines, reference_store)
         run_figures: dict = {}
         comparison_figures: dict = {}
 
@@ -338,7 +378,7 @@ class HtmlReport:
             for record in group:
                 links.append(
                     f'<a href="#{_slug(record.run_id)}">'
-                    f"{_escape(agent_label(record.agent))}</a>"
+                    f"{_escape(record.agent_display)}</a>"
                 )
         if self.baselines:
             links.append('<span class="sep">|</span>')
@@ -501,7 +541,7 @@ class HtmlReport:
         out = [f'<section id="{_slug(record.run_id)}">']
         # The record's own label, so a run that names itself is honoured rather
         # than having its heading rebuilt from the game and agent keys.
-        heading = record.label or f"{spec['label']} / {agent_label(record.agent)}"
+        heading = record.label or f"{spec['label']} / {record.agent_display}"
         out.append(f"<h2>{_escape(heading)}</h2>")
         out.append(
             f'<p class="sub">{_escape(record.agent_class or "")} · '

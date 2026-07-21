@@ -556,6 +556,11 @@ class RunRecord:
     headline: Optional[dict[str, Any]] = None
     artifacts: dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    # Set at load time when a run comes from the committed library reference
+    # store, so the report can mark it as a comparison point rather than one of
+    # the user's own runs. Deliberately absent from as_dict(): it is a property
+    # of where a record was loaded from, not of the record on disk.
+    reference: bool = False
 
     # -- construction ----------------------------------------------------
 
@@ -732,6 +737,12 @@ class RunRecord:
             env_max_steps=env_max_steps,
         ))
         return record
+
+    @property
+    def agent_display(self) -> str:
+        """Agent label, marked when this is a library reference run."""
+        label = agent_label(self.agent)
+        return f"{label} · library" if self.reference else label
 
     @classmethod
     def from_dict(cls, data: dict) -> "RunRecord":

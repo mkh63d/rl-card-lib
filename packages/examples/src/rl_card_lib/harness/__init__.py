@@ -27,6 +27,7 @@ from rl_card_lib.harness.learners import (
     epsilon_schedule,
 )
 from rl_card_lib.harness.recording import make_episode_recorder
+from rl_card_lib.harness.reference import library_reference_store
 from rl_card_lib.harness.registry import (
     SweepGame,
     is_registered,
@@ -47,6 +48,7 @@ __all__ = [
     "evaluate_macao_suite",
     "is_registered",
     "klondike_baseline_agents",
+    "library_reference_store",
     "macao_baseline_agents",
     "make_episode_recorder",
     "measure_baselines",
