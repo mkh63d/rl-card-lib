@@ -189,6 +189,33 @@ register_sweep_game(
 The sweep then uses `SelfPlayTrainer`, and `--self-play` switches to the
 zero-lag mirror match.
 
+### Single-player games: the solve-time benchmark
+
+If your game is single-player and you can decide whether a deal is winnable,
+declare a `solver` and `single_player=True`. That opts your game into the
+[solve-time benchmark](guides/training-and-reports.md#solve-time-benchmark),
+which plays every agent over a pool of *provably winnable* deals and reports
+solve rate, moves-to-solve and time-to-solve.
+
+```python
+from rl_card_lib.games import solve_klondike  # your own solver, for your game
+
+register_sweep_game(
+    "klondike",
+    ...,
+    single_player=True,
+    solver=lambda game: solve_klondike(game, max_nodes=10_000),
+)
+```
+
+The `solver` takes a freshly dealt game and returns `True` (winnable), `False`
+(proven unwinnable) or `None` (undecided within its budget); only `True` deals
+enter the pool. Writing the solver is the one thing that cannot be derived —
+"moves to solve" is meaningless without knowing a deal *has* a solution — which
+is also why an adversarial game (no perfect-information solve) cannot use it.
+`solve_klondike` is the worked example; a budgeted depth-first search with a
+transposition table is usually enough.
+
 ---
 
 ## Checklist
@@ -201,4 +228,6 @@ zero-lag mirror match.
 - [ ] `register_sweep_game(...)` (or `register_game(...)` for report-only),
       declaring `headline_key`, `headline_max` and `higher_is_better`.
 - [ ] Optionally supply a `HeuristicAgent` subclass and a `heuristic_factory`.
+- [ ] Single-player with a solvability test? Pass `single_player=True` and a
+      `solver` to opt into the solve-time benchmark.
 - [ ] Import your registration module before running the sweep.

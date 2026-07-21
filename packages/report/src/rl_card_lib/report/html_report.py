@@ -274,6 +274,7 @@ class HtmlReport:
 
     runs: list[RunRecord] = field(default_factory=list)
     baselines: dict = field(default_factory=dict)
+    solve_benchmarks: dict = field(default_factory=dict)
     run_figures: dict = field(default_factory=dict)
     comparison_figures: dict = field(default_factory=dict)
     generated_at: str = ""
@@ -305,15 +306,20 @@ class HtmlReport:
         """
         runs = store.load_runs()
         baselines = store.load_baselines()
+        solve_benchmarks = store.load_solve_benchmarks()
 
         if include_games:
             wanted = set(include_games)
             runs = [r for r in runs if r.game in wanted]
             baselines = {g: b for g, b in baselines.items() if g in wanted}
+            solve_benchmarks = {g: b for g, b in solve_benchmarks.items()
+                                if g in wanted}
         if exclude_games:
             unwanted = set(exclude_games)
             runs = [r for r in runs if r.game not in unwanted]
             baselines = {g: b for g, b in baselines.items() if g not in unwanted}
+            solve_benchmarks = {g: b for g, b in solve_benchmarks.items()
+                                if g not in unwanted}
         if reference_store is not None:
             runs, baselines = _merge_reference(runs, baselines, reference_store)
         run_figures: dict = {}
@@ -336,7 +342,7 @@ class HtmlReport:
             )
 
         return cls(
-            runs=runs, baselines=baselines,
+            runs=runs, baselines=baselines, solve_benchmarks=solve_benchmarks,
             run_figures=run_figures, comparison_figures=comparison_figures,
             generated_at=utc_now(), command=command,
         )
@@ -383,6 +389,9 @@ class HtmlReport:
         if self.baselines:
             links.append('<span class="sep">|</span>')
             links.append('<a href="#baselines">Baselines</a>')
+        if self.solve_benchmarks:
+            links.append('<span class="sep">|</span>')
+            links.append('<a href="#solve-benchmark">Solve-time benchmark</a>')
         links.append('<span class="sep">|</span>')
         links.append('<a href="#configuration">Configuration</a>')
         return f'<nav class="toc"><div class="wrap">{"".join(links)}</div></nav>'
@@ -528,6 +537,59 @@ class HtmlReport:
             )
             out.append(_table(
                 f"baselines_{game}", headers, rows,
+                caption=_escape(protocol) if protocol else "",
+            ))
+        out.append("</section>")
+        return "\n".join(out)
+
+    def _solve_benchmark(self) -> str:
+        if not self.solve_benchmarks:
+            return ""
+        out = ['<section id="solve-benchmark">', "<h2>Solve-time benchmark</h2>"]
+        out.append(
+            '<p class="sub">Every agent -- learners and baselines alike -- played '
+            "the same pool of deals a perfect-information solver proved winnable. "
+            "Solve rate is the share of those winnable deals the agent actually "
+            "won; moves and time are averaged over solved deals only, so a "
+            "faster-looking agent is genuinely faster, not just quicker to "
+            "give up. Single-player games only.</p>"
+        )
+        # Preferred column order; any extra per-game measures (e.g. cards_up)
+        # follow, and pool_size trails as context.
+        preferred = ["agent", "solve_rate", "solve_moves", "solve_seconds"]
+        for game, benchmark in self.solve_benchmarks.items():
+            spec = game_spec(game)
+            out.append(f'<h3>{_escape(spec["label"])}</h3>')
+            if not benchmark.rows:
+                out.append('<p class="empty">No agents measured.</p>')
+                continue
+            keys: list = []
+            for key in preferred:
+                if any(key in row for row in benchmark.rows):
+                    keys.append(key)
+            for row in benchmark.rows:
+                for key in row:
+                    if key not in keys and key != "pool_size":
+                        keys.append(key)
+            if any("pool_size" in row for row in benchmark.rows):
+                keys.append("pool_size")
+
+            headers = [
+                "Agent" if key == "agent" else _column_header(key)
+                for key in keys
+            ]
+            rows = [
+                [row.get("agent") if key == "agent"
+                 else (_escape(format_metric(key, row.get(key))) or NOT_RECORDED)
+                 for key in keys]
+                for row in benchmark.rows
+            ]
+            protocol = ", ".join(
+                f"{k}: {v}" for k, v in (benchmark.protocol or {}).items()
+                if v is not None
+            )
+            out.append(_table(
+                f"solve_benchmark_{game}", headers, rows,
                 caption=_escape(protocol) if protocol else "",
             ))
         out.append("</section>")
@@ -742,6 +804,7 @@ class HtmlReport:
                 body.append(self._run_section(record))
 
         body.append(self._baselines())
+        body.append(self._solve_benchmark())
         body.append(self._configuration())
         body.append(
             '<footer class="page">Generated by rl-card-lib-report. '

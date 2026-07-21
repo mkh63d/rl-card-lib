@@ -80,6 +80,9 @@ python packages/examples/scripts/train_agents.py
 # Compare the agent zoo on the same deals
 python packages/examples/scripts/benchmark_agents.py
 
+# Benchmark solve rate, moves and time over a pool of winnable deals
+python packages/examples/scripts/benchmark_solve_time.py --game klondike --pool-size 50
+
 # Single-game training scripts
 python packages/examples/scripts/train_klondike.py
 python packages/examples/scripts/train_macao.py

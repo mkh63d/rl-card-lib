@@ -185,6 +185,15 @@ METRICS: dict[str, dict[str, Any]] = {
     "episode": {"label": "Episode", "kind": "count", "min": 0},
     "win": {"label": "Won", "kind": "count", "min": 0, "max": 1,
             "note": "1 = win, 0 = not"},
+    # Solve-time benchmark over a solvable-deal pool (single-player games).
+    "solve_rate": {"label": "Solve rate", "kind": "rate", "min": 0.0, "max": 1.0,
+                   "note": "fraction of solvable deals actually solved"},
+    "solve_moves": {"label": "Moves to solve", "kind": "count", "min": 0,
+                    "unit": "moves", "note": "mean over solved deals only"},
+    "solve_seconds": {"label": "Time to solve", "kind": "duration", "min": 0,
+                      "note": "mean wall clock over solved deals only"},
+    "pool_size": {"label": "Solvable deals", "kind": "count", "min": 0,
+                  "unit": "deals"},
 }
 
 
@@ -990,6 +999,48 @@ class BaselineSet:
         return self.values_for(game_spec(self.game)["headline_key"])
 
 
+@dataclass
+class SolveBenchmarkSet:
+    """Solve-time results for one single-player game.
+
+    The same shape as BaselineSet (arbitrary-key rows keyed per game), so the
+    report renders it generically. Each row measures one agent over a shared
+    pool of confirmed-solvable deals -- solve_rate, solve_moves, solve_seconds
+    -- with the pool and step cap recorded in `protocol`. Only single-player
+    games produce one; an adversarial game has no solvable-deal pool.
+    """
+
+    game: str
+    measured_at: str = ""
+    protocol: dict[str, Any] = field(default_factory=dict)
+    rows: list[dict] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SolveBenchmarkSet":
+        return cls(
+            game=data.get("game", ""),
+            measured_at=data.get("measured_at", ""),
+            protocol=data.get("protocol", {}),
+            rows=data.get("rows", []),
+        )
+
+    @classmethod
+    def from_json(cls, path: str | Path) -> "SolveBenchmarkSet":
+        with open(path, "r", encoding="utf-8") as handle:
+            return cls.from_dict(json.load(handle))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "game": self.game,
+            "measured_at": self.measured_at,
+            "protocol": self.protocol,
+            "rows": self.rows,
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(_jsonable(self.as_dict()), indent=indent, default=str)
+
+
 class RunStore:
     """Directory of run records, one per (game, agent).
 
@@ -999,6 +1050,7 @@ class RunStore:
         <root>/models/<game>__<agent>/metrics.json
         <root>/models/<game>__<agent>/figures/
         <root>/baselines/<game>.json
+        <root>/solve_benchmark/<game>.json
         <root>/figures/
 
     ``models`` rather than ``runs`` because the repo's .gitignore matches a
@@ -1007,6 +1059,7 @@ class RunStore:
 
     MODELS_DIRNAME = "models"
     BASELINES_DIRNAME = "baselines"
+    SOLVE_BENCHMARK_DIRNAME = "solve_benchmark"
     FIGURES_DIRNAME = "figures"
 
     def __init__(self, root: str | Path):
@@ -1021,6 +1074,10 @@ class RunStore:
     @property
     def baselines_dir(self) -> Path:
         return self.root / self.BASELINES_DIRNAME
+
+    @property
+    def solve_benchmark_dir(self) -> Path:
+        return self.root / self.SOLVE_BENCHMARK_DIRNAME
 
     @property
     def figures_dir(self) -> Path:
@@ -1058,6 +1115,13 @@ class RunStore:
         path = self.baselines_dir / f"{baselines.game}.json"
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(baselines.to_json())
+        return path
+
+    def save_solve_benchmark(self, benchmark: SolveBenchmarkSet) -> Path:
+        self.solve_benchmark_dir.mkdir(parents=True, exist_ok=True)
+        path = self.solve_benchmark_dir / f"{benchmark.game}.json"
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(benchmark.to_json())
         return path
 
     # -- reading ---------------------------------------------------------
@@ -1101,6 +1165,19 @@ class RunStore:
 
     def has_baselines(self, game: str) -> bool:
         return (self.baselines_dir / f"{game}.json").is_file()
+
+    def load_solve_benchmarks(self) -> dict[str, SolveBenchmarkSet]:
+        if not self.solve_benchmark_dir.exists():
+            return {}
+        out: dict[str, SolveBenchmarkSet] = {}
+        for path in sorted(self.solve_benchmark_dir.glob("*.json")):
+            try:
+                benchmark = SolveBenchmarkSet.from_json(path)
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                print(f"Skipping unreadable solve-benchmark file {path}: {exc}")
+                continue
+            out[benchmark.game or path.stem] = benchmark
+        return out
 
 
 # Names a training run is allowed to leave in a checkpoint directory. Anything
@@ -1159,6 +1236,7 @@ __all__ = [
     "RunRecord",
     "RunStore",
     "BaselineSet",
+    "SolveBenchmarkSet",
     "agent_label",
     "detect_notes",
     "format_metric",

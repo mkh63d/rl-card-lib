@@ -12,12 +12,19 @@ from rl_card_lib.agents import RandomAgent
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games.heuristics import KlondikeHeuristicAgent, MacaoHeuristicAgent
 from rl_card_lib.games.klondike import KlondikeSolitaire
+from rl_card_lib.games.klondike_solver import solve_klondike
 from rl_card_lib.games.macao import Macao
 from rl_card_lib.harness.evaluation import evaluate_klondike, evaluate_macao_suite
 from rl_card_lib.harness.registry import register_sweep_game
 
 KLONDIKE_MAX_STEPS = 300
 MACAO_MAX_STEPS = 200
+
+# Node budget for curating the solvable-deal pool. Deliberately far below the
+# solver's own 50k default: winnable deals resolve in a few hundred nodes, so a
+# small budget keeps curation fast and lets undecided deals fail quickly (they
+# are excluded from the pool anyway). See harness/solve_benchmark.py.
+KLONDIKE_POOL_SOLVE_NODES = 10_000
 
 
 def _klondike_extras(game, agent):
@@ -53,6 +60,8 @@ def register_bundled_games() -> None:
         evaluate=_evaluate_klondike,
         episode_extras=_klondike_extras,
         heuristic_factory=lambda seed: KlondikeHeuristicAgent(seed=seed),
+        single_player=True,
+        solver=lambda game: solve_klondike(game, max_nodes=KLONDIKE_POOL_SOLVE_NODES),
         mcts_simulations=20,
         mcts_rollout_depth=15,
         # presentation

@@ -15,6 +15,16 @@ register a game for the full sweep.
 
 ::: rl_card_lib.harness.learners.build_learner
 
+::: rl_card_lib.harness.learners.load_trained_learner
+
+## Solve-time benchmark
+
+::: rl_card_lib.harness.solve_benchmark.curate_solvable_pool
+
+::: rl_card_lib.harness.solve_benchmark.measure_agent_on_pool
+
+::: rl_card_lib.harness.solve_benchmark.run_solve_benchmark
+
 ## Evaluation protocols
 
 ::: rl_card_lib.harness.evaluation.evaluate_klondike
