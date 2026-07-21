@@ -427,3 +427,84 @@ class TestCli:
         code = cli_main(["--results-dir", str(tmp_path / "nothing")])
         assert code == 1
         assert "No run records" in capsys.readouterr().err
+
+
+class TestReferenceMerge:
+    """Committed library runs fold in only for games the user reports on."""
+
+    def _ref_store(self, tmp_path):
+        ref = RunStore(tmp_path / "reference")
+        ref.save_run(make_record(
+            game="klondike", agent="dqn",
+            finished="2025-01-01T00:00:00+00:00"))
+        ref.save_run(make_record(
+            game="klondike", agent="ppo", agent_class="PPOAgent",
+            finished="2025-01-02T00:00:00+00:00"))
+        ref.save_run(make_record(
+            game="macao", agent="ppo", agent_class="PPOAgent",
+            finished="2025-01-03T00:00:00+00:00"))
+        ref.save_baselines(BaselineSet(
+            game="klondike", rows=[{"agent": "Random", "cards_up": 2.0}]))
+        ref.save_baselines(BaselineSet(
+            game="macao", rows=[{"agent": "Random", "win_rate": 0.1}]))
+        return ref
+
+    def _user_store(self, tmp_path, game="klondike", agent="my_agent"):
+        user = RunStore(tmp_path / "user")
+        user.save_run(make_record(
+            game=game, agent=agent, agent_class="MyAgent",
+            finished="2026-01-01T00:00:00+00:00"))
+        return user
+
+    def test_adds_reference_runs_for_a_reported_game(self, tmp_path):
+        report = HtmlReport.build(
+            self._user_store(tmp_path),
+            reference_store=self._ref_store(tmp_path), with_figures=False)
+        by_agent = {r.agent: r for r in report.runs}
+        assert set(by_agent) == {"my_agent", "dqn", "ppo"}   # no macao leaked in
+        assert by_agent["my_agent"].reference is False
+        assert by_agent["dqn"].reference is True
+        assert by_agent["ppo"].reference is True
+        assert "klondike" in report.baselines               # ref baseline pulled in
+        assert "macao" not in report.baselines
+
+    def test_reference_excluded_for_unreported_game(self, tmp_path):
+        # User reports only klondike; the store's macao runs/baselines stay out.
+        report = HtmlReport.build(
+            self._user_store(tmp_path, game="klondike"),
+            reference_store=self._ref_store(tmp_path), with_figures=False)
+        assert {r.game for r in report.runs} == {"klondike"}
+        assert "macao" not in report.baselines
+
+    def test_users_own_run_wins_over_reference(self, tmp_path):
+        # The user trained dqn themselves: their run stays, the library's is dropped.
+        report = HtmlReport.build(
+            self._user_store(tmp_path, game="klondike", agent="dqn"),
+            reference_store=self._ref_store(tmp_path), with_figures=False)
+        dqn = [r for r in report.runs if r.agent == "dqn"]
+        assert len(dqn) == 1 and dqn[0].reference is False
+        assert any(r.agent == "ppo" and r.reference for r in report.runs)
+
+    def test_reference_runs_ordered_after_the_users_own(self, tmp_path):
+        runs = HtmlReport.build(
+            self._user_store(tmp_path),
+            reference_store=self._ref_store(tmp_path), with_figures=False).runs
+        assert runs[0].reference is False               # the user's run leads
+        assert [r.reference for r in runs] == sorted(r.reference for r in runs)
+
+    def test_marks_reference_runs_in_the_page(self, tmp_path):
+        page = HtmlReport.build(
+            self._user_store(tmp_path),
+            reference_store=self._ref_store(tmp_path), with_figures=False).to_html()
+        assert "· library" in page                  # "· library" marker
+
+    def test_no_reference_store_changes_nothing(self, tmp_path):
+        report = HtmlReport.build(self._user_store(tmp_path), with_figures=False)
+        assert [r.agent for r in report.runs] == ["my_agent"]
+        assert all(r.reference is False for r in report.runs)
+
+    def test_empty_user_store_stays_empty(self, tmp_path):
+        report = HtmlReport.build(
+            RunStore(tmp_path / "user"),
+            reference_store=self._ref_store(tmp_path), with_figures=False)
+        assert report.runs == []
