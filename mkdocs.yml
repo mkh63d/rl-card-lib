@@ -1,0 +1,111 @@
+site_name: RL Card Library
+site_description: A universal library for training reinforcement learning agents in card games
+site_author: Michał Hołyński
+site_url: https://mkh63d.github.io/rl-card-lib/
+
+repo_name: mkh63d/rl-card-lib
+repo_url: https://github.com/mkh63d/rl-card-lib
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path:
+        - .
+      check_paths: true
+
+hooks:
+  - scripts/mkdocs_hooks.py
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          # Single merged tree assembled by scripts/assemble_docs_package.py --
+          # griffe cannot follow the pkgutil extend_path namespace across the
+          # five distributions, so we point it at one unified root.
+          paths:
+            - build/docs_pkg
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            separate_signature: true
+            merge_init_into_class: true
+            filters:
+              - "!^_"
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: ignore
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: ignore
+    unrecognized_links: ignore
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+  - Guides:
+      - The agent zoo: guides/agents.md
+      - Training and reports: guides/training-and-reports.md
+      - Add your own game: custom_game.md
+  - Architecture: architecture.md
+  - API Reference:
+      - Overview: reference/index.md
+      - core: reference/core.md
+      - agents: reference/agents.md
+      - cardgames: reference/cardgames.md
+      - env & trainer: reference/env-trainer.md
+      - games: reference/games.md
+      - report: reference/report.md
+      - visualizer: reference/visualizer.md
+      - harness: reference/harness.md
+  - Changelog: changelog.md
