@@ -97,7 +97,7 @@ drew an impossible one.
     one — an adversarial game's outcome depends on the opponent, so "moves to
     solve" is undefined. The benchmark runs for any game that declares
     `single_player=True` and a `solver` (see
-    [Add your own game](../custom_game.md#single-player-games-solve-time-benchmark));
+    [Add your own game](../custom_game.md#single-player-games-the-solve-time-benchmark));
     Klondike does, Macao is skipped.
 
 Results write to `results/solve_benchmark/<game>.json` and appear as a
