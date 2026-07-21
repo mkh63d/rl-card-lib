@@ -69,5 +69,5 @@ python_files = ["test_*.py"]
 
 [tool.coverage.run]
 branch = true
-source = ["."]
+source = ["src/rl_card_lib"]
 

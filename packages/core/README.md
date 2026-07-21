@@ -132,7 +132,7 @@ src/rl_card_lib/
 ## Migration status
 
 The generic core exists: `Game` is the game-agnostic base class (documented
-under "Recommended API contract" above), `GymEnvWrapper` adapts any `Game` to
+under "API contract" above), `GymEnvWrapper` adapts any `Game` to
 a Gymnasium-style env, and the card-specific classes (`Card`, `Deck`,
 `CardGame`) live in the separate `rl-card-lib-cardgames` package, with
 `CardGame` a thin subclass of `Game`.

@@ -9,32 +9,32 @@ from rl_card_lib.agents.base import Agent
 
 try:
     from rl_card_lib.agents.dqn_agent import DQNAgent
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     DQNAgent = None
 
 try:
     from rl_card_lib.agents.double_dqn_agent import DoubleDQNAgent
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     DoubleDQNAgent = None
 
 try:
     from rl_card_lib.agents.ppo_agent import PPOAgent
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     PPOAgent = None
 
 try:
     from rl_card_lib.agents.tabular import QLearningAgent
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     QLearningAgent = None
 
 try:
     from rl_card_lib.agents.mcts_agent import MCTSAgent
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     MCTSAgent = None
 
 try:
     from rl_card_lib.agents.heuristic import GreedyLookaheadAgent
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     GreedyLookaheadAgent = None
 
 

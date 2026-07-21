@@ -1,4 +1,5 @@
 """Gymnasium-compatible wrapper for `Game` objects."""
+import inspect
 from typing import Any, Tuple
 
 import numpy as np
@@ -34,13 +35,20 @@ class GymEnvWrapper:
             self.action_space = None
 
     def reset(self, *, seed: int | None = None, options: dict | None = None) -> Tuple[Any, dict]:
-        if seed is not None:
-            try:
-                np.random.seed(seed)
-            except Exception:
-                pass
-        obs = self.game.reset()
+        # Forward the seed to the game's own reset() when it takes one; never
+        # reseed a global RNG (that used to perturb unrelated randomness).
+        if seed is not None and self._game_reset_accepts_seed():
+            obs = self.game.reset(seed=seed)
+        else:
+            obs = self.game.reset()
         return obs, {}
+
+    def _game_reset_accepts_seed(self) -> bool:
+        """Whether the wrapped game's reset() takes a seed keyword."""
+        try:
+            return "seed" in inspect.signature(self.game.reset).parameters
+        except (TypeError, ValueError):
+            return False
 
     def step(self, action: int) -> Tuple[Any, float, bool, bool, dict]:
         return self.game.step(action)
