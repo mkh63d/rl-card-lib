@@ -205,6 +205,13 @@ class TestNotes:
         notes = detect_notes(episodes={"loss": [1.0, 1.2, 0.9, 1.1]})
         assert not any("diverged" in note for note in notes)
 
+    def test_flags_a_blow_up_on_an_inflated_median(self):
+        """A huge peak whose ratio stays under the bar because the median is
+        itself inflated (3.1e9 on 1e7 is only 310x) must still flag: this is
+        the klondike__dqn blind spot the absolute rule closes."""
+        notes = detect_notes(episodes={"loss": [1e7] * 20 + [3.1e9]})
+        assert any("diverged" in note for note in notes)
+
     def test_flags_full_step_cap_saturation(self):
         notes = detect_notes(episodes={"steps": [300] * 10}, env_max_steps=300)
         assert any("300-step cap" in note for note in notes)

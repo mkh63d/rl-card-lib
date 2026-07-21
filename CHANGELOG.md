@@ -44,6 +44,32 @@
 
 ### Fixed
 
+- **Vanilla `DQNAgent` diverged on both games.** Its TD target maximized over an
+  unmasked action set, so illegal-action Q-values — the majority in any card-game
+  position — leaked into the bootstrap and compounded through the target network
+  (loss peaked at 3.1e9 on Klondike, 4.1e14 on Macao) until the trained greedy
+  policy was worse than the untrained one. `DQNAgent` now masks its target to the
+  next state's legal actions, the same rule `DoubleDQNAgent` and `QLearningAgent`
+  already used. `MASK_VALUE`/`MaskedReplayBuffer` moved to `dqn_agent` and are
+  re-exported from `double_dqn_agent` so the public import path is unchanged.
+  Single-network + MSE are kept, so the DQN-vs-Double-DQN teaching contrast stays
+  intact and Double DQN is byte-for-byte unchanged; only the two `dqn` runs need
+  retraining.
+- **The divergence auto-detector had a blind spot.** The `peak/median > 1000×`
+  test — duplicated between the run's text note and the symlog-axis decision —
+  missed a blow-up riding on an already-inflated median, so Klondike DQN's 759×
+  slipped under the bar and its loss chart drew an unreadable linear spike with no
+  caveat. Both call sites now share one `loss_divergence()` helper that also trips
+  on a large absolute peak, so the note and the chart axis can never disagree.
+- **Klondike was missing the Heuristic baseline** that Macao shows. Its
+  `register_sweep_game` now passes a `heuristic_factory`, so the report draws a
+  Heuristic reference line and `results/baselines/klondike.json` gains the row
+  (re-measure baselines to populate it).
+- **The report now flags that "before training" bars are not comparable across
+  agents.** A fresh Q-table tie-breaks uniformly at random (its "before" ≈ random
+  play) while a fresh network argmaxes a near-constant output; the Configuration
+  caveats now say to compare an agent's before→after delta, not one agent's
+  "before" against another's.
 - **`SelfPlayTrainer` scored every evaluation episode as 0.0 reward.** The
   episode-reward accumulator sat inside `if training and current_player == 0`,
   so it never ran during evaluation. Consequence: every recorded Macao

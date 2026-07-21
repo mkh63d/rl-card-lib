@@ -695,6 +695,12 @@ class HtmlReport:
             "and reproducible, but results depend on where evaluations are placed.",
             "Only the most recent run of each model is stored; re-running a "
             "model replaces its record, figures and checkpoints.",
+            "The <em>before training</em> bars reflect each agent's untrained "
+            "policy, which differs by architecture and is not comparable across "
+            "agents: a fresh Q-table breaks ties uniformly at random (its "
+            "'before' is close to random play), while a fresh neural network "
+            "argmaxes a near-constant output. Compare an agent's before-to-after "
+            "delta, not one agent's 'before' against another's.",
         ]
         # A Klondike-specific caveat, shown only when Klondike is in the store.
         if any(game_spec(g).get("headline_key") == "cards_up"

@@ -431,6 +431,34 @@ def _exploration_gap_notes(
     return []
 
 
+#: A loss counts as diverged when its peak dwarfs the typical value...
+DIVERGENCE_RATIO = 1e3
+#: ...or when the peak is absolutely huge regardless of the span. The absolute
+#: rule is what catches a blow-up on an already-inflated median: klondike__dqn
+#: peaked at 3.1e9 on a 4.1e6 median, a ratio of only 759x, under the ratio bar.
+DIVERGENCE_ABS = 1e3
+
+
+def loss_divergence(values: Iterable[float]) -> Optional[tuple[float, float]]:
+    """`(peak, typical)` when a loss series has diverged, else `None`.
+
+    Shared by the text note here and the symlog-axis decision in figures.py so
+    the two can never disagree about what "diverged" means. Both a large *ratio*
+    (peak against the median) and a large *absolute* peak trip it, because a
+    divergence riding on an inflated median keeps the ratio under the bar.
+    """
+    finite = [abs(float(v)) for v in values if np.isfinite(v)]
+    nonzero = [v for v in finite if v > 0]
+    if not nonzero:
+        return None
+    peak, typical = max(nonzero), float(np.median(nonzero))
+    if typical <= 0:
+        return None
+    if peak / typical > DIVERGENCE_RATIO or peak > DIVERGENCE_ABS:
+        return peak, typical
+    return None
+
+
 def detect_notes(
     *,
     episodes: dict[str, Any],
@@ -446,16 +474,14 @@ def detect_notes(
     notes: list[str] = []
 
     losses = episodes.get("loss") or []
-    finite = [float(v) for v in losses if np.isfinite(v)]
-    nonzero = [abs(v) for v in finite if v != 0.0]
-    if nonzero:
-        peak = max(nonzero)
-        typical = float(np.median(nonzero))
-        if typical > 0 and peak / typical > 1e3:
-            notes.append(
-                f"Loss diverged: peak {peak:.3g} against a median of "
-                f"{typical:.3g}. Charted on a symlog axis; not clipped."
-            )
+    diverged = loss_divergence(losses)
+    if diverged:
+        peak, typical = diverged
+        notes.append(
+            f"Loss diverged: peak {peak:.3g} against a median of "
+            f"{typical:.3g}. Charted on a symlog axis; not clipped."
+        )
+    finite = [v for v in losses if np.isfinite(v)]
     if len(finite) != len(losses):
         notes.append("Loss contains non-finite values; those episodes are gapped.")
 
@@ -1142,6 +1168,7 @@ __all__ = [
     "register_game",
     "register_metric",
     "host_info",
+    "loss_divergence",
     "moving_average",
     "purge_checkpoints",
     "reconstruct_epsilon",

@@ -11,6 +11,11 @@ import torch.nn.functional as F
 
 from rl_card_lib.agents.base import Agent
 
+#: Stand-in for -inf when masking illegal actions. Real -inf survives an argmax
+#: but turns into NaN the moment a fully-masked row reaches the target: with no
+#: legal next action the `max` is -inf, and the terminal guard's 0 * -inf is NaN.
+MASK_VALUE = -1e8
+
 
 class QNetwork(nn.Module):
     """Q-value neural network (MLP)."""
@@ -98,9 +103,96 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
+class MaskedReplayBuffer:
+    """
+    Replay buffer that also remembers which actions the next state allowed.
+
+    Without the mask the TD target can bootstrap off an action that is illegal in
+    the next state, which inflates the target with a value the policy can never
+    collect. In these games most actions are illegal in any given position, so
+    that is the common case rather than an edge case.
+    """
+
+    def __init__(self, capacity: int, action_size: int):
+        """
+        Initialize the buffer.
+
+        Args:
+            capacity: Maximum number of transitions to store
+            action_size: Number of possible actions, sets the mask width
+        """
+        self.buffer: deque = deque(maxlen=capacity)
+        self.action_size = action_size
+
+    def push(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+        next_legal_actions: Optional[list[int]] = None,
+    ) -> None:
+        """
+        Store a transition.
+
+        Args:
+            state: State before action
+            action: Action taken
+            reward: Reward received
+            next_state: State after action
+            done: Whether episode ended
+            next_legal_actions: Actions legal in next_state; None means unknown,
+                which is stored as "all legal"
+        """
+        if next_legal_actions is None:
+            mask = np.ones(self.action_size, dtype=bool)
+        else:
+            mask = np.zeros(self.action_size, dtype=bool)
+            mask[np.asarray(next_legal_actions, dtype=np.int64)] = True
+
+        self.buffer.append((state, action, reward, next_state, done, mask))
+
+    def sample(self, batch_size: int) -> tuple:
+        """
+        Sample a batch of transitions.
+
+        Args:
+            batch_size: Number of transitions to sample
+
+        Returns:
+            Tuple of (states, actions, rewards, next_states, dones, next_masks)
+        """
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states, dones, masks = zip(*batch)
+
+        return (
+            np.array(states, dtype=np.float32),
+            np.array(actions, dtype=np.int64),
+            np.array(rewards, dtype=np.float32),
+            np.array(next_states, dtype=np.float32),
+            np.array(dones, dtype=np.float32),
+            np.array(masks, dtype=bool),
+        )
+
+    def __len__(self) -> int:
+        return len(self.buffer)
+
+
 class DQNAgent(Agent):
-    """DQN agent with experience replay and target network."""
-    
+    """DQN agent with experience replay, a target network and legal-action masking.
+
+    The target maximizes only over actions the next state actually allows. Without
+    that mask the bootstrap can pick an action illegal in the next position, and
+    since most actions are illegal in any given card-game position, noise in those
+    unreachable Q-values is copied into the target network every update and
+    compounds until the loss diverges. `DoubleDQNAgent` adds double-Q selection, a
+    dueling head and a Huber loss on top; this stays single-network with an MSE
+    loss so the two make a clean before/after teaching contrast.
+    """
+
+    accepts_next_legal_actions = True
+
     def __init__(
         self,
         state_size: int,
@@ -173,8 +265,9 @@ class DQNAgent(Agent):
         # Optimizer
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=learning_rate)
         
-        # Replay buffer
-        self.replay_buffer = ReplayBuffer(buffer_size)
+        # Replay buffer. The masked variant is what lets learn() bootstrap only
+        # over the next state's legal actions.
+        self.replay_buffer = MaskedReplayBuffer(buffer_size, action_size)
         
         # Counters
         self.steps = 0
@@ -236,49 +329,61 @@ class DQNAgent(Agent):
         action: int,
         reward: float,
         next_observation: np.ndarray,
-        done: bool
+        done: bool,
+        next_legal_actions: Optional[list[int]] = None,
     ) -> Optional[dict]:
         """
         Store transition and perform learning step.
-        
+
         Args:
             observation: State before action
             action: Action taken
             reward: Reward received
             next_observation: State after action
             done: Whether episode ended
-            
+            next_legal_actions: Actions legal in next_observation; None means
+                unknown, and every action is bootstrapped over
+
         Returns:
             Dict with loss if learning occurred, None otherwise
         """
         # Store transition
-        self.replay_buffer.push(observation, action, reward, next_observation, done)
-        
+        self.replay_buffer.push(
+            observation, action, reward, next_observation, done, next_legal_actions
+        )
+
         # Only train if enough samples
         if len(self.replay_buffer) < self.batch_size:
             return None
-        
+
         # Sample batch
-        states, actions, rewards, next_states, dones = self.replay_buffer.sample(
-            self.batch_size
+        states, actions, rewards, next_states, dones, next_masks = (
+            self.replay_buffer.sample(self.batch_size)
         )
-        
+
         # Convert to tensors
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.LongTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
         dones = torch.FloatTensor(dones).to(self.device)
-        
+        next_masks = torch.as_tensor(next_masks, device=self.device)
+
         # Compute current Q values
         current_q = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        
-        # Compute target Q values
+
+        # Compute target Q values. The max ranges only over the next state's legal
+        # actions; illegal ones are pushed to MASK_VALUE so they can never be the
+        # bootstrap target. A state with no legal action has nothing to bootstrap
+        # from, so has_actions drops the term (and keeps 0 * MASK_VALUE out of it).
         with torch.no_grad():
-            next_q = self.target_network(next_states).max(1)[0]
-            target_q = rewards + (1 - dones) * self.gamma * next_q
-        
-        # Compute loss
+            next_q_all = self.target_network(next_states)
+            next_q_all = next_q_all.masked_fill(~next_masks, MASK_VALUE)
+            next_q = next_q_all.max(1)[0]
+            has_actions = next_masks.any(dim=1).float()
+            target_q = rewards + (1 - dones) * has_actions * self.gamma * next_q
+
+        # MSE loss, kept deliberately: the Huber loss is a DoubleDQN-only change.
         loss = F.mse_loss(current_q, target_q)
         
         # Optimize
