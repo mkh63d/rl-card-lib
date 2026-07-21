@@ -461,6 +461,57 @@ package "rl_card_lib" as main {
         HtmlReport ..> RunStore : reads
         HtmlReport o-- Figure
     }
+
+    package "harness" as harness {
+        class registry <<module>> {
+            +register_sweep_game(name, env_factory, ...): SweepGame
+            +registered_sweep_games(): dict
+            +sweep_game(name): SweepGame
+            +is_registered(name): bool
+        }
+
+        class SweepGame {
+            +name: str
+            +env_factory: Callable
+            +max_steps: int
+            +evaluate: Callable
+            +self_play: bool
+            +opponent_factory: Callable
+        }
+
+        class learners <<module>> {
+            +LEARNERS: dict
+            +build_learner(name, env, seed): Agent
+            +epsilon_schedule(...): Callable
+            +agent_class_name(name): str
+        }
+
+        class evaluation <<module>> {
+            +evaluate_klondike(agent, episodes, seed): dict
+            +evaluate_macao(agent, episodes, seed): dict
+            +evaluate_macao_suite(...): dict
+        }
+
+        class baselines <<module>> {
+            +measure_baselines(...): BaselineSet
+            +klondike_baseline_agents(seed): list
+            +macao_baseline_agents(seed): list
+        }
+
+        note bottom of registry
+            register_sweep_game() forwards the
+            presentation fields to the report
+            package's register_game(), so a game
+            author makes one call and gets both the
+            training sweep and the HTML report.
+        end note
+
+        registry o-- SweepGame
+        learners ..> Agent : builds
+        baselines ..> BaselineSet : produces
+    }
+
+    games ..> harness : register_sweep_game()
 }
 
 ' External dependencies

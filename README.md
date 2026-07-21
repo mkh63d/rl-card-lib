@@ -130,6 +130,20 @@ pytest --cov --cov-report=html
 
 ## 📚 Documentation
 
+The full documentation site — getting started, guides, architecture diagrams and
+an auto-generated API reference — is published at
+**https://mkh63d.github.io/rl-card-lib/**.
+
+Build it locally:
+
+```bash
+pip install -e ".[docs]"
+python scripts/assemble_docs_package.py   # merge the namespace for mkdocstrings
+mkdocs serve                              # http://127.0.0.1:8000
+```
+
+Per-package READMEs:
+
 - [Core Package](packages/core/README.md) - API and concepts
 - [Card Games Package](packages/cardgames/README.md) - Game implementations
 - [Visualizer Package](packages/visualizer/README.md) - Visualization tools
