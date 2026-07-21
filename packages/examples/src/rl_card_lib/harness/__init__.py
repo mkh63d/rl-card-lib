@@ -27,9 +27,17 @@ from rl_card_lib.harness.learners import (
     epsilon_schedule,
 )
 from rl_card_lib.harness.recording import make_episode_recorder
+from rl_card_lib.harness.registry import (
+    SweepGame,
+    is_registered,
+    register_sweep_game,
+    registered_sweep_games,
+    sweep_game,
+)
 
 __all__ = [
     "LEARNERS",
+    "SweepGame",
     "agent_class_name",
     "build_learner",
     "checkpoint_suffix",
@@ -37,10 +45,14 @@ __all__ = [
     "evaluate_klondike",
     "evaluate_macao",
     "evaluate_macao_suite",
+    "is_registered",
     "klondike_baseline_agents",
     "macao_baseline_agents",
     "make_episode_recorder",
     "measure_baselines",
+    "register_sweep_game",
+    "registered_sweep_games",
     "run_klondike_baselines",
     "run_macao_baselines",
+    "sweep_game",
 ]

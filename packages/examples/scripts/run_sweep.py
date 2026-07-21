@@ -23,47 +23,25 @@ import sys
 import time
 import traceback
 
-from rl_card_lib.agents import RandomAgent
-from rl_card_lib.env import CardGameEnv
-from rl_card_lib.games import KlondikeSolitaire, Macao, MacaoHeuristicAgent
+# Importing the games package registers the bundled games (and any the user
+# imported first). Nothing here branches on a game name; it all comes from the
+# registry, so a third game is swept by registering it, not editing this file.
+import rl_card_lib.games  # noqa: F401  (import side effect: registration)
 from rl_card_lib.harness import (
     LEARNERS,
     agent_class_name,
     build_learner,
     checkpoint_suffix,
-    evaluate_klondike,
-    evaluate_macao_suite,
     make_episode_recorder,
     measure_baselines,
+    registered_sweep_games,
+    sweep_game,
 )
 from rl_card_lib.report import BaselineSet, RunRecord, RunStore, purge_checkpoints
 from rl_card_lib.report.html_report import HtmlReport
 from rl_card_lib.report.run_record import host_info, utc_now
 from rl_card_lib.report.training_report import TrainingReport
 from rl_card_lib.trainer import SelfPlayTrainer, Trainer
-
-GAMES = ("klondike", "macao")
-MAX_STEPS = {"klondike": 300, "macao": 200}
-
-
-def build_env(game: str):
-    if game == "klondike":
-        return CardGameEnv(KlondikeSolitaire(), max_steps=MAX_STEPS[game])
-    return CardGameEnv(Macao(num_players=2), max_steps=MAX_STEPS[game])
-
-
-def evaluate(game: str, agent, episodes: int, seed: int) -> dict:
-    """Measure an agent on fixed deals, with the game's own protocol."""
-    if game == "klondike":
-        return evaluate_klondike(agent, episodes, MAX_STEPS[game])
-    return evaluate_macao_suite(
-        agent,
-        {
-            "random": RandomAgent(action_size=65, seed=seed),
-            "heuristic": MacaoHeuristicAgent(seed=seed),
-        },
-        episodes, MAX_STEPS[game],
-    )
 
 
 def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
@@ -80,7 +58,9 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
         print(f"  cleared {len(removed)} stale checkpoint file(s)", flush=True)
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    env = build_env(game)
+    spec = sweep_game(game)
+    max_steps = spec.max_steps
+    env = spec.env_factory()
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, args.seed,
     )
@@ -89,7 +69,7 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
     eval_seconds = 0.0
 
     tick = time.time()
-    before = evaluate(game, agent, args.eval_episodes, args.seed)
+    before = spec.evaluate(agent, args.eval_episodes, args.seed)
     eval_seconds += time.time() - tick
     print(f"  before: {_format_metrics(before)}", flush=True)
 
@@ -106,8 +86,12 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
         eval_episodes=min(20, args.eval_episodes),
         checkpoint_interval=checkpoint_interval,
     )
-    if game == "macao":
-        opponent = None if args.self_play else MacaoHeuristicAgent(seed=args.seed)
+    if spec.self_play:
+        # --self-play forces the zero-lag mirror; otherwise the game's declared
+        # opponent (a fixed heuristic) gives an absolute number to read.
+        opponent = None if args.self_play else (
+            spec.opponent_factory(args.seed) if spec.opponent_factory else None
+        )
         trainer = SelfPlayTrainer(env=env, agent=agent, opponent=opponent,
                                   **trainer_kwargs)
     else:
@@ -116,19 +100,19 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
     # Captured before training so the recorded epsilon is the start value and
     # the table size is zero -- the configuration, not the outcome.
     config = TrainingReport.from_trainer(
-        trainer, episodes=episodes, max_steps_per_episode=MAX_STEPS[game],
+        trainer, episodes=episodes, max_steps_per_episode=max_steps,
     ).as_dict()
 
-    callback, extras = make_episode_recorder(env, agent, game)
+    callback, extras = make_episode_recorder(env, agent, spec.episode_extras)
     tick = time.time()
     metrics = trainer.train(
-        episodes=episodes, max_steps_per_episode=MAX_STEPS[game],
+        episodes=episodes, max_steps_per_episode=max_steps,
         verbose=args.verbose, callback=callback,
     )
     train_seconds = time.time() - tick
 
     tick = time.time()
-    after = evaluate(game, agent, args.eval_episodes, args.seed)
+    after = spec.evaluate(agent, args.eval_episodes, args.seed)
     eval_seconds += time.time() - tick
     print(f"  after:  {_format_metrics(after)}  ({train_seconds:.0f}s train)",
           flush=True)
@@ -148,7 +132,7 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
         episode_extras=extras,
         baseline_before=before, baseline_after=after,
         host=host_info(seed=args.seed, device="cpu"),
-        env_max_steps=MAX_STEPS[game],
+        env_max_steps=max_steps,
         artifacts={
             "checkpoint": final_path,
             "checkpoint_bytes": os.path.getsize(final_path),
@@ -194,8 +178,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--games", default="both",
-                        help="both | klondike | macao | comma-separated")
+    parser.add_argument("--games", default="all",
+                        help="all (every registered game) | comma-separated names")
     parser.add_argument("--agents", default="all",
                         help=f"all | comma-separated from {','.join(LEARNERS)}")
     parser.add_argument("--episodes", type=int, default=200)
@@ -234,15 +218,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def resolve(args) -> tuple:
-    games = GAMES if args.games == "both" else tuple(
-        g.strip() for g in args.games.split(",") if g.strip()
-    )
+    registered = registered_sweep_games()
+    if args.games in ("both", "all"):
+        games = tuple(registered)
+    else:
+        games = tuple(g.strip() for g in args.games.split(",") if g.strip())
     agents = LEARNERS if args.agents == "all" else tuple(
         a.strip() for a in args.agents.split(",") if a.strip()
     )
     for game in games:
-        if game not in GAMES:
-            raise SystemExit(f"Unknown game {game!r}, expected one of {GAMES}")
+        if game not in registered:
+            known = ", ".join(registered) or "none"
+            raise SystemExit(
+                f"Unknown game {game!r}. Registered: {known}. Register a custom "
+                "game with rl_card_lib.harness.register_sweep_game before "
+                "sweeping it."
+            )
     for agent in agents:
         if agent not in LEARNERS:
             raise SystemExit(f"Unknown agent {agent!r}, expected one of {LEARNERS}")

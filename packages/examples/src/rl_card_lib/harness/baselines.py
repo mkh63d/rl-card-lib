@@ -165,29 +165,87 @@ def run_macao_baselines(
     return results
 
 
+def _supports_copy(game) -> bool:
+    """Whether a game can be copied, which the search baselines require.
+
+    With Game.copy() deep-copying by default this is almost always true, but a
+    game whose state holds something un-deepcopyable would fail here rather
+    than crash the sweep.
+    """
+    try:
+        game.copy()
+        return True
+    except Exception:
+        return False
+
+
+def baseline_agents(sweep_game, seed: int = 0) -> list:
+    """(name, agent) pairs derivable for any registered game.
+
+    Random and GreedyLookahead(1) come free from the Game contract. MCTS is
+    offered only when the game can be copied. A heuristic row appears only when
+    the game supplied a heuristic_factory -- game knowledge cannot be derived.
+    """
+    env = sweep_game.env_factory()
+    action_size = env.action_space.n
+
+    agents = [("Random", RandomAgent(action_size=action_size, seed=seed))]
+    if sweep_game.heuristic_factory is not None:
+        agents.append(("Heuristic", sweep_game.heuristic_factory(seed)))
+    agents.append(("GreedyLookahead(1)", GreedyLookaheadAgent(depth=1, seed=seed)))
+
+    if _supports_copy(env.game):
+        sims = sweep_game.mcts_simulations
+        agents.append((f"MCTS({sims})", MCTSAgent(
+            simulations=sims, rollout_depth=sweep_game.mcts_rollout_depth, seed=seed,
+        )))
+    return agents
+
+
 def measure_baselines(
     game: str, episodes: int, *, seed: int = 0, mcts_simulations: Optional[int] = None,
     verbose: bool = True,
 ) -> tuple[list[dict], dict]:
-    """Measure one game's baselines. Returns (rows, protocol)."""
-    if game == "klondike":
-        simulations = 20 if mcts_simulations is None else mcts_simulations
-        agents = klondike_baseline_agents(seed, mcts_simulations=simulations)
-        rows = run_klondike_baselines(agents, episodes, verbose=verbose)
-        max_steps = 300
-    elif game == "macao":
-        simulations = 40 if mcts_simulations is None else mcts_simulations
-        agents = macao_baseline_agents(seed, mcts_simulations=simulations)
-        rows = run_macao_baselines(agents, episodes, verbose=verbose)
-        max_steps = 200
-    else:
-        raise ValueError(f"Unknown game {game!r}")
+    """Measure one registered game's baselines. Returns (rows, protocol).
+
+    Each baseline is scored with the game's own evaluation protocol, so the
+    baseline rows carry exactly the metrics the learners are judged on -- no
+    per-game branch, and the headline reference lines line up. An unregistered
+    game degrades to no baselines rather than raising.
+    """
+    from dataclasses import replace
+
+    from rl_card_lib.harness.registry import is_registered, sweep_game as lookup
+    from rl_card_lib.report import game_spec
+
+    if not is_registered(game):
+        if verbose:
+            print(f"  {game!r} is not registered for the sweep; no baselines.",
+                  flush=True)
+        return [], {"episodes": episodes, "seed": seed, "unregistered": True}
+
+    sg = lookup(game)
+    if mcts_simulations is not None:
+        sg = replace(sg, mcts_simulations=mcts_simulations)
+
+    headline_key = game_spec(game).get("headline_key")
+    rows = []
+    for name, agent in baseline_agents(sg, seed):
+        started = time.time()
+        metrics = sg.evaluate(agent, episodes, seed)
+        seconds = time.time() - started
+        rows.append({"agent": name, **metrics, "seconds": seconds})
+        if verbose:
+            headline = metrics.get(headline_key)
+            shown = f"{headline:.3f}" if isinstance(headline, float) else "n/a"
+            print(f"  {name:24s} {headline_key}={shown}  ({seconds:.1f}s)",
+                  flush=True)
 
     protocol = {
         "episodes": episodes,
-        "max_steps": max_steps,
+        "max_steps": sg.max_steps,
         "seed": seed,
-        "mcts_simulations": simulations,
-        "opponent": "random" if game == "macao" else None,
+        "mcts_simulations": sg.mcts_simulations,
+        "self_play": sg.self_play,
     }
     return rows, protocol
