@@ -68,6 +68,8 @@ rectangle "RL Card Library" as system {
         usecase "Self-Play Training\n(frozen opponent snapshot)" as UC25
         usecase "Benchmark Agents" as UC37
         usecase "Generate Training Report\n(Markdown / JSON)" as UC38
+        usecase "Run Training Sweep\n(all learners x games)" as UC41
+        usecase "Generate HTML Report\n(self-contained page)" as UC42
     }
 
     ' Visualization use cases
@@ -84,6 +86,7 @@ rectangle "RL Card Library" as system {
         usecase "Implement Custom Game" as UC31
         usecase "Reuse Rule Helpers" as UC39
         usecase "Analyse Klondike Solvability" as UC40
+        usecase "Register Game for Sweep\n(register_sweep_game)" as UC43
     }
 }
 
@@ -96,6 +99,7 @@ developer --> UC9
 developer --> UC31
 developer --> UC39
 developer --> UC40
+developer --> UC43
 
 ' ML Engineer relationships
 engineer --> UC15
@@ -116,6 +120,8 @@ engineer --> UC24
 engineer --> UC19
 engineer --> UC25
 engineer --> UC27
+engineer --> UC41
+engineer --> UC42
 
 ' Game Designer relationships
 designer --> UC1
@@ -152,6 +158,12 @@ UC38 ..> UC21 : <<extend>>
 UC39 ..> UC21 : <<extend>>
 UC40 ..> UC39 : <<include>>
 UC40 ..> UC29 : <<extend>>
+UC41 ..> UC21 : <<include>>
+UC41 ..> UC37 : <<include>>
+UC42 ..> UC41 : <<extend>>
+UC38 ..> UC41 : <<extend>>
+UC43 ..> UC31 : <<include>>
+UC41 ..> UC43 : <<extend>>
 
 ' Generalization
 UC14 --|> UC17

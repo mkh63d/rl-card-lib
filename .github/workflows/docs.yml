@@ -1,0 +1,70 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "docx/**"
+      - "mkdocs.yml"
+      - "packages/**/*.py"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+# Allow one concurrent deployment; a newer push cancels an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Render PlantUML diagrams to SVG
+        run: |
+          # plantuml pulls in graphviz, which the class/use-case diagrams need.
+          sudo apt-get update
+          sudo apt-get install -y plantuml
+          mkdir -p docs/assets/diagrams
+          plantuml -tsvg -o "$GITHUB_WORKSPACE/docs/assets/diagrams" docx/*.puml
+
+      - name: Install docs dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # mkdocstrings reads the assembled source tree statically (griffe), so
+          # the runtime deps (torch, gymnasium, ...) are not needed to build docs.
+          pip install -e ".[docs]"
+
+      - name: Assemble the merged rl_card_lib tree for mkdocstrings
+        run: python scripts/assemble_docs_package.py
+
+      - name: Build site (strict)
+        run: mkdocs build --strict
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

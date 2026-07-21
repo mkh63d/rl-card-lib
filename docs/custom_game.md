@@ -3,7 +3,7 @@
 The library trains and reports on any game that implements the `Game` contract.
 Klondike and Macao are not special-cased — they register themselves through the
 same public API described here (see
-[`games/registration.py`](../packages/examples/src/rl_card_lib/games/registration.py)),
+[`games/registration.py`](https://github.com/mkh63d/rl-card-lib/blob/main/packages/examples/src/rl_card_lib/games/registration.py)),
 so those two calls are your reference.
 
 There are two things you might want:

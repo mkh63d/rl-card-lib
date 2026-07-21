@@ -73,9 +73,11 @@ class Agent(ABC):
         return None
     
     def train(self) -> None:
+        """Put the agent in training mode (exploration enabled)."""
         self.training = True
-    
+
     def eval(self) -> None:
+        """Put the agent in evaluation mode (greedy / no exploration)."""
         self.training = False
     
     def save(self, path: str) -> None:

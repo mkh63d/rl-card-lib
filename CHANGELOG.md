@@ -14,7 +14,7 @@
   deep-copies by default, so the search agents work for a naive custom game.
   `register_metric()`, palette-cycled colours for custom agents, and
   `higher_is_better=False` headlines round it out. See
-  [docs/custom_game.md](docs/custom_game.md).
+  [docs/custom_game.md](https://github.com/mkh63d/rl-card-lib/blob/main/docs/custom_game.md).
 - **The report stores a custom game's own metrics.** `RunRecord` previously
   dropped any per-episode series outside a fixed four, and a custom
   `headline_max` never reached the page — both fixed.
