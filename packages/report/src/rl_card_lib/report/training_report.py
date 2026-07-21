@@ -7,34 +7,39 @@ from typing import Any, Optional
 
 from rl_card_lib.agents.base import Agent
 
+# The learning agents pull in heavy optional deps (torch). Catch ImportError
+# (dep absent) plus OSError (present but its compiled libs fail to load, e.g.
+# a torch DLL/CUDA error on import) so the report still builds from whatever
+# agents are usable. Anything else propagates -- we don't want to hide a real
+# bug inside an agent module behind a blanket except.
 try:
     from rl_card_lib.agents.dqn_agent import DQNAgent
-except ImportError:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     DQNAgent = None
 
 try:
     from rl_card_lib.agents.double_dqn_agent import DoubleDQNAgent
-except ImportError:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     DoubleDQNAgent = None
 
 try:
     from rl_card_lib.agents.ppo_agent import PPOAgent
-except ImportError:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     PPOAgent = None
 
 try:
     from rl_card_lib.agents.tabular import QLearningAgent
-except ImportError:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     QLearningAgent = None
 
 try:
     from rl_card_lib.agents.mcts_agent import MCTSAgent
-except ImportError:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     MCTSAgent = None
 
 try:
     from rl_card_lib.agents.heuristic import GreedyLookaheadAgent
-except ImportError:  # pragma: no cover - optional dependency
+except (ImportError, OSError):  # pragma: no cover - optional dependency
     GreedyLookaheadAgent = None
 
 

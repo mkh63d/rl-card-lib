@@ -103,11 +103,19 @@ class CardGameEnv:
         return observation, info
 
     def _game_reset_accepts_seed(self) -> bool:
-        """Whether the wrapped game's reset() takes a seed keyword."""
+        """Whether the wrapped game's reset() takes a seed keyword.
+
+        True for an explicit ``seed`` parameter or a ``**kwargs`` catch-all --
+        forwarding a seed to the latter is harmless and keeps determinism for
+        games that accept it that way.
+        """
         try:
-            return "seed" in inspect.signature(self.game.reset).parameters
+            params = inspect.signature(self.game.reset).parameters
         except (TypeError, ValueError):
             return False
+        return "seed" in params or any(
+            p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+        )
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, dict]:
         legal = self.get_legal_actions()
