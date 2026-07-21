@@ -146,27 +146,39 @@ see `_backpropagate` and `_edge_reward`):
   otherwise. `register_game(...)` lets a custom game declare its headline
   metric, label and bound instead of falling back to the neutral win-rate spec.
 
-### Custom games: what still assumes Klondike or Macao
+### Custom games: fully generic (resolved 2026-07-21)
 
-The reporting layer is generic; the *sweep* is not. Someone using this library
-for their own game can already record runs and get a report — `RunRecord`,
-`RunStore`, `HtmlReport` and `game_spec()` are game-agnostic, and unknown games
-fall back to a neutral spec — but they have to drive training themselves.
+A user can now add their own game and get the full sweep and report without
+editing library code. Klondike and Macao register themselves through the same
+public API a custom game uses ([`games/registration.py`](packages/examples/src/rl_card_lib/games/registration.py));
+no game-name branch survives in the sweep or the report. Proven end to end by
+sweeping a custom non-card game through the public API alone.
 
-- [ ] **`run_sweep.py` hardcodes the two bundled games.** `GAMES`, `MAX_STEPS`,
-  `build_env()` and `evaluate()` are literals; a third game cannot be swept
-  without editing the script. Wants a small registry — game name to env factory,
-  step cap, trainer class and evaluation protocol — that `register_game()` feeds.
-- [ ] **Evaluation protocols are game-specific functions.** `evaluate_klondike`
-  and `evaluate_macao_suite` are hand-written; a custom game needs its own and
-  no interface declares what one must return beyond "a dict of floats".
-- [ ] **Baselines are per-game literals.** `klondike_baseline_agents()` /
-  `macao_baseline_agents()` name their agents by hand. `RandomAgent` and
-  `GreedyLookaheadAgent` are generic and could be derived from any `Game`.
-- [ ] **`METRICS` is a module-level dict.** A custom metric renders with a
-  neutral "unbounded" range until it is added; there is no `register_metric()`.
-- [ ] **No worked example.** A `docs/custom_game.md` walking one third game from
-  `Game` subclass to report would prove the seams are actually usable.
+- [x] **`run_sweep.py` is registry-driven.** `SweepGame` +
+  `register_sweep_game()` in the harness hold env factory, step cap, trainer
+  choice, evaluation protocol, baseline budget and per-episode extras;
+  `register_sweep_game` forwards presentation to `report.register_game`.
+- [x] **Evaluation protocol is a per-game callable** on the sweep spec,
+  returning a `dict[str, float]`; baselines are scored with the same protocol,
+  so their rows carry the headline metric (fixing Macao reference lines).
+- [x] **Baselines are derived generically.** Random + GreedyLookahead for any
+  game, MCTS when the game is copyable, a heuristic only when supplied; an
+  unregistered game degrades to no baselines instead of raising.
+- [x] **`register_metric()`** added; `metric_range()` and `register_game()`
+  auto-register the headline metric's bound, so a custom metric shows its scale.
+- [x] **Custom episode series are stored and charted** — `RunRecord` no longer
+  drops keys outside a fixed whitelist. Custom agents get distinct palette
+  colours; headlines support `higher_is_better=False`.
+- [x] **`Game.copy()` deep-copies by default**, so the search agents work for a
+  naive custom game with no hand-written clone.
+- [x] **Worked example**: [`docs/custom_game.md`](docs/custom_game.md), plus the
+  bundled games' own registrations as the reference.
+- [ ] **A non-card example game in the tree** (tic-tac-toe / grid-world) would
+  still strengthen the "universal library" claim beyond cards; the seams are
+  proven, an in-repo example is not yet shipped.
+- [ ] **`validate_game(game)` contract checker** — report which methods a custom
+  game satisfies and which optional capabilities (search, determinization,
+  multiplayer payoffs) it unlocks. Nice DX, not required for the loop.
 
 - [ ] **`Agent.checkpoint_suffix`.** `Trainer._save_checkpoint` hardcodes `.pt`
   even for `QLearningAgent`, which pickles — so `checkpoint_ep400.pt` in a

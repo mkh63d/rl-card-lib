@@ -4,6 +4,22 @@
 
 ### Added
 
+- **Custom games are fully supported, end to end.** A user can add their own
+  game and get the full training sweep and HTML report without editing library
+  code. `register_sweep_game()` (harness) declares how to run a game — env
+  factory, step cap, trainer, evaluation protocol, baselines, per-episode
+  series — and forwards presentation to `report.register_game()`. Klondike and
+  Macao register themselves through this same API and are the worked examples;
+  no game-name branch survives in the sweep or report. `Game.copy()` now
+  deep-copies by default, so the search agents work for a naive custom game.
+  `register_metric()`, palette-cycled colours for custom agents, and
+  `higher_is_better=False` headlines round it out. See
+  [docs/custom_game.md](docs/custom_game.md).
+- **The report stores a custom game's own metrics.** `RunRecord` previously
+  dropped any per-episode series outside a fixed four, and a custom
+  `headline_max` never reached the page — both fixed.
+
+
 - **A visual HTML training report.** `python packages/examples/scripts/run_sweep.py`
   trains every learner on both games and writes `results/index.html`: one
   self-contained page (no CDN, no sibling files, figures embedded as data URIs)
