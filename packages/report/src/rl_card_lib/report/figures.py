@@ -33,6 +33,7 @@ from rl_card_lib.report.run_record import (
     agent_color,
     agent_label,
     game_spec,
+    loss_divergence,
     metric_spec,
     moving_average,
 )
@@ -234,15 +235,13 @@ def _needs_symlog(values: list) -> tuple[bool, float]:
     """Whether a series spans too many orders of magnitude for a linear axis.
 
     Clipping would hide a divergence, which is a result; a symlog axis shows
-    it and stays readable.
+    it and stays readable. Shares `loss_divergence` with the text note so a
+    chart never switches to symlog without the note explaining why, and never
+    the reverse. Returns the linear-threshold for symlog when it triggers.
     """
-    finite = [abs(float(v)) for v in values if np.isfinite(v)]
-    nonzero = [v for v in finite if v > 0]
-    if not nonzero:
-        return False, 1.0
-    peak, typical = max(nonzero), float(np.median(nonzero))
-    if typical > 0 and peak / typical > 1e3:
-        return True, max(typical, 1e-6)
+    diverged = loss_divergence(values)
+    if diverged:
+        return True, max(diverged[1], 1e-6)
     return False, 1.0
 
 

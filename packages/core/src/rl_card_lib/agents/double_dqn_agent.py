@@ -1,18 +1,25 @@
 """Double DQN agent with a dueling network and legal-action masking."""
 
 from typing import Optional
-from collections import deque
-import random
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from rl_card_lib.agents.dqn_agent import DQNAgent, QNetwork
+# MASK_VALUE and MaskedReplayBuffer live in dqn_agent now that vanilla DQN also
+# masks its bootstrap; re-exported here so `from ...double_dqn_agent import
+# MaskedReplayBuffer` (used by the tests and callers) keeps resolving.
+from rl_card_lib.agents.dqn_agent import (
+    DQNAgent,
+    MASK_VALUE,
+    MaskedReplayBuffer,
+    QNetwork,
+)
 
-#: Stand-in for -inf when masking illegal actions. Real -inf survives argmax but
-#: turns into NaN the moment a masked value reaches a gradient or an entropy term.
-MASK_VALUE = -1e8
+# MaskedReplayBuffer and MASK_VALUE are re-exported, not used in this module: the
+# public import path `rl_card_lib.agents.double_dqn_agent.MaskedReplayBuffer` must
+# stay valid now that the definitions moved to dqn_agent.
+__all__ = ["DoubleDQNAgent", "DuelingQNetwork", "MaskedReplayBuffer", "MASK_VALUE"]
 
 
 class DuelingQNetwork(nn.Module):
@@ -82,99 +89,24 @@ class DuelingQNetwork(nn.Module):
         return value + advantage - advantage.mean(dim=-1, keepdim=True)
 
 
-class MaskedReplayBuffer:
-    """
-    Replay buffer that also remembers which actions the next state allowed.
-
-    Without the mask the TD target can bootstrap off an action that is illegal in
-    the next state, which inflates the target with a value the policy can never
-    collect. In these games most actions are illegal in any given position, so
-    that is the common case rather than an edge case.
-    """
-
-    def __init__(self, capacity: int, action_size: int):
-        """
-        Initialize the buffer.
-
-        Args:
-            capacity: Maximum number of transitions to store
-            action_size: Number of possible actions, sets the mask width
-        """
-        self.buffer: deque = deque(maxlen=capacity)
-        self.action_size = action_size
-
-    def push(
-        self,
-        state: np.ndarray,
-        action: int,
-        reward: float,
-        next_state: np.ndarray,
-        done: bool,
-        next_legal_actions: Optional[list[int]] = None,
-    ) -> None:
-        """
-        Store a transition.
-
-        Args:
-            state: State before action
-            action: Action taken
-            reward: Reward received
-            next_state: State after action
-            done: Whether episode ended
-            next_legal_actions: Actions legal in next_state; None means unknown,
-                which is stored as "all legal"
-        """
-        if next_legal_actions is None:
-            mask = np.ones(self.action_size, dtype=bool)
-        else:
-            mask = np.zeros(self.action_size, dtype=bool)
-            mask[np.asarray(next_legal_actions, dtype=np.int64)] = True
-
-        self.buffer.append((state, action, reward, next_state, done, mask))
-
-    def sample(self, batch_size: int) -> tuple:
-        """
-        Sample a batch of transitions.
-
-        Args:
-            batch_size: Number of transitions to sample
-
-        Returns:
-            Tuple of (states, actions, rewards, next_states, dones, next_masks)
-        """
-        batch = random.sample(self.buffer, batch_size)
-        states, actions, rewards, next_states, dones, masks = zip(*batch)
-
-        return (
-            np.array(states, dtype=np.float32),
-            np.array(actions, dtype=np.int64),
-            np.array(rewards, dtype=np.float32),
-            np.array(next_states, dtype=np.float32),
-            np.array(dones, dtype=np.float32),
-            np.array(masks, dtype=bool),
-        )
-
-    def __len__(self) -> int:
-        return len(self.buffer)
-
-
 class DoubleDQNAgent(DQNAgent):
     """
-    DQN with three fixes to the vanilla version, each aimed at a specific failure.
+    DQN with two extra fixes over the vanilla version, each aimed at a failure.
 
     - Double Q-learning: the online network picks the next action, the target
       network scores it. Vanilla DQN uses one network for both, so noise that
       happens to raise a Q-value gets selected *and* trusted, and the resulting
       overestimation compounds through the bootstrap.
     - Dueling head: see DuelingQNetwork. Disable with dueling=False.
-    - Legal-action masking in the target: only actions the next state allows can
-      be bootstrapped from.
 
     Also uses a Huber loss instead of MSE, so a single bad TD error produces a
     bounded gradient rather than a spike that wrecks the weights.
 
-    Everything else, including the epsilon schedule and checkpoint format, is
-    inherited from DQNAgent.
+    Legal-action masking in the target is *not* one of the differences: it now
+    lives in DQNAgent and both agents share it, so a bootstrap can only ever
+    range over the next state's legal actions. Everything else, including the
+    masked replay buffer, epsilon schedule and checkpoint format, is inherited
+    from DQNAgent.
     """
 
     accepts_next_legal_actions = True
@@ -236,7 +168,7 @@ class DoubleDQNAgent(DQNAgent):
         )
 
         self.name = "DoubleDQNAgent"
-        self.replay_buffer = MaskedReplayBuffer(buffer_size, action_size)
+        # DQNAgent.__init__ already built the MaskedReplayBuffer this needs.
 
     def _create_network(self) -> nn.Module:
         """Build a dueling or plain Q-network, per the `dueling` flag."""

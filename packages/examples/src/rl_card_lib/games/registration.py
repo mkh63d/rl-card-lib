@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from rl_card_lib.agents import RandomAgent
 from rl_card_lib.env import CardGameEnv
-from rl_card_lib.games.heuristics import MacaoHeuristicAgent
+from rl_card_lib.games.heuristics import KlondikeHeuristicAgent, MacaoHeuristicAgent
 from rl_card_lib.games.klondike import KlondikeSolitaire
 from rl_card_lib.games.macao import Macao
 from rl_card_lib.harness.evaluation import evaluate_klondike, evaluate_macao_suite
@@ -52,6 +52,7 @@ def register_bundled_games() -> None:
         max_steps=KLONDIKE_MAX_STEPS,
         evaluate=_evaluate_klondike,
         episode_extras=_klondike_extras,
+        heuristic_factory=lambda seed: KlondikeHeuristicAgent(seed=seed),
         mcts_simulations=20,
         mcts_rollout_depth=15,
         # presentation

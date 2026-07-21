@@ -5,6 +5,7 @@ import pytest
 
 from rl_card_lib.agents import (
     DoubleDQNAgent,
+    DQNAgent,
     GameAwareAgent,
     GreedyLookaheadAgent,
     HeuristicAgent,
@@ -548,6 +549,103 @@ class TestQLearningAgent:
             episodes=2, max_steps_per_episode=30, verbose=False
         )
         assert len(metrics.rewards) == 2
+
+
+class TestDQNAgent:
+    """Tests for vanilla DQN, whose target now masks illegal next actions."""
+
+    def test_declares_it_wants_next_legal_actions(self):
+        assert DQNAgent(
+            state_size=4, action_size=3, hidden_sizes=[8], device="cpu"
+        ).accepts_next_legal_actions is True
+
+    def test_uses_a_masked_replay_buffer(self):
+        agent = DQNAgent(
+            state_size=4, action_size=3, hidden_sizes=[8], device="cpu", seed=0
+        )
+        assert isinstance(agent.replay_buffer, MaskedReplayBuffer)
+
+    def test_action_selection_respects_legality(self):
+        agent = DQNAgent(
+            state_size=8, action_size=6, hidden_sizes=[16], device="cpu", seed=0
+        )
+        agent.eval()
+        observation = np.random.randn(8).astype(np.float32)
+        for _ in range(30):
+            assert agent.select_action(observation, [1, 3]) in (1, 3)
+
+    def test_learning_returns_finite_loss_with_mask(self):
+        agent = DQNAgent(
+            state_size=8, action_size=6, hidden_sizes=[16],
+            batch_size=4, device="cpu", seed=0
+        )
+        result = None
+        for _ in range(30):
+            result = agent.learn(
+                np.random.randn(8).astype(np.float32), 1, 1.0,
+                np.random.randn(8).astype(np.float32), False,
+                next_legal_actions=[0, 1, 2],
+            )
+        assert result is not None and "loss" in result
+        assert np.isfinite(result["loss"])
+
+    def test_learning_without_next_legal_actions(self):
+        """Omitting the mask must still work, treating everything as legal."""
+        agent = DQNAgent(
+            state_size=8, action_size=6, hidden_sizes=[16],
+            batch_size=4, device="cpu", seed=0
+        )
+        result = None
+        for _ in range(30):
+            result = agent.learn(
+                np.random.randn(8).astype(np.float32), 1, 1.0,
+                np.random.randn(8).astype(np.float32), False,
+            )
+        assert result is not None and np.isfinite(result["loss"])
+
+    def test_terminal_states_do_not_bootstrap(self):
+        """A next state with no legal action must contribute no bootstrap value.
+
+        This is exactly the case that made the unmasked target diverge: the max
+        over all actions plus the empty-mask 0 * MASK_VALUE would poison the
+        target. Masking keeps the Q-values finite.
+        """
+        agent = DQNAgent(
+            state_size=4, action_size=3, hidden_sizes=[8],
+            batch_size=2, device="cpu", seed=0
+        )
+        for _ in range(10):
+            agent.learn(
+                np.ones(4, dtype=np.float32), 0, 0.0,
+                np.zeros(4, dtype=np.float32), False, next_legal_actions=[],
+            )
+        assert np.isfinite(agent.get_q_values(np.ones(4, dtype=np.float32))).all()
+
+    def test_trains_on_a_real_game(self, klondike_env):
+        agent = DQNAgent(
+            state_size=klondike_env.observation_space.shape[0],
+            action_size=klondike_env.action_space.n,
+            hidden_sizes=[32], batch_size=8, device="cpu", seed=0,
+        )
+        metrics = Trainer(klondike_env, agent, eval_interval=10_000).train(
+            episodes=2, max_steps_per_episode=30, verbose=False
+        )
+        assert len(metrics.rewards) == 2
+
+
+class TestMaskingSharedAcrossDQN:
+    """The masked buffer and mask constant are relocated but still re-exported."""
+
+    def test_masked_buffer_is_the_same_class_from_both_modules(self):
+        from rl_card_lib.agents import dqn_agent, double_dqn_agent
+
+        assert double_dqn_agent.MaskedReplayBuffer is dqn_agent.MaskedReplayBuffer
+        assert double_dqn_agent.MASK_VALUE == dqn_agent.MASK_VALUE
+
+    def test_dueling_network_still_imports_from_double_dqn(self):
+        from rl_card_lib.agents.double_dqn_agent import DuelingQNetwork as DQN2
+
+        assert DQN2 is DuelingQNetwork
 
 
 class TestDoubleDQNAgent:
