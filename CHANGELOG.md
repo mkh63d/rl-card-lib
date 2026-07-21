@@ -4,6 +4,22 @@
 
 ### Added
 
+- **Solve-time benchmark over a solvable-deal pool.**
+  `python packages/examples/scripts/benchmark_solve_time.py` curates a pool of
+  deals a perfect-information solver proves winnable, then plays every agent —
+  the non-learning baselines *and* the trained learners loaded from disk — over
+  that same pool, recording **solve rate**, **moves to solve** and **wall-clock
+  time to solve** (the last two averaged over solved deals only, so a
+  faster-looking agent is genuinely faster, not just quicker to give up). This
+  is what win rate cannot say: over deals that *are* winnable, how many does the
+  agent solve and how long does it take. Results persist to
+  `results/solve_benchmark/<game>.json` and render as a "Solve-time benchmark"
+  section in the HTML report. It is generic over any single-player game: a game
+  opts in by declaring `single_player=True` and a `solver` in its
+  `register_sweep_game(...)` call (Klondike does; adversarial Macao has no solve
+  oracle and is skipped). New `load_trained_learner()` reconstructs a learner
+  from its recorded architecture and loads its checkpoint, skipping any learner
+  not yet trained.
 - **Custom games are fully supported, end to end.** A user can add their own
   game and get the full training sweep and HTML report without editing library
   code. `register_sweep_game()` (harness) declares how to run a game — env

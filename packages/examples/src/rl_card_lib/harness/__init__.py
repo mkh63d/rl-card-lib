@@ -25,6 +25,7 @@ from rl_card_lib.harness.learners import (
     build_learner,
     checkpoint_suffix,
     epsilon_schedule,
+    load_trained_learner,
 )
 from rl_card_lib.harness.recording import make_episode_recorder
 from rl_card_lib.harness.reference import library_reference_store
@@ -35,6 +36,11 @@ from rl_card_lib.harness.registry import (
     registered_sweep_games,
     sweep_game,
 )
+from rl_card_lib.harness.solve_benchmark import (
+    curate_solvable_pool,
+    measure_agent_on_pool,
+    run_solve_benchmark,
+)
 
 __all__ = [
     "LEARNERS",
@@ -42,6 +48,7 @@ __all__ = [
     "agent_class_name",
     "build_learner",
     "checkpoint_suffix",
+    "curate_solvable_pool",
     "epsilon_schedule",
     "evaluate_klondike",
     "evaluate_macao",
@@ -49,12 +56,15 @@ __all__ = [
     "is_registered",
     "klondike_baseline_agents",
     "library_reference_store",
+    "load_trained_learner",
     "macao_baseline_agents",
     "make_episode_recorder",
+    "measure_agent_on_pool",
     "measure_baselines",
     "register_sweep_game",
     "registered_sweep_games",
     "run_klondike_baselines",
     "run_macao_baselines",
+    "run_solve_benchmark",
     "sweep_game",
 ]

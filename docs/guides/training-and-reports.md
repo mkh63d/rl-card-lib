@@ -59,6 +59,52 @@ A run is keyed by `{game}__{agent}`, which is both its identity and its
 directory name — so re-running a pair **replaces** it rather than accumulating
 timestamped copies.
 
+## Solve-time benchmark
+
+Win rate answers "how often does this agent win". It cannot answer the two
+questions that matter once you care about *efficiency*: over deals that are
+**known to be winnable**, how many does the agent actually solve, and — for the
+ones it solves — how many moves and how much wall-clock time did it take.
+`benchmark_solve_time.py` answers both.
+
+```bash
+# Curate 50 winnable deals, then play every agent (baselines + trained
+# learners) over that same pool.
+python packages/examples/scripts/benchmark_solve_time.py --game klondike --pool-size 50
+
+# Baselines only (skip loading trained checkpoints), quicker:
+python packages/examples/scripts/benchmark_solve_time.py --game klondike --pool-size 20 --skip-trained
+```
+
+It curates the pool with the game's solver (a deal is kept only if the solver
+*proves* it winnable), caches the seeds under
+`results/solve_benchmark/<game>_pool.json` so the expensive search runs once,
+then measures three things per agent:
+
+| Column | Meaning |
+|---|---|
+| **Solve rate** | share of the winnable pool the agent actually won |
+| **Moves to solve** | mean move count, **over solved deals only** |
+| **Time to solve** | mean wall-clock per deal, **over solved deals only** |
+
+Averaging moves and time over *solved* deals only is deliberate: folding in the
+move cap of a deal the agent never solved would make a worse agent look faster.
+A low solve rate therefore means the agent failed a *winnable* deal, not that it
+drew an impossible one.
+
+!!! note "Single-player games only"
+    A solvable-deal pool needs a solver, and only a single-player game can have
+    one — an adversarial game's outcome depends on the opponent, so "moves to
+    solve" is undefined. The benchmark runs for any game that declares
+    `single_player=True` and a `solver` (see
+    [Add your own game](../custom_game.md#single-player-games-solve-time-benchmark));
+    Klondike does, Macao is skipped.
+
+Results write to `results/solve_benchmark/<game>.json` and appear as a
+**Solve-time benchmark** section in `results/index.html` on its next build.
+Trained learners are loaded from their checkpoints via `load_trained_learner`;
+any learner still training (no checkpoint yet) is skipped with a note.
+
 ## Two kinds of report
 
 The `rl-card-lib-report` package holds two complementary things.

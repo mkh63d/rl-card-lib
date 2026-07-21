@@ -45,6 +45,14 @@ class SweepGame:
     # Per-episode custom series, read after each episode while the game still
     # holds its terminal state. Klondike returns {"cards_up": ...}.
     episode_extras: Optional[Callable[[Any, Any], dict]] = None
+    # Single-player solvability oracle: given a freshly dealt game it returns
+    # True (winnable), False (proven unwinnable) or None (undecided within its
+    # budget), mirroring solve_klondike. Only single-player games can supply one
+    # -- an adversarial game has no perfect-information solve -- so the
+    # solve-time benchmark runs only for games that declare both. Left None on
+    # multiplayer games (e.g. Macao), which the benchmark then skips.
+    solver: Optional[Callable[[Any], Optional[bool]]] = None
+    single_player: bool = False
     presentation: dict = field(default_factory=dict)
 
 
@@ -63,6 +71,8 @@ def register_sweep_game(
     mcts_simulations: int = 20,
     mcts_rollout_depth: int = 15,
     episode_extras: Optional[Callable[[Any, Any], dict]] = None,
+    solver: Optional[Callable[[Any], Optional[bool]]] = None,
+    single_player: bool = False,
     **presentation: Any,
 ) -> SweepGame:
     """Register a game for the training sweep and the report.
@@ -95,6 +105,7 @@ def register_sweep_game(
         opponent_factory=opponent_factory, heuristic_factory=heuristic_factory,
         mcts_simulations=mcts_simulations, mcts_rollout_depth=mcts_rollout_depth,
         episode_extras=episode_extras,
+        solver=solver, single_player=single_player,
         presentation={k: presentation[k] for k in _PRESENTATION_KEYS
                       if k in presentation},
     )
