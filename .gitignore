@@ -51,14 +51,15 @@ pytest_cache/
 *.mo
 *.pot
 
-# Environments
+# Environments (anchored to the repo root: an unanchored env/ used to swallow
+# packages/core/src/rl_card_lib/env, keeping CardGameEnv out of version control)
 .env
 .venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+/env/
+/venv/
+/ENV/
+/env.bak/
+/venv.bak/
 
 # IDE
 .idea/

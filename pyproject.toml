@@ -49,8 +49,8 @@ Homepage = "https://github.com/mkh63d/rl-card-lib"
 Documentation = "https://github.com/mkh63d/rl-card-lib#readme"
 Repository = "https://github.com/mkh63d/rl-card-lib"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+packages = []
 
 [tool.black]
 line-length = 88
@@ -68,10 +68,23 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = [
+    "packages/core/src",
+    "packages/cardgames/src",
+    "packages/examples/src",
+    "packages/report/src",
+    "packages/visualizer/src",
+]
 
 [tool.coverage.run]
 branch = true
-source = ["src/rl_card_lib"]
+source = [
+    "packages/core/src/rl_card_lib",
+    "packages/cardgames/src/rl_card_lib",
+    "packages/examples/src/rl_card_lib",
+    "packages/report/src/rl_card_lib",
+    "packages/visualizer/src/rl_card_lib",
+]
 
 [tool.coverage.report]
 exclude_lines = [

@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rl-card-lib-cardgames"
+version = "0.1.0"
+description = "Card game implementations for rl-card-lib"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+	{name = "Michał Hołyński", email = "mholynski@proton.me"}
+]
+requires-python = ">=3.9"
+classifiers = [
+	"Development Status :: 3 - Alpha",
+	"Intended Audience :: Science/Research",
+	"License :: OSI Approved :: MIT License",
+	"Programming Language :: Python :: 3",
+	"Programming Language :: Python :: 3.9",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Topic :: Scientific/Engineering :: Artificial Intelligence",
+	"Topic :: Games/Entertainment :: Card Games",
+]
+keywords = ["card-games", "klondike", "macao", "reinforcement-learning"]
+dependencies = [
+	"rl-card-lib-core>=0.1.0",
+	"numpy>=1.21.0",
+]
+
+[project.optional-dependencies]
+dev = [
+	"pytest>=7.0.0",
+	"pytest-cov>=4.0.0",
+	"black>=23.0.0",
+	"isort>=5.12.0",
+	"mypy>=1.0.0",
+	"flake8>=6.0.0",
+	"pylint>=3.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mkh63d/rl-card-lib"
+Repository = "https://github.com/mkh63d/rl-card-lib"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.coverage.run]
+branch = true
+source = ["src/rl_card_lib"]
+

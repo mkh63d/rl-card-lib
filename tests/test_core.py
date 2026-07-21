@@ -1,7 +1,7 @@
 """Tests for core module."""
 
 import pytest
-from rl_card_lib.core import Card, Deck, Player, Suit, Rank
+from rl_card_lib.cardgames import Card, Deck, Player, Suit, Rank
 
 
 class TestCard:
@@ -12,19 +12,19 @@ class TestCard:
         card = Card(Suit.HEARTS, Rank.ACE)
         assert card.suit == Suit.HEARTS
         assert card.rank == Rank.ACE
-        assert card.face_up == True
+        assert card.face_up is True
     
     def test_card_face_down(self):
         """Test face-down card."""
         card = Card(Suit.SPADES, Rank.KING, face_up=False)
-        assert card.face_up == False
+        assert card.face_up is False
         assert str(card) == "[??]"
     
     def test_card_flip(self):
         """Test flipping a card."""
         card = Card(Suit.DIAMONDS, Rank.QUEEN, face_up=False)
         card.flip()
-        assert card.face_up == True
+        assert card.face_up is True
     
     def test_card_color(self):
         """Test card colors."""
@@ -399,21 +399,43 @@ class TestCardGame:
         game.reset()
         mask = game.get_legal_action_mask()
         assert mask.dtype == bool
-        assert mask[0] == True  # Draw should be legal
+        assert bool(mask[0]) is True  # Draw should be legal
 
-    def test_game_copy_not_implemented(self):
-        """Test copy raises NotImplementedError."""
+    def test_game_copy_not_implemented_by_default(self):
+        """Test copy raises NotImplementedError for games that don't override it."""
+        import numpy as np
+        from rl_card_lib.cardgames import CardGame
+
+        class UncopyableGame(CardGame):
+            def reset(self): return np.zeros(1, dtype=np.float32)
+            def step(self, action): return np.zeros(1, dtype=np.float32), 0.0, False, False, {}
+            def get_legal_actions(self): return [0]
+            def get_observation(self): return np.zeros(1, dtype=np.float32)
+            def get_action_space_size(self): return 1
+            def get_observation_shape(self): return (1,)
+            def is_game_over(self): return False
+
+        with pytest.raises(NotImplementedError):
+            UncopyableGame().copy()
+
+    def test_game_copy_is_independent(self):
+        """Test a copied game can be played without disturbing the original."""
+        import numpy as np
         from rl_card_lib.games import KlondikeSolitaire
-        
+
         game = KlondikeSolitaire()
         game.reset()
-        
-        with pytest.raises(NotImplementedError):
-            game.copy()
+        before = game.get_observation().copy()
+
+        clone = game.copy()
+        for action in clone.get_legal_actions()[:5]:
+            clone.step(action)
+
+        assert np.array_equal(game.get_observation(), before)
 
     def test_game_default_render(self):
         """Test default render method from base class."""
-        from rl_card_lib.core.game import CardGame
+        from rl_card_lib.cardgames import CardGame
         from rl_card_lib.games import Macao
         
         game = Macao()
@@ -425,7 +447,7 @@ class TestCardGame:
 
     def test_game_default_action_to_string(self):
         """Test default action_to_string method."""
-        from rl_card_lib.core.game import CardGame
+        from rl_card_lib.cardgames import CardGame
         from rl_card_lib.games import Macao
         
         game = Macao()
@@ -488,7 +510,7 @@ class TestPlayerHasCard:
         card = Card(Suit.HEARTS, Rank.ACE)
         player.add_card(card)
         
-        assert player.has_card(card) == True
+        assert player.has_card(card) is True
     
     def test_player_has_card_false(self):
         """Test has_card returns False when card doesn't exist."""
@@ -497,4 +519,4 @@ class TestPlayerHasCard:
         card2 = Card(Suit.SPADES, Rank.KING)
         player.add_card(card1)
         
-        assert player.has_card(card2) == False
+        assert player.has_card(card2) is False

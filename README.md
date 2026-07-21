@@ -1,140 +1,247 @@
 # RL Card Library
 
-A library for training reinforcement learning agents to play card games.
+A modular library for training reinforcement learning agents to play card games.
 
-## Features
+## 📦 Package Structure
 
-- Define custom card games with states, actions and reward functions
-- Compatible with Gymnasium/OpenAI Gym interface
-- DQN agent with experience replay
-- Example games: Klondike Solitaire, Macao
-- PyTorch backend
+This is a monorepo containing multiple packages:
 
-## Installation
+### Core Packages
+
+- **[`rl-card-lib-core`](packages/core/)** - Foundation library
+  - Game base class, Gymnasium environment wrappers (`CardGameEnv`, `MaskedCardGameEnv`)
+  - Agent framework: baselines, search agents and learners
+  - `Trainer` / `SelfPlayTrainer` and `TrainingMetrics`
+  - **Status**: Core package - all others depend on this
+
+### Extension Packages
+
+- **[`rl-card-lib-cardgames`](packages/cardgames/)** - Card primitives and rule helpers
+  - `Card`, `Suit`, `Rank`, `Deck`, `Player`, `CardGame`
+  - `cardgames.rules` - reusable predicates shared by games
+    (`can_stack_alternating_descending`, `is_alternating_color`, `count_by_rank`, ...)
+  - **Depends on**: `rl-card-lib-core`
+
+- **[`rl-card-lib-visualizer`](packages/visualizer/)** - Visualization utilities
+  - Text rendering of cards and tableaux
+    (`render_cards`, `render_tableau`, `create_simple_board_view`)
+  - Training curves via `TrainingMetrics.plot()` in the core package
+  - **Depends on**: `rl-card-lib-core`
+
+- **[`rl-card-lib-report`](packages/report/)** - Training parameter reports
+  - `TrainingReport.from_trainer(...)` collects env, trainer, agent, DQN and PPO settings
+  - Renders to Markdown (`to_markdown`) or JSON (`to_json`)
+  - **Depends on**: `rl-card-lib-core`
+
+- **[`rl-card-lib-examples`](packages/examples/)** - Games, demos and training scripts
+  - Klondike Solitaire (plus a perfect-information solvability search) and Macao
+  - Hand-written `KlondikeHeuristicAgent` / `MacaoHeuristicAgent`
+  - Quick demo, training and benchmarking scripts
+  - **Depends on**: `rl-card-lib-core`, `rl-card-lib-cardgames`
+    (uses `rl-card-lib-report` and `rl-card-lib-visualizer` where available)
+
+## 🚀 Quick Start
+
+### Installation (Development)
 
 ```bash
-# Clone the repository
-git clone https://github.com/mkh63d/rl-card-lib.git
-cd rl-card-lib
+# Install all packages in development mode
+pip install -e .  # Installs root metapackage
 
-# Install in development mode
+# Or install individual packages
+pip install -e ./packages/core
+pip install -e ./packages/cardgames
+pip install -e ./packages/visualizer
+pip install -e ./packages/report
+pip install -e ./packages/examples
+```
+
+### Quick Demo
+
+```bash
+python packages/examples/scripts/quick_demo.py
+```
+
+### Training and Benchmarking
+
+```bash
+# Train a chosen agent on a chosen game
+python packages/examples/scripts/train_agents.py
+
+# Compare the agent zoo on the same deals
+python packages/examples/scripts/benchmark_agents.py
+
+# Single-game training scripts
+python packages/examples/scripts/train_klondike.py
+python packages/examples/scripts/train_macao.py
+```
+
+### Run Tests
+
+```bash
+# Everything
+pytest
+
+# Library tests
+pytest tests/ -q
+
+# Example game tests (what CI runs separately)
+pytest packages/examples/tests/ -q
+
+# With coverage report
+pytest --cov --cov-report=html
+```
+
+## 📋 Features
+
+- ✅ Define custom card games with Gymnasium compatibility
+- ✅ An agent zoo spanning three families:
+  - **Baselines (no learning)**: `RandomAgent`, `HeuristicAgent`, `GreedyLookaheadAgent`
+  - **Search**: `MCTSAgent` (UCT with determinized hidden cards)
+  - **Learners**: `QLearningAgent`, `DQNAgent`, `DoubleDQNAgent` (double + dueling + masked
+    targets), `PPOAgent` (masked actor-critic)
+- ✅ Built-in games: Klondike (with a budgeted perfect-information solver), Macao
+- ✅ Reusable rule helpers in `rl_card_lib.cardgames.rules` for building new games
+- ✅ Training framework with self-play against a frozen opponent snapshot
+- ✅ Markdown/JSON training parameter reports
+- ✅ Visualization and metrics monitoring
+- ✅ Modular design - use only what you need
+
+## 📚 Documentation
+
+- [Core Package](packages/core/README.md) - API and concepts
+- [Card Games Package](packages/cardgames/README.md) - Game implementations
+- [Visualizer Package](packages/visualizer/README.md) - Visualization tools
+- [Report Package](packages/report/README.md) - Training parameter reports
+- [Examples Package](packages/examples/README.md) - Usage examples
+- [Architecture Diagrams](docx/README.md) - PlantUML package, use case and sequence diagrams
+
+## 🧪 Testing Strategy
+
+### Library Tests
+
+Root-level tests cover the library and the public API contracts:
+
+```
+tests/test_core.py                 # Card, Deck, Player, CardGame
+tests/test_agents.py               # Baseline and DQN agents
+tests/test_new_agents.py           # Heuristic, MCTS, tabular, Double DQN, PPO
+tests/test_trainer.py              # Trainer and SelfPlayTrainer
+tests/test_reward_design.py        # Reward shaping and terminal conditions
+tests/test_klondike_solver.py      # Perfect-information solvability search
+tests/test_report.py               # TrainingReport rendering
+tests/test_utils.py                # Encoding helpers
+tests/test_public_api_imports.py   # Public API contracts
+```
+
+### Example Game Tests
+
+The example games ship their own suite, run separately in CI:
+
+```
+packages/examples/tests/test_game_base.py   # Shared game contract
+packages/examples/tests/test_games.py       # Klondike and Macao rules
+```
+
+### Coverage
+
+Coverage is measured across all packages but not exported:
+
+```bash
+# Generate coverage report
+pytest --cov --cov-report=html
+
+# View report
+open htmlcov/index.html
+```
+
+Coverage is a **dev dependency** only (not included in installations).
+
+## 🔧 Development
+
+### Setup Development Environment
+
+```bash
+# Install with dev dependencies
 pip install -e ".[dev]"
+
+# Or per-package
+pip install -e "./packages/core[dev]"
 ```
 
-## Running Demos and Tests
-
-### Demos
+### Code Quality Tools
 
 ```bash
-# Quick demo (cards, games, and a short training loop)
-python examples/quick_demo.py
+# Format code
+black .
+isort .
 
-# Training examples
-python examples/train_klondike.py
-python examples/train_macao.py
+# Type checking
+mypy packages
+
+# Linting (same command CI runs)
+flake8 packages tests
+pylint packages
 ```
 
-### Tests
+### Continuous Integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `flake8 packages tests`,
+`pytest tests/ -q` and `pytest packages/examples/tests/ -q`.
+
+## 📦 Publishing
+
+Each package is independently published to PyPI:
 
 ```bash
-# Run the full test suite
-python -m pytest
+# Build individual package
+cd packages/core
+python -m build
 
-# Run tests with coverage
-python -m pytest --cov
+# Publish
+twine upload dist/*
 ```
 
-## Quick Start
+### Version Synchronization
 
-### Defining a Custom Game
+All packages maintain synchronized versions (updated in `pyproject.toml`).
 
-```python
-from rl_card_lib.core import CardGame, Deck
-
-class MyGame(CardGame):
-    def __init__(self):
-        super().__init__()
-        self.deck = Deck()
-        self.deck.shuffle()
-        
-    def get_legal_actions(self):
-        # Return list of valid actions
-        pass
-        
-    def step(self, action):
-        # Execute action, return (observation, reward, done, info)
-        pass
-        
-    def is_game_over(self):
-        # Check if game has ended
-        pass
-```
-
-### Training an Agent
-
-```python
-from rl_card_lib.env import CardGameEnv
-from rl_card_lib.agents import DQNAgent
-from rl_card_lib.trainer import Trainer
-from rl_card_lib.games import KlondikeSolitaire
-
-# Create environment
-game = KlondikeSolitaire()
-env = CardGameEnv(game)
-
-# Initialize DQN Agent
-agent = DQNAgent(
-    state_size=env.observation_space.shape[0],
-    action_size=env.action_space.n
-)
-
-# Train
-trainer = Trainer(env, agent)
-trainer.train(episodes=1000)
-```
-
-## Architecture
-
-The library follows a modular architecture:
-
-- **Game Core**: Pure Python implementation of game rules
-- **RL Wrapper**: Adapts games to Gymnasium-compatible interface
-- **Agent Module**: Neural network policies (DQN)
-- **Trainer**: Manages training loop and hyperparameters
-
-## Example Games
-
-### Klondike Solitaire
-Single-player patience card game. The agent learns to move cards between tableaux and foundations.
-
-### Macao
-Multiplayer card game (variant of Crazy Eights). Agents learn optimal card play strategies.
-
-## Project Structure
+## 🎯 Architecture
 
 ```
-src/rl_card_lib/
-├── core/           # Base classes (Card, Deck, Game)
-├── env/            # Gymnasium environment wrapper
-├── agents/         # RL agents (DQN, Random)
-├── games/          # Example game implementations
-├── trainer/        # Training utilities
-└── utils/          # Helper functions
+rl-card-lib (root)
+├── packages/
+│   ├── core/              # Foundation
+│   ├── cardgames/         # Extensions
+│   ├── visualizer/        # Extensions
+│   └── examples/          # Usage examples
+├── tests/                 # Integration tests
+├── examples/              # Root-level demos
+└── pyproject.toml         # Root metapackage
 ```
 
-## Requirements
+## 📝 Dependencies
 
-- Python >= 3.9
-- PyTorch >= 2.0
-- Gymnasium >= 0.29
-- NumPy >= 1.21
+### Production
+- `numpy>=1.21.0` - Numerical computing
+- `torch>=2.0.0` - Deep learning
+- `gymnasium>=0.29.0` - RL environment API
+- `matplotlib>=3.5.0` - Plotting
+- `tqdm>=4.64.0` - Progress bars
 
-## License
+### Development
+- `pytest>=7.0.0` - Testing
+- `pytest-cov>=4.0.0` - Coverage measurement
+- `black>=23.0.0` - Code formatting
+- `isort>=5.12.0` - Import sorting
+- `mypy>=1.0.0` - Type checking
+- `flake8>=6.0.0` - Linting
+- `pylint>=3.0.0` - Static analysis
 
-MIT License
+## 📄 License
 
-## Author
+MIT - See [LICENSE](LICENSE)
 
-Michał Hołyński - Engineering Thesis, Lodz University of Technology
+## 👤 Author
 
-Supervisor: dr inż. Arkadiusz Tomczyk
+Michał Hołyński - [mholynski@proton.me](mailto:mholynski@proton.me)

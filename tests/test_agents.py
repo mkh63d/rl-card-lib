@@ -134,13 +134,13 @@ class TestDQNAgentExtended:
             state_size=10, action_size=5,
             hidden_sizes=[16], device="cpu"
         )
-        assert agent.training == True
+        assert agent.training is True
         
         agent.eval()
-        assert agent.training == False
+        assert agent.training is False
         
         agent.train()
-        assert agent.training == True
+        assert agent.training is True
 
     def test_reset(self):
         """Test episode reset."""
@@ -152,22 +152,30 @@ class TestDQNAgentExtended:
         agent.reset()
         assert agent.episodes == initial_episodes + 1
 
-    def test_epsilon_decay(self):
-        """Test epsilon decays during learning."""
+    def test_epsilon_decays_per_episode_not_per_step(self):
+        """Epsilon must decay once per episode (reset), not per gradient step."""
         agent = DQNAgent(
             state_size=10, action_size=5,
             hidden_sizes=[16], device="cpu",
             epsilon_start=1.0, epsilon_decay=0.9
         )
         initial_epsilon = agent.epsilon
-        
-        # Fill buffer and learn
+
+        # Learning steps alone must not move epsilon, however many there are.
         for _ in range(100):
             obs = np.random.randn(10).astype(np.float32)
             next_obs = np.random.randn(10).astype(np.float32)
             agent.learn(obs, 0, 1.0, next_obs, False)
-        
-        assert agent.epsilon < initial_epsilon
+        assert agent.epsilon == initial_epsilon
+
+        # The first reset opens the first episode and must not decay either.
+        agent.reset()
+        assert agent.epsilon == initial_epsilon
+
+        agent.reset()
+        assert agent.epsilon == pytest.approx(0.9)
+        agent.reset()
+        assert agent.epsilon == pytest.approx(0.81)
 
     def test_dropout_network(self):
         """Test network with dropout."""
@@ -282,13 +290,11 @@ class TestDQNEpsilonEdgeCases:
         )
         
         initial_epsilon = agent.epsilon
-        
-        # Fill buffer and learn
-        for _ in range(20):
-            obs = np.random.randn(10).astype(np.float32)
-            next_obs = np.random.randn(10).astype(np.float32)
-            agent.learn(obs, 0, 1.0, next_obs, False)
-        
+
+        # Episodes pass, but epsilon is already at the floor.
+        for _ in range(5):
+            agent.reset()
+
         # Epsilon should not have changed
         assert agent.epsilon == initial_epsilon
 
@@ -302,12 +308,10 @@ class TestDQNEpsilonEdgeCases:
         )
         
         initial_epsilon = agent.epsilon
-        
-        # Fill buffer and learn
-        for _ in range(20):
-            obs = np.random.randn(10).astype(np.float32)
-            next_obs = np.random.randn(10).astype(np.float32)
-            agent.learn(obs, 0, 1.0, next_obs, False)
-        
+
+        # Episodes pass, but epsilon started below the floor.
+        for _ in range(5):
+            agent.reset()
+
         # Epsilon should not have changed since it was already below end
         assert agent.epsilon == initial_epsilon

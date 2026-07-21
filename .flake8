@@ -12,4 +12,7 @@ exclude =
     .tox
 per-file-ignores =
     __init__.py: F401
-    tests/*: E501, F401
+    # E402: test_trainer.py must set the matplotlib backend before importing
+    # anything that pulls in pyplot.
+    tests/*: E501, F401, E402
+    packages/*/tests/*: E501, F401
