@@ -4,6 +4,20 @@
 
 ### Added
 
+- **MCTS simulation-budget sweep.**
+  `python packages/examples/scripts/sweep_mcts_budget.py` runs MCTS on Macao
+  across a range of simulation-per-move budgets and records win rate vs. a
+  random opponent at each, writing one `simulations,win_rate` series to
+  `results/mcts_budget_sweep/macao_mcts_budget_sweep.csv` and rendering a
+  single-line figure (PNG for Word/print, SVG for LaTeX). Where `run_sweep.py`
+  treats MCTS as one fixed-budget baseline, this isolates how strength scales
+  with the search budget, measuring every point through the same
+  `run_macao_baselines` path so the numbers are comparable to the
+  agent-comparison run. Defaults to plain MCTS (`--determinizations 1`); the
+  x4det variant, a labelled reference line (`--annotate-buggy-backup`) and the
+  PNG resolution (`--dpi`) are all options. Only budgets actually run are
+  written, and the CSV is flushed point-by-point so an interrupted sweep keeps
+  its completed points.
 - **Solve-time benchmark over a solvable-deal pool.**
   `python packages/examples/scripts/benchmark_solve_time.py` curates a pool of
   deals a perfect-information solver proves winnable, then plays every agent —

@@ -59,6 +59,42 @@ A run is keyed by `{game}__{agent}`, which is both its identity and its
 directory name — so re-running a pair **replaces** it rather than accumulating
 timestamped copies.
 
+## MCTS budget sweep
+
+`run_sweep.py` treats MCTS as a single fixed-budget baseline. To see how MCTS
+strength *scales with its search budget*, `sweep_mcts_budget.py` runs the agent
+at several simulation-per-move counts and records win rate vs. a random Macao
+opponent at each — one `simulations,win_rate` series, plus a single-line figure
+(PNG for Word/print, SVG for LaTeX):
+
+```bash
+# Full curve at plain-MCTS strength (determinizations=1)
+python packages/examples/scripts/sweep_mcts_budget.py --episodes 200
+
+# Quick check on a few budgets
+python packages/examples/scripts/sweep_mcts_budget.py --budgets 5,20,60 --episodes 20
+
+# Re-render the figure from the CSV without re-running (e.g. bump DPI)
+python packages/examples/scripts/sweep_mcts_budget.py --plot-only --dpi 300
+```
+
+Every budget is measured through the same `run_macao_baselines` path the
+agent-comparison run uses, holding episodes, seeds, opponent and rollout depth
+fixed so only the simulation count varies. Outputs land in
+`results/mcts_budget_sweep/` as `macao_mcts_budget_sweep.{csv,png,svg}`.
+
+- `--determinizations` defaults to `1` (plain MCTS: all rollouts build one
+  tree). Pass `4` for the agent-comparison x4det variant, which splits the
+  budget across four hidden-card samples and so searches shallower per tree.
+- `--annotate-buggy-backup RATE` draws a labelled reference line at a given win
+  rate (e.g. `0.03` for the pre-fix backup); it is an annotation only and is
+  never written to the CSV.
+- `--dpi` sets the PNG resolution (300 = print quality); the SVG is
+  resolution-independent.
+
+Only budgets you actually run are written, and the CSV is flushed point-by-point
+so an interrupted sweep keeps its completed points.
+
 ## Solve-time benchmark
 
 Win rate answers "how often does this agent win". It cannot answer the two
