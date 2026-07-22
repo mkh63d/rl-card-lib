@@ -26,6 +26,15 @@ Multi-player game training example:
 - Training with different agent types
 - Performance comparison
 
+### MCTS Budget Sweep (`sweep_mcts_budget.py`)
+Runs MCTS on Macao across a range of simulation-per-move budgets and records
+win rate vs. a random opponent at each:
+- One `simulations,win_rate` series written to CSV
+- Single-line figure rendered to PNG (print/Word) and SVG (LaTeX)
+- Plain MCTS by default (`--determinizations 1`); optional reference line for a
+  known baseline via `--annotate-buggy-backup`
+- Outputs to `results/mcts_budget_sweep/`
+
 ## Installation
 
 ```bash

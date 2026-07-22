@@ -80,6 +80,9 @@ python packages/examples/scripts/train_agents.py
 # Compare the agent zoo on the same deals
 python packages/examples/scripts/benchmark_agents.py
 
+# Sweep MCTS win rate vs. simulation budget on Macao (CSV + figure)
+python packages/examples/scripts/sweep_mcts_budget.py --episodes 200
+
 # Benchmark solve rate, moves and time over a pool of winnable deals
 python packages/examples/scripts/benchmark_solve_time.py --game klondike --pool-size 50
 
