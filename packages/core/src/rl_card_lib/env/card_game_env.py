@@ -38,10 +38,13 @@ class CardGameEnv:
 
         Args:
             game: Game instance to wrap
-            max_steps: Steps after which the episode truncates (None for no cap)
+            max_steps: Steps after which the episode truncates (None for no
+                cap). Illegal actions count against the cap too, so an agent
+                that only proposes illegal ones still ends its episode.
             render_mode: None, "human" (print) or "ansi" (return string)
             invalid_action_reward: Reward returned for an illegal action; the
-                game itself is not stepped
+                game itself is not stepped, but the step is still counted
+                against `max_steps`
             repeated_position_penalty: Added to the reward (use a negative
                 value) whenever a step lands in a position already seen this
                 episode. Games with reversible moves let an agent shuffle in
@@ -184,6 +187,16 @@ class CardGameEnv:
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, dict]:
         legal = self.get_legal_actions()
         if legal and action not in legal:
+            # An illegal action costs a step even though the game is not
+            # stepped. Leaving it uncounted meant an agent that proposes
+            # nothing but illegal actions never reached max_steps -- the
+            # episode livelocked rather than truncating. The library's own
+            # agents are handed info["legal_actions"] and never hit it; an
+            # unmasked external policy hits it immediately.
+            self._step_count += 1
+            truncated = (
+                self.max_steps is not None and self._step_count >= self.max_steps
+            )
             observation = self.game.get_observation()
             observation = np.asarray(observation, dtype=np.float32)
             info = {
@@ -191,7 +204,13 @@ class CardGameEnv:
                 "legal_actions": legal,
                 "winner": self.game.winner,
             }
-            return observation, float(self.invalid_action_reward), False, False, info
+            return (
+                observation,
+                float(self.invalid_action_reward),
+                False,
+                truncated,
+                info,
+            )
 
         observation, reward, terminated, truncated, info = self.game.step(action)
         self._step_count += 1
