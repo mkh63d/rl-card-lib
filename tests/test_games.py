@@ -1,10 +1,15 @@
 """Tests for game implementations."""
 
+import warnings
+
 import pytest
 import numpy as np
+import gymnasium as gym
+from gymnasium.utils.env_checker import check_env
 
-from rl_card_lib.games import KlondikeSolitaire, Macao
-from rl_card_lib.env import CardGameEnv
+from rl_card_lib.games import KlondikeSolitaire, Macao, register_gym_envs, registered_gym_ids
+from rl_card_lib.env import CardGameEnv, MaskedCardGameEnv
+from rl_card_lib.core.gym_wrapper import GymEnvWrapper
 
 
 class TestKlondikeSolitaire:
@@ -622,3 +627,132 @@ class TestCardGameEnvMethods:
         
         captured = capsys.readouterr()
         assert "Klondike" in captured.out
+
+
+class TestGymnasiumContract:
+    """The envs are real `gymnasium.Env`s, not just Gymnasium-shaped (#15).
+
+    Every one of these went through the `isinstance(env, gymnasium.Env)` gate
+    that `check_env`, the wrappers and Stable-Baselines3 all apply first, and
+    every one of them used to fail it.
+    """
+
+    ENV_FACTORIES = [
+        pytest.param(lambda: CardGameEnv(KlondikeSolitaire(seed=0), max_steps=300),
+                     id="CardGameEnv-klondike"),
+        pytest.param(lambda: CardGameEnv(Macao(num_players=2, seed=0), max_steps=200),
+                     id="CardGameEnv-macao"),
+        pytest.param(lambda: MaskedCardGameEnv(Macao(num_players=2, seed=0), max_steps=200),
+                     id="MaskedCardGameEnv-macao"),
+        pytest.param(lambda: GymEnvWrapper(Macao(num_players=2, seed=0)),
+                     id="GymEnvWrapper-macao"),
+    ]
+
+    @pytest.mark.parametrize("factory", ENV_FACTORIES)
+    def test_is_gymnasium_env_subclass(self, factory):
+        """The entry test every Gymnasium consumer applies before any other."""
+        assert isinstance(factory(), gym.Env)
+
+    @pytest.mark.parametrize("factory", ENV_FACTORIES)
+    def test_declares_render_modes(self, factory):
+        """`metadata` has to advertise the modes `render()` actually honours."""
+        env = factory()
+        assert set(env.metadata["render_modes"]) == {"human", "ansi"}
+
+    @pytest.mark.parametrize("factory", ENV_FACTORIES)
+    def test_reset_seeds_np_random(self, factory):
+        """`reset(seed=...)` must seed `self.np_random`, per the contract.
+
+        Two envs reset with the same seed draw the same numbers; a different
+        seed moves them. Without `super().reset(seed=seed)` the attribute did
+        not exist at all.
+        """
+        a, b, c = factory(), factory(), factory()
+        a.reset(seed=1234)
+        b.reset(seed=1234)
+        c.reset(seed=5678)
+
+        assert a.np_random.random() == b.np_random.random()
+        assert a.np_random.random() != c.np_random.random()
+
+    @pytest.mark.parametrize("factory", ENV_FACTORIES)
+    def test_passes_gymnasium_env_checker(self, factory):
+        """The whole contract, not just the entry test.
+
+        `check_env` used to stop at the `isinstance` assertion, so the rest was
+        never actually verified. Render is checked separately -- the checker
+        wants a `render_mode` set at construction.
+        """
+        check_env(factory(), skip_render_check=True)
+
+    @pytest.mark.parametrize("factory", ENV_FACTORIES)
+    def test_accepts_gymnasium_wrappers(self, factory):
+        """Wrappers assert on the base class before they wrap anything."""
+        limited = gym.wrappers.TimeLimit(factory(), max_episode_steps=50)
+        assert limited.unwrapped is not limited
+
+        recorded = gym.wrappers.RecordEpisodeStatistics(factory())
+        obs, info = recorded.reset(seed=7)
+        assert isinstance(info, dict)
+
+    def test_unwrapped_reaches_the_library_env(self):
+        """`unwrapped` has to hand back the env holding the game."""
+        env = CardGameEnv(Macao(num_players=2, seed=0), max_steps=200)
+        assert gym.wrappers.TimeLimit(env, 50).unwrapped is env
+        assert env.unwrapped.game is env.game
+
+
+class TestGymnasiumRegistration:
+    """The bundled games are reachable through `gymnasium.make` (#15)."""
+
+    def test_ids_are_registered(self):
+        for env_id in registered_gym_ids():
+            assert env_id in gym.registry
+
+    @pytest.mark.parametrize("env_id", registered_gym_ids())
+    def test_make_produces_a_working_env(self, env_id):
+        """A full reset/step round trip through `gymnasium.make`."""
+        env = gym.make(env_id)
+        assert env.spec.id == env_id
+
+        obs, info = env.reset(seed=11)
+        assert obs in env.observation_space
+
+        action = (info.get("legal_actions") or [0])[0]
+        observation, reward, terminated, truncated, info = env.step(action)
+        assert observation in env.observation_space
+        assert isinstance(reward, float)
+        assert isinstance(terminated, bool) and isinstance(truncated, bool)
+
+    def test_masked_ids_expose_the_action_mask(self):
+        """The masked ids give MaskablePPO the Dict shape it expects."""
+        env = gym.make("rl_card_lib/MacaoMasked-v0")
+        obs, info = env.reset(seed=11)
+        assert set(obs) == {"observation", "action_mask"}
+        assert obs["action_mask"].sum() == len(info["legal_actions"])
+
+    def test_entry_points_are_importable_strings(self):
+        """Strings, not closures, so another process can rebuild `env.spec`.
+
+        A `SubprocVecEnv` worker reconstructs the env from its spec; a lambda
+        entry point cannot survive that trip.
+        """
+        for env_id in registered_gym_ids():
+            assert isinstance(gym.registry[env_id].entry_point, str)
+
+    def test_registration_is_idempotent(self):
+        """Importing twice must not warn about overriding an existing id."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            register_gym_envs()
+
+    def test_step_cap_is_the_env_not_a_second_time_limit(self):
+        """One truncation authority: CardGameEnv.max_steps.
+
+        `max_episode_steps` is left unset on the registrations so Gymnasium
+        does not stack a second TimeLimit that disagrees about which step
+        ended the episode.
+        """
+        env = gym.make("rl_card_lib/Macao-v0")
+        assert env.spec.max_episode_steps is None
+        assert env.unwrapped.max_steps == 200

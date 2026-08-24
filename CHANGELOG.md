@@ -4,6 +4,19 @@
 
 ### Added
 
+- **The bundled games are registered as Gymnasium ids.** `import rl_card_lib.games`
+  now registers `rl_card_lib/Klondike-v0`, `rl_card_lib/Macao-v0` and the
+  action-masked `rl_card_lib/KlondikeMasked-v0` / `rl_card_lib/MacaoMasked-v0`,
+  so `gymnasium.make("rl_card_lib/Macao-v0")` works and the library is reachable
+  the way an outside consumer expects to reach it. Entry points are
+  module-qualified strings rather than closures, so `env.spec` can be rebuilt in
+  another process -- what a vectorised runner such as Stable-Baselines3's
+  `SubprocVecEnv` does in each worker. `max_episode_steps` is deliberately left
+  unset: the step cap stays `CardGameEnv.max_steps`, so one authority decides
+  which step ended the episode instead of two `TimeLimit`s disagreeing. Prefer
+  the masked ids for learning -- neither game makes more than a handful of its
+  actions legal at once.
+
 - **MCTS simulation-budget sweep.**
   `python packages/examples/scripts/sweep_mcts_budget.py` runs MCTS on Macao
   across a range of simulation-per-move budgets and records win rate vs. a
@@ -73,6 +86,27 @@
   class and opponent.
 
 ### Fixed
+
+- **The environments were Gymnasium-shaped but not `gymnasium.Env`s**
+  ([#15](https://github.com/mkh63d/rl-card-lib/issues/15)). `CardGameEnv`,
+  `MaskedCardGameEnv` and `GymEnvWrapper` followed the conventions -- the
+  5-tuple, `terminated`/`truncated`, `Box`/`Discrete` spaces -- but none of them
+  subclassed `gymnasium.Env`, and every Gymnasium consumer tests exactly that
+  before it looks at anything else. `check_env` stopped on its first assertion,
+  `TimeLimit` and `RecordEpisodeStatistics` refused to wrap them, and
+  Stable-Baselines3 rejected them outright, so the README's "RL environment API"
+  claim held only for code that never checked. They now subclass `gymnasium.Env`,
+  declare `metadata["render_modes"]`, and seed `self.np_random` from
+  `reset(seed=...)`. `gymnasium.utils.env_checker.check_env` passes for all
+  three on both games, the wrappers accept them, and `PPO` trains on them with
+  no external adapter.
+- **`GymEnvWrapper` raised on a sampled action.** It was a parallel
+  implementation of a subset of `CardGameEnv` and had drifted: it passed actions
+  straight to `Game.step()`, so any action that was not currently legal came
+  back as a `ValueError` instead of the invalid-action penalty -- and in Macao
+  only 2-4 of 65 actions are legal in a typical position, so a random sample
+  raised almost every time. It is now a thin `CardGameEnv` subclass with no step
+  cap, inheriting the illegal-action handling rather than approximating it.
 
 - **A time-limit truncation was learned as a terminal state**
   ([#13](https://github.com/mkh63d/rl-card-lib/issues/13)). `Trainer` collapsed

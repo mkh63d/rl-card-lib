@@ -1,68 +1,27 @@
 """Gymnasium-compatible wrapper for `Game` objects."""
-import inspect
-from typing import Any, Tuple
+from typing import Any, Optional
 
-import numpy as np
-
-try:
-    import gymnasium as gym
-    from gymnasium import spaces
-except Exception:  # pragma: no cover - optional dependency
-    gym = None
-    spaces = None
+from rl_card_lib.env.card_game_env import CardGameEnv
 
 
-class GymEnvWrapper:
-    def __init__(self, game: Any):
-        self.game = game
-        self.observation_space = None
-        self.action_space = None
+class GymEnvWrapper(CardGameEnv):
+    """Wrap a `Game` in a Gymnasium environment, with no step cap.
 
-        try:
-            shape = self.game.get_observation_shape()
-            if spaces is not None and shape is not None:
-                self.observation_space = spaces.Box(
-                    low=-np.inf, high=np.inf, shape=tuple(shape), dtype=np.float32
-                )
-        except Exception:
-            self.observation_space = None
+    This used to be a parallel implementation that re-derived a subset of
+    `CardGameEnv` -- the two spaces, the seed-forwarding reset -- and drifted
+    from it: it passed actions straight to the game, so a random action from
+    `action_space` raised out of `Game.step()` instead of being absorbed by the
+    invalid-action penalty, and `gymnasium.utils.env_checker.check_env` could
+    not get past its first sampled action.
 
-        try:
-            n = self.game.get_action_space_size()
-            if spaces is not None and n is not None:
-                self.action_space = spaces.Discrete(int(n))
-        except Exception:
-            self.action_space = None
+    It is now a thin `CardGameEnv` with `max_steps=None`, so it inherits the
+    illegal-action handling, the 5-tuple contract and the `gymnasium.Env` base
+    class rather than approximating them. Prefer `CardGameEnv` directly; this
+    name is kept because it is part of the published API.
+    """
 
-    def reset(self, *, seed: int | None = None, options: dict | None = None) -> Tuple[Any, dict]:
-        # Forward the seed to the game's own reset() when it takes one; never
-        # reseed a global RNG (that used to perturb unrelated randomness).
-        if seed is not None and self._game_reset_accepts_seed():
-            obs = self.game.reset(seed=seed)
-        else:
-            obs = self.game.reset()
-        return obs, {}
-
-    def _game_reset_accepts_seed(self) -> bool:
-        """Whether the wrapped game's reset() takes a seed keyword.
-
-        True for an explicit ``seed`` parameter or a ``**kwargs`` catch-all --
-        forwarding a seed to the latter is harmless and keeps determinism for
-        games that accept it that way.
-        """
-        try:
-            params = inspect.signature(self.game.reset).parameters
-        except (TypeError, ValueError):
-            return False
-        return "seed" in params or any(
-            p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
-        )
-
-    def step(self, action: int) -> Tuple[Any, float, bool, bool, dict]:
-        return self.game.step(action)
-
-    def render(self, mode: str = "human") -> Any:
-        return self.game.render()
-
-    def close(self) -> None:
-        return None
+    def __init__(self, game: Any, render_mode: Optional[str] = "ansi"):
+        # render_mode defaults to "ansi" so render() still returns the rendered
+        # string, as this class always did (CardGameEnv defaults to None, which
+        # renders nothing).
+        super().__init__(game, max_steps=None, render_mode=render_mode)

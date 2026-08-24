@@ -120,7 +120,8 @@ pytest --cov --cov-report=html
 
 ## 📋 Features
 
-- ✅ Define custom card games with Gymnasium compatibility
+- ✅ Define custom card games with Gymnasium compatibility — the envs subclass
+  `gymnasium.Env`, pass `check_env`, and are reachable via `gymnasium.make`
 - ✅ An agent zoo spanning three families:
   - **Baselines (no learning)**: `RandomAgent`, `HeuristicAgent`, `GreedyLookaheadAgent`
   - **Search**: `MCTSAgent` (UCT with determinized hidden cards)
@@ -266,7 +267,8 @@ rl-card-lib (root)
 ### Production
 - `numpy>=1.21.0` - Numerical computing
 - `torch>=2.0.0` - Deep learning
-- `gymnasium>=0.29.0` - RL environment API
+- `gymnasium>=0.29.0` - RL environment API (required, not optional: the env
+  classes subclass `gymnasium.Env`)
 - `matplotlib>=3.5.0` - Plotting
 - `tqdm>=4.64.0` - Progress bars
 
