@@ -475,6 +475,49 @@ class TestCardGameEnvExtended:
         
         assert truncated or terminated
 
+    def test_illegal_actions_truncate_at_max_steps(self):
+        """An episode of nothing but illegal actions still ends."""
+        game = Macao(num_players=2)
+        env = CardGameEnv(game, max_steps=20)
+
+        obs, info = env.reset(seed=0)
+        illegal = next(
+            i
+            for i in range(game.get_action_space_size())
+            if i not in info["legal_actions"]
+        )
+
+        truncated = False
+        for step in range(1, 101):
+            obs, reward, terminated, truncated, info = env.step(illegal)
+            assert info.get("invalid_action", False)
+            assert not terminated
+            if truncated:
+                break
+
+        assert truncated, "illegal actions livelocked instead of truncating"
+        assert step == 20
+
+    def test_illegal_and_legal_steps_share_the_budget(self):
+        """An illegal action spends the same budget a legal one does."""
+        game = Macao(num_players=2)
+        env = CardGameEnv(game, max_steps=4)
+
+        obs, info = env.reset(seed=0)
+        illegal = next(
+            i
+            for i in range(game.get_action_space_size())
+            if i not in info["legal_actions"]
+        )
+
+        for _ in range(3):
+            obs, reward, terminated, truncated, info = env.step(illegal)
+            assert not truncated
+
+        # Fourth step is legal, and finds the budget already spent down to it.
+        obs, reward, terminated, truncated, info = env.step(info["legal_actions"][0])
+        assert truncated or terminated
+
     def test_render_ansi(self):
         """Test ANSI rendering."""
         game = KlondikeSolitaire()
