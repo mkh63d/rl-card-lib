@@ -7,20 +7,29 @@ import random
 from typing import Any, Iterable, Optional, Tuple
 import numpy as np
 
-try:
-    import gymnasium as gym
-    from gymnasium import spaces
-except Exception:  # pragma: no cover - optional dependency
-    gym = None
-    spaces = None
+# Both pyproject files declare gymnasium>=0.29.0 as a hard dependency, so a
+# correct install always has it. It used to be imported under a try/except that
+# set gym = None -- a fallback no supported install could reach, and one that
+# ruled out subclassing gymnasium.Env, which is the whole point of the API.
+import gymnasium as gym
+from gymnasium import spaces
 
 
 #: Accepted values for CardGameEnv's `deal_order`.
 DEAL_ORDERS = ("random", "cycle")
 
 
-class CardGameEnv:
-    """Wrap a CardGame instance to provide a Gymnasium-like API."""
+class CardGameEnv(gym.Env):
+    """Wrap a CardGame instance in a Gymnasium environment.
+
+    A genuine `gymnasium.Env`: `gymnasium.utils.env_checker.check_env` passes,
+    Gymnasium wrappers accept it, and Stable-Baselines3 trains on it directly.
+    Following the Gymnasium *conventions* was not enough -- every one of those
+    consumers tests `isinstance(env, gymnasium.Env)` before anything else.
+    """
+
+    #: Render modes `render()` honours. Required by the Gymnasium contract.
+    metadata = {"render_modes": ["human", "ansi"], "render_fps": 4}
 
     def __init__(
         self,
@@ -69,6 +78,8 @@ class CardGameEnv:
                 f"deal_order must be one of {DEAL_ORDERS}, got {deal_order!r}"
             )
 
+        super().__init__()
+
         self.game = game
         self.max_steps = max_steps
         self.render_mode = render_mode
@@ -92,7 +103,7 @@ class CardGameEnv:
         except Exception:
             obs_shape = None
 
-        if spaces is not None and obs_shape is not None:
+        if obs_shape is not None:
             self.observation_space = spaces.Box(
                 low=-np.inf,
                 high=np.inf,
@@ -108,7 +119,7 @@ class CardGameEnv:
         except Exception:
             action_size = None
 
-        if spaces is not None and action_size is not None:
+        if action_size is not None:
             self.action_space = spaces.Discrete(action_size)
         else:
             self.action_space = None
@@ -133,6 +144,12 @@ class CardGameEnv:
         demo, but it makes an experiment's deals unreproducible and leaves them
         belonging to no declared set.
         """
+        # Seeds self.np_random, which the Gymnasium contract requires to exist
+        # and to be reseeded here. The library's own randomness lives in the
+        # game and in _deal_rng; this is for consumers that expect the standard
+        # per-env generator.
+        super().reset(seed=seed)
+
         self._step_count = 0
         if seed is None and self.deal_seeds:
             seed = self._next_deal_seed()
@@ -296,7 +313,7 @@ class MaskedCardGameEnv(CardGameEnv):
             deal_order=deal_order,
         )
 
-        if spaces is not None and self.observation_space is not None:
+        if self.observation_space is not None:
             action_size = int(self.action_space.n) if self.action_space is not None else 0
             self.observation_space = spaces.Dict({
                 "observation": self.observation_space,

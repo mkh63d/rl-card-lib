@@ -12,9 +12,9 @@ The modular structure of the library — how the packages depend on each other a
 what each one contains.
 
 - **cardgames** — `Card`, `Deck`, `Player`, `CardGame` and the reusable `rules` helpers.
-- **core** — the `Game` base class, the Gym wrapper, and a minimal standalone trainer.
+- **core** — the `Game` base class, the `GymEnvWrapper` alias for a step-capless `CardGameEnv`, and a minimal standalone trainer.
 - **agents** — three families: baselines (`RandomAgent`, `HeuristicAgent`, `GreedyLookaheadAgent`), search (`MCTSAgent`), and learners (`QLearningAgent`, `DQNAgent`, `DoubleDQNAgent`, `PPOAgent`) with their network and replay-buffer components.
-- **env** — the Gymnasium-like wrappers (`CardGameEnv`, `MaskedCardGameEnv`).
+- **env** — the Gymnasium environments (`CardGameEnv`, `MaskedCardGameEnv`). Both subclass `gymnasium.Env` and pass `gymnasium.utils.env_checker.check_env`.
 - **trainer** — the training loop, the self-play trainer with a frozen opponent snapshot, and metrics tracking.
 - **games** — the concrete games (Klondike, Macao), the Klondike solvability search, and the per-game heuristic agents.
 - **harness** — the one definition of the sweep-registration API, evaluation protocols and baseline sets that the scripts import.
