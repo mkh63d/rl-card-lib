@@ -752,9 +752,11 @@ class HtmlReport:
             ))
 
         caveats = [
-            "Evaluation seeds the global RNG once per episode, so before/after "
-            "evaluations perturb the training RNG stream. This is deterministic "
-            "and reproducible, but results depend on where evaluations are placed.",
+            "Deals come from two disjoint seed pools: training draws from seeds "
+            "0–9,999 and every evaluation and baseline plays the held-out "
+            "seeds 100,000–100,199. Each deal is fixed by the seed handed to "
+            "the game's own RNG, so a measurement repeats exactly and all agents "
+            "are scored on identical boards. No global RNG is read or written.",
             "Only the most recent run of each model is stored; re-running a "
             "model replaces its record, figures and checkpoints.",
             "The <em>before training</em> bars reflect each agent's untrained "

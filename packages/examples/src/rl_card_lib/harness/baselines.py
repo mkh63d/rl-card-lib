@@ -7,11 +7,14 @@ budget is a parameter rather than a literal buried in a closure.
 These agents do not learn, so they are measured once per game and cached.
 MCTS on Klondike is the expensive one: deals run to the step cap and it pays
 its whole simulation budget on every move.
+
+Every baseline plays the same held-out deals the learners are scored on (the
+TEST pool in `rl_card_lib.harness.deals`), so a baseline row and a learner row
+are read off the identical boards.
 """
 
 from __future__ import annotations
 
-import random
 import time
 from typing import Optional
 
@@ -24,6 +27,13 @@ from rl_card_lib.games import (
     KlondikeSolitaire,
     Macao,
     MacaoHeuristicAgent,
+)
+from rl_card_lib.harness.deals import (
+    TEST_SEED_END,
+    TEST_SEED_START,
+    TRAIN_SEED_END,
+    TRAIN_SEED_START,
+    evaluation_seeds,
 )
 
 
@@ -64,21 +74,19 @@ def run_klondike_baselines(
     agents: list, episodes: int, max_steps: int = 300, verbose: bool = True,
 ) -> list[dict]:
     """Play every agent over the same deals and report how far each one gets."""
+    deals = evaluation_seeds(episodes)
     results = []
     for name, agent in agents:
         rewards, cards_up, wins = [], [], 0
         started = time.time()
 
-        for seed in range(episodes):
-            random.seed(seed)
-            np.random.seed(seed)
+        game = KlondikeSolitaire()
+        env = CardGameEnv(game, max_steps=max_steps)
+        if hasattr(agent, "bind"):
+            agent.bind(env)
 
-            game = KlondikeSolitaire()
-            env = CardGameEnv(game, max_steps=max_steps)
-            if hasattr(agent, "bind"):
-                agent.bind(env)
-
-            observation, info = env.reset()
+        for deal in deals:
+            observation, info = env.reset(seed=deal)
             agent.reset()
             total = 0.0
 
@@ -95,9 +103,9 @@ def run_klondike_baselines(
 
         results.append({
             "agent": name,
-            "reward": float(np.mean(rewards)),
-            "cards_up": float(np.mean(cards_up)),
-            "win_rate": wins / episodes,
+            "reward": float(np.mean(rewards)) if rewards else 0.0,
+            "cards_up": float(np.mean(cards_up)) if cards_up else 0.0,
+            "win_rate": wins / len(deals) if deals else 0.0,
             "seconds": time.time() - started,
         })
         if verbose:
@@ -116,26 +124,30 @@ def run_macao_baselines(
     """Play every agent against a random opponent and report the win rate."""
     probe = Macao(num_players=2)
     action_size = probe.get_action_space_size()
+    deals = evaluation_seeds(episodes)
 
     results = []
     for name, agent in agents:
         wins, draws = 0, 0
         started = time.time()
 
-        for seed in range(episodes):
-            random.seed(seed)
-            np.random.seed(seed)
+        game = Macao(num_players=2)
+        env = CardGameEnv(game, max_steps=max_steps)
+        if hasattr(agent, "bind"):
+            agent.bind(env)
 
-            game = Macao(num_players=2)
-            env = CardGameEnv(game, max_steps=max_steps)
-            if hasattr(agent, "bind"):
-                agent.bind(env)
+        for deal in deals:
+            # A fresh opponent per deal, seeded from the deal itself: the
+            # opponent's randomness is then paired to the board, so two agents
+            # meeting deal N meet the same opening moves. Carrying one opponent
+            # across deals would let its RNG drift apart between agents that
+            # play different numbers of moves.
             opponent = RandomAgent(
                 action_size=action_size,
-                seed=seed if opponent_seed is None else opponent_seed,
+                seed=deal if opponent_seed is None else opponent_seed,
             )
 
-            observation, info = env.reset()
+            observation, info = env.reset(seed=deal)
             agent.reset()
 
             for _ in range(max_steps):
@@ -153,8 +165,8 @@ def run_macao_baselines(
 
         results.append({
             "agent": name,
-            "win_rate": wins / episodes,
-            "draw_rate": draws / episodes,
+            "win_rate": wins / len(deals) if deals else 0.0,
+            "draw_rate": draws / len(deals) if deals else 0.0,
             "seconds": time.time() - started,
         })
         if verbose:
@@ -247,5 +259,9 @@ def measure_baselines(
         "seed": seed,
         "mcts_simulations": sg.mcts_simulations,
         "self_play": sg.self_play,
+        # Which deals produced these numbers, so a stored measurement can be
+        # matched against a later one rather than merely compared to it.
+        "train_pool": [TRAIN_SEED_START, TRAIN_SEED_END],
+        "test_pool": [TEST_SEED_START, TEST_SEED_END],
     }
     return rows, protocol

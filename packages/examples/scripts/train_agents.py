@@ -35,6 +35,7 @@ from rl_card_lib.games import (
 )
 from rl_card_lib.harness import (
     LEARNERS,
+    TRAIN_SEEDS,
     build_learner,
     evaluate_klondike,
     evaluate_macao,
@@ -45,7 +46,7 @@ from rl_card_lib.trainer import SelfPlayTrainer, Trainer
 def train_klondike(kind: str, episodes: int, seed: int, checkpoint_dir: str) -> dict:
     """Train one learner on Klondike and compare it to the baselines."""
     game = KlondikeSolitaire()
-    env = CardGameEnv(game, max_steps=300)
+    env = CardGameEnv(game, max_steps=300, deal_seeds=TRAIN_SEEDS)
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, seed
     )
@@ -87,7 +88,7 @@ def train_macao(
 ) -> dict:
     """Train one learner on Macao and compare it to the baselines."""
     game = Macao(num_players=2)
-    env = CardGameEnv(game, max_steps=200)
+    env = CardGameEnv(game, max_steps=200, deal_seeds=TRAIN_SEEDS)
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, seed
     )

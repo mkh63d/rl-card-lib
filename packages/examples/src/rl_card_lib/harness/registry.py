@@ -37,6 +37,11 @@ class SweepGame:
     env_factory: Callable[[], Any]
     max_steps: int
     evaluate: Callable[[Any, int, int], dict]
+    # Environment for the trainer's periodic in-training evaluation. Declaring
+    # one that deals from the held-out pool is what keeps the report's
+    # evaluation curve a test-set curve; without it the trainer evaluates on
+    # `env_factory()`, i.e. on training deals.
+    eval_env_factory: Optional[Callable[[], Any]] = None
     self_play: bool = False
     opponent_factory: Optional[Callable[[int], Any]] = None
     heuristic_factory: Optional[Callable[[int], Any]] = None
@@ -65,6 +70,7 @@ def register_sweep_game(
     env_factory: Callable[[], Any],
     max_steps: int,
     evaluate: Callable[[Any, int, int], dict],
+    eval_env_factory: Optional[Callable[[], Any]] = None,
     self_play: bool = False,
     opponent_factory: Optional[Callable[[int], Any]] = None,
     heuristic_factory: Optional[Callable[[int], Any]] = None,
@@ -101,7 +107,8 @@ def register_sweep_game(
     """
     game = SweepGame(
         name=name, env_factory=env_factory, max_steps=max_steps,
-        evaluate=evaluate, self_play=self_play,
+        evaluate=evaluate, eval_env_factory=eval_env_factory,
+        self_play=self_play,
         opponent_factory=opponent_factory, heuristic_factory=heuristic_factory,
         mcts_simulations=mcts_simulations, mcts_rollout_depth=mcts_rollout_depth,
         episode_extras=episode_extras,

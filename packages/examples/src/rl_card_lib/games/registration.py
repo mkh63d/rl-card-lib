@@ -14,6 +14,7 @@ from rl_card_lib.games.heuristics import KlondikeHeuristicAgent, MacaoHeuristicA
 from rl_card_lib.games.klondike import KlondikeSolitaire
 from rl_card_lib.games.klondike_solver import solve_klondike
 from rl_card_lib.games.macao import Macao
+from rl_card_lib.harness.deals import TEST_SEEDS, TRAIN_SEEDS
 from rl_card_lib.harness.evaluation import evaluate_klondike, evaluate_macao_suite
 from rl_card_lib.harness.registry import register_sweep_game
 
@@ -25,6 +26,22 @@ MACAO_MAX_STEPS = 200
 # small budget keeps curation fast and lets undecided deals fail quickly (they
 # are excluded from the pool anyway). See harness/solve_benchmark.py.
 KLONDIKE_POOL_SOLVE_NODES = 10_000
+
+
+def _train_env(game, max_steps):
+    """Env for a training run: one deal per episode out of the TRAIN pool."""
+    return CardGameEnv(game, max_steps=max_steps, deal_seeds=TRAIN_SEEDS)
+
+
+def _eval_env(game, max_steps):
+    """Env for the trainer's periodic evaluation: held-out deals, in order.
+
+    "cycle" plus the trainer's rewind means every evaluation point replays the
+    same TEST deals, so the evaluation curve tracks the agent rather than which
+    deals it happened to draw.
+    """
+    return CardGameEnv(game, max_steps=max_steps, deal_seeds=TEST_SEEDS,
+                       deal_order="cycle")
 
 
 def _klondike_extras(game, agent):
@@ -55,7 +72,8 @@ def register_bundled_games() -> None:
     """Register Klondike and Macao. Idempotent; called on package import."""
     register_sweep_game(
         "klondike",
-        env_factory=lambda: CardGameEnv(KlondikeSolitaire(), max_steps=KLONDIKE_MAX_STEPS),
+        env_factory=lambda: _train_env(KlondikeSolitaire(), KLONDIKE_MAX_STEPS),
+        eval_env_factory=lambda: _eval_env(KlondikeSolitaire(), KLONDIKE_MAX_STEPS),
         max_steps=KLONDIKE_MAX_STEPS,
         evaluate=_evaluate_klondike,
         episode_extras=_klondike_extras,
@@ -79,7 +97,8 @@ def register_bundled_games() -> None:
 
     register_sweep_game(
         "macao",
-        env_factory=lambda: CardGameEnv(Macao(num_players=2), max_steps=MACAO_MAX_STEPS),
+        env_factory=lambda: _train_env(Macao(num_players=2), MACAO_MAX_STEPS),
+        eval_env_factory=lambda: _eval_env(Macao(num_players=2), MACAO_MAX_STEPS),
         max_steps=MACAO_MAX_STEPS,
         evaluate=_evaluate_macao,
         self_play=True,

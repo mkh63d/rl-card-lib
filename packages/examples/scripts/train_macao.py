@@ -8,13 +8,16 @@ using self-play or against a random opponent.
 from rl_card_lib.games import Macao
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import DQNAgent, RandomAgent
+from rl_card_lib.harness import TRAIN_SEEDS
 from rl_card_lib.trainer import Trainer
 
 
 def main():
-    # Create the game and environment
+    # Create the game and environment. deal_seeds makes every episode's deal
+    # come from the declared training pool, so the run is reproducible and the
+    # agent never trains on a deal it will later be evaluated on.
     game = Macao(num_players=2, max_turns=200)
-    env = CardGameEnv(game, max_steps=200)
+    env = CardGameEnv(game, max_steps=200, deal_seeds=TRAIN_SEEDS)
 
     print(f"Observation space: {env.observation_space.shape}")
     print(f"Action space: {env.action_space.n}")

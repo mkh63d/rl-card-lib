@@ -7,6 +7,8 @@ from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games import KlondikeSolitaire, Macao
 from rl_card_lib.harness import (
     LEARNERS,
+    TEST_SEEDS,
+    TRAIN_SEEDS,
     build_learner,
     checkpoint_suffix,
     epsilon_schedule,
@@ -16,6 +18,8 @@ from rl_card_lib.harness import (
     macao_baseline_agents,
     make_episode_recorder,
     measure_baselines,
+    evaluation_seeds,
+    pools_are_disjoint,
 )
 from rl_card_lib.trainer import Trainer
 
@@ -78,6 +82,72 @@ class TestEvaluation:
         agent.train()
         evaluate_klondike(agent, episodes=1, max_steps=10)
         assert agent.training is True
+
+    def test_klondike_evaluation_repeats_exactly(self):
+        """The regression this whole protocol exists for (issue #12).
+
+        The same agent over the same episode count used to return 12.57 cards
+        one call and 12.83 the next, because the deal was pinned with the global
+        RNG the games never read.
+        """
+        first = evaluate_klondike(RandomAgent(action_size=68, seed=0),
+                                  episodes=5, max_steps=30)
+        second = evaluate_klondike(RandomAgent(action_size=68, seed=0),
+                                   episodes=5, max_steps=30)
+        assert first == second
+
+    def test_macao_evaluation_repeats_exactly(self):
+        def measure():
+            return evaluate_macao(
+                RandomAgent(action_size=65, seed=0),
+                RandomAgent(action_size=65, seed=1),
+                episodes=5, max_steps=30,
+            )
+
+        assert measure() == measure()
+
+    def test_explicit_seeds_override_the_episode_count(self):
+        """`episodes=n` is exactly the first n TEST deals, spelled shorter."""
+        by_seeds = evaluate_klondike(RandomAgent(action_size=68, seed=0),
+                                     seeds=TEST_SEEDS[:3], max_steps=30)
+        by_count = evaluate_klondike(RandomAgent(action_size=68, seed=0),
+                                     episodes=3, max_steps=30)
+        assert by_seeds == by_count
+
+
+class TestDealPools:
+    """The train/test split is a property of the declared ranges."""
+
+    def test_the_pools_are_disjoint(self):
+        assert pools_are_disjoint()
+        assert set(TRAIN_SEEDS).isdisjoint(TEST_SEEDS)
+
+    def test_evaluation_takes_a_prefix_so_agents_share_deals(self):
+        assert evaluation_seeds(30) == TEST_SEEDS[:30]
+        # Raising the episode count keeps every deal already measured.
+        assert evaluation_seeds(30) == evaluation_seeds(50)[:30]
+
+    def test_none_means_the_whole_pool(self):
+        assert evaluation_seeds() == TEST_SEEDS
+
+    def test_asking_for_more_deals_than_the_pool_holds_raises(self):
+        """Silently wrapping would score an agent on some deals twice."""
+        with pytest.raises(ValueError, match="TEST pool holds"):
+            evaluation_seeds(len(TEST_SEEDS) + 1)
+
+    def test_registered_games_train_and_evaluate_on_different_deals(self):
+        from rl_card_lib.harness import sweep_game
+
+        for name in ("klondike", "macao"):
+            spec = sweep_game(name)
+            train_env = spec.env_factory()
+            eval_env = spec.eval_env_factory()
+            for _ in range(5):
+                train_env.reset()
+                eval_env.reset()
+            assert set(train_env.dealt_seeds).isdisjoint(eval_env.dealt_seeds)
+            assert set(train_env.dealt_seeds) <= set(TRAIN_SEEDS)
+            assert set(eval_env.dealt_seeds) <= set(TEST_SEEDS)
 
 
 class TestEpisodeRecorder:
@@ -212,6 +282,36 @@ class TestBaselineAgents:
     def test_macao_baselines_use_the_macao_action_space(self):
         agents = macao_baseline_agents(seed=0)
         assert dict(agents)["Random"].action_size == 65
+
+    def test_klondike_baselines_repeat_exactly(self):
+        from rl_card_lib.harness import run_klondike_baselines
+
+        def measure():
+            rows = run_klondike_baselines(
+                [("Random", RandomAgent(action_size=68, seed=0))],
+                episodes=4, max_steps=30, verbose=False,
+            )
+            return [{k: v for k, v in r.items() if k != "seconds"} for r in rows]
+
+        assert measure() == measure()
+
+    def test_macao_baselines_repeat_exactly(self):
+        from rl_card_lib.harness import run_macao_baselines
+
+        def measure():
+            rows = run_macao_baselines(
+                [("Random", RandomAgent(action_size=65, seed=0))],
+                episodes=4, max_steps=30, verbose=False,
+            )
+            return [{k: v for k, v in r.items() if k != "seconds"} for r in rows]
+
+        assert measure() == measure()
+
+    def test_baselines_record_which_deals_they_used(self):
+        _, protocol = measure_baselines("klondike", episodes=2, seed=0,
+                                        mcts_simulations=2, verbose=False)
+        assert protocol["train_pool"] == [TRAIN_SEEDS.start, TRAIN_SEEDS.stop]
+        assert protocol["test_pool"] == [TEST_SEEDS[0], TEST_SEEDS[-1] + 1]
 
 
 class TestSweepRegistry:

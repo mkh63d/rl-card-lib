@@ -11,13 +11,16 @@ This script demonstrates the basic workflow:
 from rl_card_lib.games import KlondikeSolitaire
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import DQNAgent
+from rl_card_lib.harness import TRAIN_SEEDS
 from rl_card_lib.trainer import Trainer
 
 
 def main():
-    # Create the game and environment
+    # Create the game and environment. deal_seeds makes every episode's deal
+    # come from the declared training pool, so the run is reproducible and the
+    # agent never trains on a deal it will later be evaluated on.
     game = KlondikeSolitaire(draw_count=1)
-    env = CardGameEnv(game, max_steps=500)
+    env = CardGameEnv(game, max_steps=500, deal_seeds=TRAIN_SEEDS)
 
     print(f"Observation space: {env.observation_space.shape}")
     print(f"Action space: {env.action_space.n}")

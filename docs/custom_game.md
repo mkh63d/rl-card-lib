@@ -134,17 +134,27 @@ you do not call both.
 
 ```python
 from rl_card_lib.env import CardGameEnv
-from rl_card_lib.harness import register_sweep_game
+from rl_card_lib.harness import (
+    TEST_SEEDS, TRAIN_SEEDS, evaluation_seeds, register_sweep_game,
+)
 
 def evaluate_hearts(agent, episodes, seed):
     """Play `episodes` games and return a dict of metrics -- whatever your
-    game is judged on. The keys become columns in the report."""
+    game is judged on. The keys become columns in the report.
+
+    Deal each game with `env.reset(seed=...)` taking seeds from
+    `evaluation_seeds(episodes)`, so the measurement repeats exactly and every
+    agent is scored on identical deals."""
     ...
     return {"penalty_points": mean_penalty, "win_rate": win_rate}
 
 register_sweep_game(
     "hearts",
-    env_factory=lambda: CardGameEnv(Hearts(), max_steps=200),
+    env_factory=lambda: CardGameEnv(Hearts(), max_steps=200,
+                                    deal_seeds=TRAIN_SEEDS),
+    eval_env_factory=lambda: CardGameEnv(Hearts(), max_steps=200,
+                                         deal_seeds=TEST_SEEDS,
+                                         deal_order="cycle"),
     max_steps=200,
     evaluate=evaluate_hearts,
     heuristic_factory=lambda seed: HeartsHeuristicAgent(seed=seed),  # optional
@@ -158,6 +168,20 @@ register_sweep_game(
     episode_curves=["penalty_points"],
 )
 ```
+
+### Which deals your game plays
+
+`deal_seeds` is what makes a run reproducible. Without it an unseeded
+`env.reset()` lets the game reshuffle from an RNG nothing seeded, so the deals
+differ every run and belong to no declared set. With it, each episode's deal is
+drawn from the pool by a private RNG seeded from `deal_rng_seed`, and the whole
+sequence follows from that one number.
+
+The bundled pools live in `rl_card_lib.harness.deals` and are disjoint by
+construction — training draws from seeds `0..9_999`, evaluation plays the
+held-out `100_000..100_199`. `eval_env_factory` is optional: declare one and the
+trainer's periodic evaluation measures generalisation; omit it and the trainer
+evaluates in the training env, on training deals.
 
 Then run the sweep. Make sure the module that calls `register_sweep_game` is
 imported first (the bundled games do this from `rl_card_lib.games/__init__.py`):

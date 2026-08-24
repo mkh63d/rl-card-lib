@@ -38,6 +38,7 @@ from rl_card_lib.harness import (
     sweep_game,
 )
 from rl_card_lib.harness.baselines import baseline_agents
+from rl_card_lib.harness.deals import TEST_SEED_START
 from rl_card_lib.report import RunStore, SolveBenchmarkSet
 from rl_card_lib.report.run_record import utc_now
 
@@ -132,8 +133,11 @@ def main() -> None:
     )
     parser.add_argument("--pool-size", type=int, default=50,
                         help="Number of winnable deals to benchmark over")
-    parser.add_argument("--start-seed", type=int, default=0,
-                        help="First deal seed to scan when curating the pool")
+    parser.add_argument("--start-seed", type=int, default=TEST_SEED_START,
+                        help="First deal seed to scan when curating the pool. "
+                             "Defaults to the start of the held-out range, so "
+                             "trained learners are not benchmarked on deals "
+                             "they trained on.")
     parser.add_argument("--seed", type=int, default=0,
                         help="Seed for constructed agents")
     parser.add_argument("--results-dir", default="./results")

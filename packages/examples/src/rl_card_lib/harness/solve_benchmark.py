@@ -18,12 +18,14 @@ from __future__ import annotations
 import time
 from typing import Optional
 
+from rl_card_lib.harness.deals import TEST_SEED_START
+
 
 def curate_solvable_pool(
     sweep_game,
     size: int,
     *,
-    start_seed: int = 0,
+    start_seed: int = TEST_SEED_START,
     max_scan: Optional[int] = None,
     verbose: bool = False,
 ) -> list[int]:
@@ -35,10 +37,15 @@ def curate_solvable_pool(
     on a deal that may have no solution. The solver carries its own node budget
     (set where the game is registered), so this stays generic.
 
+    Scanning starts in the held-out range by default, so a trained learner is
+    benchmarked on deals it never trained on. Starting below TRAIN_SEED_END
+    would curate the pool out of the training deals themselves.
+
     Args:
         sweep_game: A registered game that declares a `solver`
         size: How many solvable seeds to collect
-        start_seed: First seed to try
+        start_seed: First seed to try (defaults to the start of the held-out
+            range; deals above it stay disjoint from the TRAIN pool)
         max_scan: Give up after scanning this many seeds (default: 50x size, a
             margin over the ~80% winnable rate plus undecided deals)
         verbose: Print progress as the pool fills
