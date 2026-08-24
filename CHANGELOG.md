@@ -74,6 +74,39 @@
 
 ### Fixed
 
+- **A time-limit truncation was learned as a terminal state**
+  ([#13](https://github.com/mkh63d/rl-card-lib/issues/13)). `Trainer` collapsed
+  Gymnasium's `(terminated, truncated)` pair into one `done` flag before handing
+  the transition to `agent.learn()`, and every value target multiplies its
+  bootstrap by `(1 - done)`. A step cut by the **step cap** was therefore taught
+  that the future is worth exactly zero. On Klondike that is not an edge case:
+  100 % of episodes ended by truncation, so it was the last transition of every
+  single episode, carrying a reward of `-0.01` — the per-move cost and nothing
+  else. Macao was affected too, though the game does pay a hand-size
+  differential at the cap, so only the bootstrap was lost.
+
+  Both episode loops still stop on either flag, but only `terminated` reaches
+  the learner, so the value function keeps bootstrapping through the cap. `done`
+  now means "the game reached a terminal state" everywhere, never "the episode
+  stopped". `DQNAgent`, `DoubleDQNAgent` and `QLearningAgent` use it only for
+  the bootstrap and needed no change. `PPOAgent` did: its rollout deliberately
+  outlives the episodes it spans, and `dones` was the only thing marking
+  boundaries inside it, so a weaker `done` alone would have let the GAE trace
+  run straight across every episode reset. It now opts into a new
+  `accepts_truncated` flag — the same opt-in convention as
+  `accepts_next_legal_actions`, so agents with a plain five-argument `learn()`
+  are called exactly as before — and uses `truncated` to bootstrap from the
+  critic's value at the cut while still cutting the trace at the boundary.
+
+  On the headline metric this changes little: re-run across both games, both
+  value learners and three seeds (issue #13), two arms moved up, one down and
+  one was flat, all within roughly one standard deviation. The consistent effect
+  was on *variance* — Klondike DQN's spread across seeds fell from ±0.41 to
+  ±0.07. The case for the change is that the old target was provably biased on
+  100 % of Klondike episodes, not that it moves the scoreboard; the dominant
+  effect on these agents lies elsewhere
+  ([#21](https://github.com/mkh63d/rl-card-lib/issues/21)). Every number in
+  `results/` and in the committed reference runs predates this.
 - **Training and evaluation deals were unseeded, so no reported number was
   reproducible** ([#12](https://github.com/mkh63d/rl-card-lib/issues/12)). The
   trainer called `env.reset()` with no seed, leaving each game to reshuffle from

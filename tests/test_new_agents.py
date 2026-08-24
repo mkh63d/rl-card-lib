@@ -877,6 +877,92 @@ class TestPPOAgent:
 
         assert len(agent._states) == len(agent._rewards) == 1
 
+    @staticmethod
+    def _chained_rollout(truncated_at: int, length: int = 4) -> PPOAgent:
+        """A rollout whose stored states really are each other's successors.
+
+        That is what makes the truncation tests below isolating: the value the
+        cut bootstraps from is `values[truncated_at + 1]`, the very same number
+        the uncut rollout would have used, so flipping the flag changes the
+        trace and nothing else.
+        """
+        agent = PPOAgent(
+            state_size=4, action_size=3, hidden_sizes=[8],
+            rollout_steps=100, device="cpu", seed=0
+        )
+        rng = np.random.RandomState(7)
+        observations = [rng.randn(4).astype(np.float32) for _ in range(length + 1)]
+        for t in range(length):
+            action = agent.select_action(observations[t], [0, 1, 2])
+            agent.learn(
+                observations[t], action, 1.0, observations[t + 1], False,
+                truncated=(t == truncated_at),
+            )
+        agent._last_observation = observations[length]
+        return agent
+
+    def test_a_truncation_bootstraps_where_a_terminal_step_would_not(self):
+        """The step cap must not zero the future the way a real ending does."""
+        agent = self._chained_rollout(truncated_at=1)
+        bootstrapped, _ = agent._compute_advantages(agent._last_observation, False)
+
+        # The identical rollout, with that step called terminal instead.
+        agent._truncations[1], agent._dones[1] = 0.0, 1.0
+        as_terminal, _ = agent._compute_advantages(agent._last_observation, False)
+
+        assert agent._truncation_values[1] != 0.0
+        assert bootstrapped[1] - as_terminal[1] == pytest.approx(
+            agent.gamma * agent._values[2], abs=1e-5
+        )
+
+    def test_a_truncation_stops_the_trace_at_the_episode_boundary(self):
+        """A new episode's steps must not flow back into the finished one."""
+        agent = self._chained_rollout(truncated_at=1)
+        cut, _ = agent._compute_advantages(agent._last_observation, False)
+
+        # The identical rollout with the boundary erased. The bootstrap value
+        # is unchanged (see _chained_rollout), so only the trace can move.
+        agent._truncations[1] = 0.0
+        leaked, _ = agent._compute_advantages(agent._last_observation, False)
+
+        assert cut[1] != pytest.approx(leaked[1], abs=1e-5)
+        assert cut[0] != pytest.approx(leaked[0], abs=1e-5)
+        # Steps after the boundary are on the far side of it and unaffected.
+        np.testing.assert_allclose(cut[2:], leaked[2:], rtol=1e-5)
+
+    def test_an_untruncated_rollout_is_unchanged(self):
+        """The default path must still be plain GAE."""
+        agent = self._chained_rollout(truncated_at=-1)
+        advantages, _ = agent._compute_advantages(agent._last_observation, False)
+
+        values = np.asarray(agent._values, dtype=np.float32)
+        last_value = agent._state_value(agent._last_observation)
+        expected, running = np.zeros(4, dtype=np.float32), 0.0
+        for t in reversed(range(4)):
+            next_value = values[t + 1] if t + 1 < 4 else last_value
+            delta = 1.0 + agent.gamma * next_value - values[t]
+            running = delta + agent.gamma * agent.gae_lambda * running
+            expected[t] = running
+
+        assert not any(agent._truncations)
+        np.testing.assert_allclose(advantages, expected, rtol=1e-4)
+
+    def test_truncation_bookkeeping_clears_with_the_rollout(self):
+        agent = PPOAgent(
+            state_size=4, action_size=3, hidden_sizes=[8],
+            rollout_steps=4, minibatch_size=2, device="cpu", seed=0
+        )
+        observation = np.random.randn(4).astype(np.float32)
+        for step in range(4):
+            action = agent.select_action(observation, [0, 1])
+            agent.learn(
+                observation, action, 1.0, observation, False,
+                truncated=(step == 2),
+            )
+
+        assert agent.updates == 1
+        assert agent._truncations == [] and agent._truncation_values == []
+
     def test_action_probabilities_zero_out_illegal(self):
         agent = PPOAgent(
             state_size=4, action_size=5, hidden_sizes=[8], device="cpu", seed=0
