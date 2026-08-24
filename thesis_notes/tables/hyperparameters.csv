@@ -1,0 +1,22 @@
+hyper-parameter,Q-learning,DQN,Double DQN,PPO
+Agent class,QLearningAgent,DQNAgent,DoubleDQNAgent,PPOAgent
+Learning rate,0.1,0.0005,0.0005,0.0003
+Discount gamma,0.95,0.95,0.95,0.95
+Hidden layers,-,"256, 128","256, 128","256, 128"
+Replay-buffer capacity,-,50000,50000,-
+Batch size,-,64,64,-
+Minibatch size,-,-,-,64
+Rollout length,-,-,-,1024
+Target-update frequency (gradient steps),-,500,500,-
+Epsilon start,1.0,1.0,1.0,-
+Epsilon end,0.05,0.05,0.05,-
+Epsilon decay (per episode),0.995,0.995,0.995,-
+GAE lambda,-,-,-,0.95
+Clip epsilon,-,-,-,0.2
+Epochs per update,-,-,-,4
+Entropy coefficient,-,-,-,0.01
+Value coefficient,-,-,-,0.5
+Max gradient norm,-,-,-,0.5
+Duelling head,-,-,True,-
+State rounding (decimals),2,-,-,-
+Optimistic init,0.0,-,-,-

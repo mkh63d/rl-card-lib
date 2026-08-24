@@ -1,0 +1,5 @@
+agent,pool_size,solve_rate,cards_up,mean_moves_to_solve,mean_seconds_to_solve
+Random,102,0.0,14.25,,
+Heuristic,102,0.7451,41.17,156.2,0.0511
+GreedyLookahead(1),102,0.0588,12.61,169.8,0.3097
+MCTS(20),102,0.5294,34.64,216.8,16.7318

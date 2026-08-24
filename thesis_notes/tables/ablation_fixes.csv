@@ -1,0 +1,13 @@
+game,agent,arm,arm_description,seeds,TEST_before_mean,TEST_before_sd,TEST_after_mean,TEST_after_sd,delta,TRAIN_mean_reward,train_seconds_mean
+klondike,PPO,asis,as published,3,2.2383,0.4319,7.0683,0.2483,4.83,21.232,2242.8
+klondike,Double DQN,asis,as published,3,1.9017,1.5325,5.8833,0.2979,3.9817,8.254,12226.0
+klondike,Double DQN,fixed,+ time-limit bootstrap fix,3,1.9017,1.5325,5.3817,0.44,3.48,8.354,12197.6
+klondike,DQN,asis,as published,3,3.28,0.9306,5.67,0.4073,2.39,7.603,8883.9
+klondike,DQN,fixed,+ time-limit bootstrap fix,3,3.28,0.9306,5.7717,0.0701,2.4917,7.264,8882.9
+klondike,Q-learning,asis,as published,3,11.3133,0.2559,11.33,0.1997,0.0167,12.303,877.7
+macao,PPO,asis,as published,3,0.0317,0.0293,0.355,0.0173,0.3233,3.429,266.4
+macao,Double DQN,asis,as published,3,0.0,0.0,0.075,0.01,0.075,0.455,703.1
+macao,Double DQN,fixed,+ time-limit bootstrap fix,3,0.0,0.0,0.0867,0.0058,0.0867,0.349,691.5
+macao,DQN,asis,as published,3,0.0433,0.0751,0.0783,0.0058,0.035,0.101,491.2
+macao,DQN,fixed,+ time-limit bootstrap fix,3,0.0433,0.0751,0.0783,0.0104,0.035,0.213,476.7
+macao,Q-learning,asis,as published,3,0.0217,0.0029,0.0217,0.0144,0.0,-0.25,57.9

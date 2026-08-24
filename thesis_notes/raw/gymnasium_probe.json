@@ -1,0 +1,272 @@
+{
+  "gymnasium_version": "1.3.0",
+  "api_surface": {
+    "CardGameEnv(Klondike)": {
+      "class": "CardGameEnv",
+      "is_gym_Env_subclass": false,
+      "mro": [
+        "CardGameEnv",
+        "object"
+      ],
+      "reset_signature": "(*, seed: 'Optional[int]' = None, options: 'Optional[dict]' = None) -> 'Tuple[np.ndarray, dict]'",
+      "step_signature": "(action: 'int') -> 'Tuple[np.ndarray, float, bool, bool, dict]'",
+      "has_metadata": false,
+      "has_spec": false,
+      "has_np_random": false,
+      "has_unwrapped": false,
+      "has_render_mode": true,
+      "observation_space": "Box(-inf, inf, (221,), float32)",
+      "action_space": "Discrete(68)",
+      "observation_space_type": "Box",
+      "action_space_type": "Discrete",
+      "extra_public_methods": [
+        "action_to_string",
+        "get_legal_action_mask",
+        "get_legal_actions"
+      ]
+    },
+    "CardGameEnv(Macao)": {
+      "class": "CardGameEnv",
+      "is_gym_Env_subclass": false,
+      "mro": [
+        "CardGameEnv",
+        "object"
+      ],
+      "reset_signature": "(*, seed: 'Optional[int]' = None, options: 'Optional[dict]' = None) -> 'Tuple[np.ndarray, dict]'",
+      "step_signature": "(action: 'int') -> 'Tuple[np.ndarray, float, bool, bool, dict]'",
+      "has_metadata": false,
+      "has_spec": false,
+      "has_np_random": false,
+      "has_unwrapped": false,
+      "has_render_mode": true,
+      "observation_space": "Box(-inf, inf, (126,), float32)",
+      "action_space": "Discrete(65)",
+      "observation_space_type": "Box",
+      "action_space_type": "Discrete",
+      "extra_public_methods": [
+        "action_to_string",
+        "get_legal_action_mask",
+        "get_legal_actions"
+      ]
+    },
+    "MaskedCardGameEnv(Macao)": {
+      "class": "MaskedCardGameEnv",
+      "is_gym_Env_subclass": false,
+      "mro": [
+        "MaskedCardGameEnv",
+        "CardGameEnv",
+        "object"
+      ],
+      "reset_signature": "(*, seed: 'Optional[int]' = None, options: 'Optional[dict]' = None) -> 'Tuple[dict, dict]'",
+      "step_signature": "(action: 'int') -> 'Tuple[dict, float, bool, bool, dict]'",
+      "has_metadata": false,
+      "has_spec": false,
+      "has_np_random": false,
+      "has_unwrapped": false,
+      "has_render_mode": true,
+      "observation_space": "Dict('action_mask': MultiBinary(65), 'observation': Box(-inf, inf, (126,), float32))",
+      "action_space": "Discrete(65)",
+      "observation_space_type": "Dict",
+      "action_space_type": "Discrete",
+      "extra_public_methods": [
+        "action_to_string",
+        "get_legal_action_mask",
+        "get_legal_actions"
+      ]
+    },
+    "GymEnvWrapper(Macao)": {
+      "class": "GymEnvWrapper",
+      "is_gym_Env_subclass": false,
+      "mro": [
+        "GymEnvWrapper",
+        "object"
+      ],
+      "reset_signature": "(*, seed: int | None = None, options: dict | None = None) -> Tuple[Any, dict]",
+      "step_signature": "(action: int) -> Tuple[Any, float, bool, bool, dict]",
+      "has_metadata": false,
+      "has_spec": false,
+      "has_np_random": false,
+      "has_unwrapped": false,
+      "has_render_mode": false,
+      "observation_space": "Box(-inf, inf, (126,), float32)",
+      "action_space": "Discrete(65)",
+      "observation_space_type": "Box",
+      "action_space_type": "Discrete",
+      "extra_public_methods": []
+    }
+  },
+  "step_contract": {
+    "CardGameEnv(Klondike)": {
+      "reset_returns": [
+        "obs",
+        "info"
+      ],
+      "reset_obs_type": "ndarray",
+      "reset_info_keys": [
+        "legal_actions"
+      ],
+      "step_tuple_len": 5,
+      "step_field_types": [
+        "ndarray",
+        "float",
+        "bool",
+        "bool",
+        "dict"
+      ],
+      "obs_in_observation_space": true,
+      "terminated_is_bool": true,
+      "truncated_is_bool": true
+    },
+    "CardGameEnv(Macao)": {
+      "reset_returns": [
+        "obs",
+        "info"
+      ],
+      "reset_obs_type": "ndarray",
+      "reset_info_keys": [
+        "legal_actions"
+      ],
+      "step_tuple_len": 5,
+      "step_field_types": [
+        "ndarray",
+        "float",
+        "bool",
+        "bool",
+        "dict"
+      ],
+      "obs_in_observation_space": true,
+      "terminated_is_bool": true,
+      "truncated_is_bool": true
+    },
+    "MaskedCardGameEnv(Macao)": {
+      "reset_returns": [
+        "obs",
+        "info"
+      ],
+      "reset_obs_type": "dict",
+      "reset_info_keys": [
+        "legal_actions"
+      ],
+      "step_tuple_len": 5,
+      "step_field_types": [
+        "dict",
+        "float",
+        "bool",
+        "bool",
+        "dict"
+      ],
+      "obs_in_observation_space": true,
+      "terminated_is_bool": true,
+      "truncated_is_bool": true
+    },
+    "GymEnvWrapper(Macao)": {
+      "error": "ValueError: Player 0 does not hold [A\u2663]"
+    }
+  },
+  "check_env": [
+    {
+      "env": "CardGameEnv(Klondike)",
+      "passed": false,
+      "error_type": "TypeError",
+      "error": "The environment must inherit from the gymnasium.Env class, actual class: <class 'rl_card_lib.env.card_game_env.CardGameEnv'>. See https://gymnasium.farama.org/introduction/create_custom_env/ for more info.",
+      "traceback_tail": [
+        "    check_env(env_factory(), skip_render_check=True)",
+        "  File \"D:\\Projects\\Inzynierka\\.venv\\Lib\\site-packages\\gymnasium\\utils\\env_checker.py\", line 385, in check_env",
+        "    raise TypeError(",
+        "TypeError: The environment must inherit from the gymnasium.Env class, actual class: <class 'rl_card_lib.env.card_game_env.CardGameEnv'>. See https://gymnasium.farama.org/introduction/create_custom_env/ for more info."
+      ],
+      "checker_output": ""
+    },
+    {
+      "env": "CardGameEnv(Macao)",
+      "passed": false,
+      "error_type": "TypeError",
+      "error": "The environment must inherit from the gymnasium.Env class, actual class: <class 'rl_card_lib.env.card_game_env.CardGameEnv'>. See https://gymnasium.farama.org/introduction/create_custom_env/ for more info.",
+      "traceback_tail": [
+        "    check_env(env_factory(), skip_render_check=True)",
+        "  File \"D:\\Projects\\Inzynierka\\.venv\\Lib\\site-packages\\gymnasium\\utils\\env_checker.py\", line 385, in check_env",
+        "    raise TypeError(",
+        "TypeError: The environment must inherit from the gymnasium.Env class, actual class: <class 'rl_card_lib.env.card_game_env.CardGameEnv'>. See https://gymnasium.farama.org/introduction/create_custom_env/ for more info."
+      ],
+      "checker_output": ""
+    },
+    {
+      "env": "MaskedCardGameEnv(Macao)",
+      "passed": false,
+      "error_type": "TypeError",
+      "error": "The environment must inherit from the gymnasium.Env class, actual class: <class 'rl_card_lib.env.card_game_env.MaskedCardGameEnv'>. See https://gymnasium.farama.org/introduction/create_custom_env/ for more info.",
+      "traceback_tail": [
+        "    check_env(env_factory(), skip_render_check=True)",
+        "  File \"D:\\Projects\\Inzynierka\\.venv\\Lib\\site-packages\\gymnasium\\utils\\env_checker.py\", line 385, in check_env",
+        "    raise TypeError(",
+        "TypeError: The environment must inherit from the gymnasium.Env class, actual class: <class 'rl_card_lib.env.card_game_env.MaskedCardGameEnv'>. See https://gymnasium.farama.org/introduction/create_custom_env/ for more info."
+      ],
+      "checker_output": ""
+    },
+    {
+      "env": "GymEnvWrapper(Macao)",
+      "passed": false,
+      "error_type": "TypeError",
+      "error": "The environment must inherit from the gymnasium.Env class, actual class: <class 'rl_card_lib.core.gym_wrapper.GymEnvWrapper'>. See https://gymnasium.farama.org/introduction/create_custom_env/ for more info.",
+      "traceback_tail": [
+        "    check_env(env_factory(), skip_render_check=True)",
+        "  File \"D:\\Projects\\Inzynierka\\.venv\\Lib\\site-packages\\gymnasium\\utils\\env_checker.py\", line 385, in check_env",
+        "    raise TypeError(",
+        "TypeError: The environment must inherit from the gymnasium.Env class, actual class: <class 'rl_card_lib.core.gym_wrapper.GymEnvWrapper'>. See https://gymnasium.farama.org/introduction/create_custom_env/ for more info."
+      ],
+      "checker_output": ""
+    }
+  ],
+  "stable_baselines3": [
+    {
+      "env": "Klondike",
+      "sb3_version": "2.9.0",
+      "available": true,
+      "raw_env": {
+        "passed": false,
+        "error_type": "ValueError",
+        "error": "The environment is of type <class 'rl_card_lib.env.card_game_env.CardGameEnv'>, not a Gymnasium environment. In this case, we expect OpenAI Gym to be installed and the environment to be an OpenAI Gym environment.",
+        "output": ""
+      },
+      "adapter_env": {
+        "passed": true,
+        "timesteps": 2000,
+        "demo_episode_steps": 300,
+        "demo_episode_reward": -4.2,
+        "invalid_action_rate_note": "SB3 has no action mask, so illegal actions are absorbed by CardGameEnv.invalid_action_reward",
+        "output": ""
+      }
+    },
+    {
+      "env": "Macao",
+      "sb3_version": "2.9.0",
+      "available": true,
+      "raw_env": {
+        "passed": false,
+        "error_type": "ValueError",
+        "error": "The environment is of type <class 'rl_card_lib.env.card_game_env.CardGameEnv'>, not a Gymnasium environment. In this case, we expect OpenAI Gym to be installed and the environment to be an OpenAI Gym environment.",
+        "output": ""
+      },
+      "adapter_env": {
+        "passed": true,
+        "timesteps": 2000,
+        "demo_episode_steps": 300,
+        "demo_episode_reward": -300.0,
+        "invalid_action_rate_note": "SB3 has no action mask, so illegal actions are absorbed by CardGameEnv.invalid_action_reward",
+        "output": ""
+      }
+    }
+  ],
+  "gymnasium_wrappers": {
+    "TimeLimit": {
+      "accepted": false,
+      "error_type": "AssertionError",
+      "error": "Expected env to be a `gymnasium.Env` but got <class 'rl_card_lib.env.card_game_env.CardGameEnv'>"
+    },
+    "RecordEpisodeStatistics": {
+      "accepted": false,
+      "error_type": "AssertionError",
+      "error": "Expected env to be a `gymnasium.Env` but got <class 'rl_card_lib.env.card_game_env.CardGameEnv'>"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+agent,kind,arm,seeds,TEST_before_mean_%,TEST_before_sd_%,TEST_after_mean_%,TEST_after_sd_%,delta_%,TEST_before (mean +/- sd),TEST_after (mean +/- sd),TEST_secondary_mean,TEST_secondary_sd,TRAIN_mean_reward,train_seconds_mean
+Random,baseline,-,1,,,2.5,,,,2.50,0.015,,,
+Heuristic,baseline,-,1,,,54.0,,,,54.00,0.95,,,
+GreedyLookahead(1),baseline,-,1,,,23.5,,,,23.50,0.64,,,
+MCTS(40),baseline,-,1,,,32.0,,,,32.00,0.735,,,
+PPO,learner,asis,3,3.167,2.93,35.5,1.732,32.333,3.2 +/- 2.9,35.5 +/- 1.7,0.7483,0.0202,3.429,266.4
+Double DQN,learner,asis,3,0.0,0.0,7.5,1.0,7.5,0.0 +/- 0.0,7.5 +/- 1.0,0.3417,0.0553,0.455,703.1
+DQN,learner,asis,3,4.333,7.506,7.833,0.577,3.5,4.3 +/- 7.5,7.8 +/- 0.6,0.3517,0.0388,0.101,491.2
+Q-learning,learner,asis,3,2.167,0.289,2.167,1.443,0.0,2.2 +/- 0.3,2.2 +/- 1.4,0.03,0.0,-0.25,57.9
+Double DQN,learner,fixed,3,0.0,0.0,8.667,0.577,8.667,0.0 +/- 0.0,8.7 +/- 0.6,0.3733,0.0289,0.349,691.5
+DQN,learner,fixed,3,4.333,7.506,7.833,1.041,3.5,4.3 +/- 7.5,7.8 +/- 1.0,0.3767,0.0425,0.213,476.7
