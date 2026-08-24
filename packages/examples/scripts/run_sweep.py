@@ -62,6 +62,9 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
     spec = sweep_game(game)
     max_steps = spec.max_steps
     env = spec.env_factory()
+    # A game that declares one gets its periodic evaluation on held-out deals;
+    # otherwise the trainer evaluates in the training env, as before.
+    eval_env = spec.eval_env_factory() if spec.eval_env_factory else None
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, args.seed,
     )
@@ -81,6 +84,7 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
         episodes + 1 if kind == "q_learning" else max(1, episodes // 4)
     )
     trainer_kwargs = dict(
+        eval_env=eval_env,
         checkpoint_dir=checkpoint_dir,
         log_interval=max(1, episodes // 5),
         eval_interval=max(1, episodes // 10),

@@ -5,6 +5,11 @@ so someone experimenting with their own agent can compare against the library's
 learners without retraining them first. `HtmlReport.build(reference_store=...)`
 folds these in only for a game the user is already reporting on, so a custom
 game -- which the library has no runs for -- never shows them.
+
+These runs predate the seeded deal pools (see CHANGELOG, issue #12): they were
+trained and scored on deals drawn from OS entropy, so they are indicative of
+each learner's strength but are not a paired comparison against a run measured
+on TEST_SEEDS. They need re-running.
 """
 from __future__ import annotations
 

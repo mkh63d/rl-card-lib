@@ -13,7 +13,9 @@ from rl_card_lib.trainer import Trainer
 from rl_card_lib.agents import DoubleDQNAgent
 from rl_card_lib.games import KlondikeSolitaire
 
-env = CardGameEnv(KlondikeSolitaire(), max_steps=200)
+from rl_card_lib.harness import TRAIN_SEEDS
+
+env = CardGameEnv(KlondikeSolitaire(), max_steps=200, deal_seeds=TRAIN_SEEDS)
 agent = DoubleDQNAgent(
     state_size=env.observation_space.shape[0],
     action_size=env.action_space.n,
@@ -22,6 +24,41 @@ agent = DoubleDQNAgent(
 trainer = Trainer(env, agent)
 metrics = trainer.train(episodes=1000)
 ```
+
+## Which deals get played
+
+A deal is identified by the seed handed to the game's own RNG. `deal_seeds`
+gives the env a pool to draw each episode's deal from, so the whole sequence
+follows from `deal_rng_seed` alone and the run can be replayed exactly. Leave it
+out and an unseeded `reset()` reshuffles from an RNG nothing seeded — fine for a
+demo, but the deals then differ every run and belong to no declared set.
+
+The library declares two pools in `rl_card_lib.harness.deals`, disjoint by
+construction so no bookkeeping is needed to keep them apart:
+
+| Pool | Seeds | Used for |
+|---|---|---|
+| `TRAIN_SEEDS` | `0 .. 9_999` | every training episode |
+| `TEST_SEEDS` | `100_000 .. 100_199` | evaluations, baselines, the solvable pool |
+
+`evaluation_seeds(n)` returns the **first** `n` held-out deals rather than a
+random sample, so every agent is scored on identical boards and raising the
+episode count keeps every deal already measured. Asking for more than the pool
+holds raises rather than quietly re-dealing.
+
+Pass `eval_env` to get the trainer's periodic evaluation onto held-out deals:
+
+```python
+eval_env = CardGameEnv(KlondikeSolitaire(), max_steps=200,
+                       deal_seeds=TEST_SEEDS, deal_order="cycle")
+trainer = Trainer(env, agent, eval_env=eval_env)
+```
+
+`deal_order="cycle"` walks the pool in order instead of sampling it, and the
+trainer rewinds that cursor before each evaluation — so every point on the
+evaluation curve replays the same deals and the curve tracks the agent rather
+than which deals it happened to draw. The bundled games declare both envs
+through `register_sweep_game`, so `run_sweep.py` gets this for free.
 
 ## Self-play
 

@@ -74,6 +74,40 @@
 
 ### Fixed
 
+- **Training and evaluation deals were unseeded, so no reported number was
+  reproducible** ([#12](https://github.com/mkh63d/rl-card-lib/issues/12)). The
+  trainer called `env.reset()` with no seed, leaving each game to reshuffle from
+  a `random.Random(None)` seeded by OS entropy, and the "fixed-deal" evaluation
+  protocol pinned deals with `random.seed(10_000 + i)` — a global RNG the games
+  never read. Every agent and baseline was therefore scored on a *different*
+  random sample of deals, making the comparisons unpaired on top of being noisy,
+  and there was no train/test split because neither set was defined.
+
+  `CardGameEnv` now takes a `deal_seeds` pool: an unseeded `reset()` draws the
+  episode's deal from it with a private RNG seeded by `deal_rng_seed`, so a whole
+  training run replays from that one number and nothing global is touched (an
+  env without a pool keeps the Gymnasium-standard random deal). Two disjoint
+  pools are declared once in the new `rl_card_lib.harness.deals` — `TRAIN_SEEDS`
+  (`0..9_999`) and `TEST_SEEDS` (`100_000..100_199`) — and `evaluation_seeds(n)`
+  hands out the *first* n held-out deals, so every agent is measured on identical
+  boards and raising `--eval-episodes` keeps the deals already measured.
+  `evaluate_klondike` / `evaluate_macao` / `run_*_baselines` play those seeds
+  through `env.reset(seed=...)` and no longer reseed anything global; they also
+  build one env per measurement instead of one per episode. The solvable-deal
+  pool behind the solve-time benchmark now curates from the held-out range, so
+  trained learners are not benchmarked on deals they trained on.
+- **`Trainer`'s `eval_env` was stored and never read.** `_run_episode` always
+  used `self.env`, so `Trainer(env, agent, eval_env=other)` silently evaluated in
+  the training environment. Evaluation episodes now run in `eval_env`, game-aware
+  agents are rebound to it for the duration and handed back afterwards, and a
+  `deal_order="cycle"` pool is rewound before each evaluation so every point on
+  the evaluation curve replays the same deals. Games declare one through the new
+  `register_sweep_game(eval_env_factory=...)`; the bundled two evaluate on
+  `TEST_SEEDS`, making the report's evaluation curve a held-out curve rather than
+  a training-deal curve. Games that omit it behave exactly as before.
+
+  Every number in `results/` and in the committed reference runs predates this
+  and is not comparable to a number measured after it; they need re-running.
 - **Vanilla `DQNAgent` diverged on both games.** Its TD target maximized over an
   unmasked action set, so illegal-action Q-values — the majority in any card-game
   position — leaked into the bootstrap and compounded through the target network

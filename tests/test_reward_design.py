@@ -456,6 +456,91 @@ class TestRngIsolation:
         assert game._rng.getstate() != clone._rng.getstate()
 
 
+class TestDealPool:
+    """An unseeded reset() draws its deal from a declared pool.
+
+    Without one the game reshuffles from an RNG nothing seeded, which is what
+    made every training run unreproducible and left its deals belonging to no
+    declared set.
+    """
+
+    @staticmethod
+    def _env(**kwargs):
+        return CardGameEnv(KlondikeSolitaire(), max_steps=5, **kwargs)
+
+    def test_no_pool_leaves_an_unseeded_reset_random(self):
+        """The Gymnasium default survives: no pool, no seed, fresh deal."""
+        env = self._env()
+        first, _ = env.reset()
+        second, _ = env.reset()
+        assert not np.array_equal(first, second)
+        assert env.dealt_seeds == []
+
+    def test_pooled_reset_is_reproducible_from_the_deal_rng_seed(self):
+        one = self._env(deal_seeds=range(100), deal_rng_seed=7)
+        two = self._env(deal_seeds=range(100), deal_rng_seed=7)
+        for _ in range(10):
+            one.reset()
+            two.reset()
+        assert one.dealt_seeds == two.dealt_seeds
+        assert len(one.dealt_seeds) == 10
+
+    def test_a_different_deal_rng_seed_gives_a_different_stream(self):
+        one = self._env(deal_seeds=range(1000), deal_rng_seed=0)
+        two = self._env(deal_seeds=range(1000), deal_rng_seed=1)
+        for _ in range(10):
+            one.reset()
+            two.reset()
+        assert one.dealt_seeds != two.dealt_seeds
+
+    def test_every_deal_comes_from_the_pool(self):
+        env = self._env(deal_seeds=[3, 4, 5])
+        for _ in range(20):
+            env.reset()
+        assert set(env.dealt_seeds) <= {3, 4, 5}
+
+    def test_an_explicit_seed_still_wins(self):
+        env = self._env(deal_seeds=range(100))
+        first, _ = env.reset(seed=42)
+        second, _ = env.reset(seed=42)
+        assert np.array_equal(first, second)
+        assert env.last_deal_seed == 42
+
+    def test_cycle_walks_the_pool_in_order_and_wraps(self):
+        env = self._env(deal_seeds=[10, 11, 12], deal_order="cycle")
+        for _ in range(7):
+            env.reset()
+        assert env.dealt_seeds == [10, 11, 12, 10, 11, 12, 10]
+
+    def test_reset_deal_cursor_replays_the_same_deals(self):
+        env = self._env(deal_seeds=[10, 11, 12], deal_order="cycle")
+        env.reset()
+        env.reset()
+        first = list(env.dealt_seeds)
+
+        env.reset_deal_cursor()
+        env.reset()
+        env.reset()
+        assert env.dealt_seeds == first + first
+
+    def test_an_unknown_deal_order_is_rejected(self):
+        with pytest.raises(ValueError, match="deal_order"):
+            self._env(deal_seeds=[1], deal_order="shuffled")
+
+    def test_drawing_deals_touches_no_global_rng(self):
+        python_state = random.getstate()
+        numpy_state = np.random.get_state()
+
+        env = self._env(deal_seeds=range(100), deal_rng_seed=3)
+        for _ in range(5):
+            env.reset()
+
+        assert random.getstate() == python_state
+        numpy_after = np.random.get_state()
+        assert numpy_state[0] == numpy_after[0]
+        assert np.array_equal(numpy_state[1], numpy_after[1])
+
+
 class TestRepeatedPositionHandling:
     """The env can flag and price position repeats generically."""
 

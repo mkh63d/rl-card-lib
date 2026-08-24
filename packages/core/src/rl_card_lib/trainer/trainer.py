@@ -40,7 +40,10 @@ class Trainer:
         Args:
             env: Training environment
             agent: Agent to train
-            eval_env: Optional separate environment for evaluation
+            eval_env: Environment evaluate() plays in (None to reuse `env`).
+                Give it one dealing from a held-out pool and the periodic
+                evaluation measures generalisation instead of replaying
+                training deals.
             checkpoint_dir: Directory to save checkpoints
             log_interval: Episodes between logging
             eval_interval: Episodes between evaluations
@@ -66,6 +69,24 @@ class Trainer:
         self.metrics = TrainingMetrics()
         self._episode_count = 0
         self._total_steps = 0
+
+    def _episode_env(self, training: bool) -> CardGameEnv:
+        """The environment an episode runs in.
+
+        Training episodes always use `env`; evaluation episodes use `eval_env`,
+        which is `env` again unless the caller supplied a separate one.
+        """
+        return self.env if training else self.eval_env
+
+    def _bound_participants(self) -> list:
+        """Participants that read the game object rather than the observation.
+
+        Rule-based and search agents hold a reference to an env, so playing
+        them in a different env means rebinding them to it first -- otherwise
+        they would choose moves by looking at a board nobody is playing.
+        """
+        candidates = (self.agent, getattr(self, "opponent", None))
+        return [p for p in candidates if p is not None and hasattr(p, "bind")]
 
     def _learn(
         self,
@@ -192,21 +213,22 @@ class Trainer:
         Returns:
             Episode metrics dictionary
         """
-        observation, info = self.env.reset()
+        env = self._episode_env(training)
+        observation, info = env.reset()
         self.agent.reset()
-        
+
         episode_reward = 0.0
         episode_steps = 0
         done = False
         losses = []
-        
+
         while not done:
             # Select action
             legal_actions = info.get("legal_actions", None)
             action = self.agent.select_action(observation, legal_actions)
-            
+
             # Execute action
-            next_observation, reward, terminated, truncated, info = self.env.step(action)
+            next_observation, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             
             # Learn
@@ -244,28 +266,45 @@ class Trainer:
         Args:
             episodes: Number of evaluation episodes
             verbose: Whether to show progress
-            
+
         Returns:
             Evaluation metrics
         """
         self.agent.eval()
-        
+
+        separate = self.eval_env is not self.env
+        if separate:
+            # Rewind a dedicated eval env's deal pool so every evaluation point
+            # replays the same deals -- otherwise the curve moves with the
+            # deals as much as with the agent. Never done to a shared env:
+            # `eval_env` defaults to `env`, and rewinding that would restart
+            # the training deal stream mid-run.
+            if hasattr(self.eval_env, "reset_deal_cursor"):
+                self.eval_env.reset_deal_cursor()
+            for participant in self._bound_participants():
+                participant.bind(self.eval_env)
+
         rewards = []
         wins = 0
         steps = []
-        
+
         iterator = range(episodes)
         if verbose:
             iterator = tqdm(iterator, desc="Evaluating", unit="ep")
-        
-        for _ in iterator:
-            metrics = self._run_episode(training=False)
-            rewards.append(metrics["reward"])
-            wins += metrics["win"]
-            steps.append(metrics["steps"])
-        
+
+        try:
+            for _ in iterator:
+                metrics = self._run_episode(training=False)
+                rewards.append(metrics["reward"])
+                wins += metrics["win"]
+                steps.append(metrics["steps"])
+        finally:
+            if separate:
+                for participant in self._bound_participants():
+                    participant.bind(self.env)
+
         self.agent.train()
-        
+
         return {
             "mean_reward": np.mean(rewards),
             "std_reward": np.std(rewards),
@@ -394,7 +433,7 @@ class SelfPlayTrainer(Trainer):
             self.opponent = self._snapshot_agent()
             self._episodes_since_snapshot = 0
 
-    def _current_player(self, fallback: int) -> int:
+    def _current_player(self, fallback: int, env: Optional[CardGameEnv] = None) -> int:
         """
         Ask the game whose turn it is.
 
@@ -404,11 +443,15 @@ class SelfPlayTrainer(Trainer):
 
         Args:
             fallback: Value to use for games that do not track a current player
+            env: Environment being played (defaults to the training one). An
+                evaluation episode runs in `eval_env`, whose game is the one
+                holding the turn.
 
         Returns:
             Index of the player to move
         """
-        return int(getattr(self.env.game, "current_player_idx", fallback))
+        env = self.env if env is None else env
+        return int(getattr(env.game, "current_player_idx", fallback))
 
     def _run_episode(
         self,
@@ -420,7 +463,8 @@ class SelfPlayTrainer(Trainer):
             self._refresh_snapshot_if_due()
             self._episodes_since_snapshot += 1
 
-        observation, info = self.env.reset()
+        env = self._episode_env(training)
+        observation, info = env.reset()
         self.agent.reset()
         if self.opponent is not self.agent:
             self.opponent.reset()
@@ -430,7 +474,7 @@ class SelfPlayTrainer(Trainer):
         done = False
         losses = []
 
-        current_player = self._current_player(0)
+        current_player = self._current_player(0, env)
 
         while not done:
             # Select action based on current player
@@ -446,7 +490,7 @@ class SelfPlayTrainer(Trainer):
                 self.opponent.train()
 
             # Execute action
-            next_observation, reward, terminated, truncated, info = self.env.step(action)
+            next_observation, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
             # The agent is only paid for its own plays, but it is paid whether
@@ -468,7 +512,7 @@ class SelfPlayTrainer(Trainer):
             episode_steps += 1
             self._total_steps += 1
 
-            current_player = self._current_player(1 - current_player)
+            current_player = self._current_player(1 - current_player, env)
 
             if max_steps and episode_steps >= max_steps:
                 break

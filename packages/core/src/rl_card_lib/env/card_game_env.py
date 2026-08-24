@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Optional, Tuple
+import random
+from typing import Any, Iterable, Optional, Tuple
 import numpy as np
 
 try:
@@ -12,6 +13,10 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     gym = None
     spaces = None
+
+
+#: Accepted values for CardGameEnv's `deal_order`.
+DEAL_ORDERS = ("random", "cycle")
 
 
 class CardGameEnv:
@@ -24,6 +29,9 @@ class CardGameEnv:
         render_mode: Optional[str] = None,
         invalid_action_reward: float = -1.0,
         repeated_position_penalty: float = 0.0,
+        deal_seeds: Optional[Iterable[int]] = None,
+        deal_rng_seed: int = 0,
+        deal_order: str = "random",
     ):
         """
         Wrap a game in a Gymnasium-like environment.
@@ -39,12 +47,39 @@ class CardGameEnv:
                 episode. Games with reversible moves let an agent shuffle in
                 circles forever; this makes each lap cost something. Repeats
                 are flagged in info["repeated_position"] either way.
+            deal_seeds: Pool of deal seeds an unseeded reset() draws from (None
+                to leave an unseeded reset random, which is what a Gymnasium env
+                does by default). A pool makes the whole episode stream
+                reproducible from `deal_rng_seed` alone, and lets an experiment
+                say which set of deals it trained or evaluated on -- see
+                `rl_card_lib.harness.deals` for the bundled TRAIN/TEST split.
+            deal_rng_seed: Seeds the private RNG that picks deals out of the
+                pool. Nothing global is read or written, so the deal stream is
+                independent of the agents' exploration noise.
+            deal_order: "random" draws a seed from the pool each episode;
+                "cycle" walks the pool in order and wraps, which is what an
+                evaluation env wants -- combined with reset_deal_cursor() every
+                evaluation then replays the identical deals.
         """
+        if deal_order not in DEAL_ORDERS:
+            raise ValueError(
+                f"deal_order must be one of {DEAL_ORDERS}, got {deal_order!r}"
+            )
+
         self.game = game
         self.max_steps = max_steps
         self.render_mode = render_mode
         self.invalid_action_reward = invalid_action_reward
         self.repeated_position_penalty = repeated_position_penalty
+        self.deal_seeds = list(deal_seeds) if deal_seeds is not None else None
+        self.deal_rng_seed = deal_rng_seed
+        self.deal_order = deal_order
+        #: Every deal seed this env has dealt, in order. The record of what an
+        #: agent was actually trained or measured on.
+        self.dealt_seeds: list[int] = []
+        self.last_deal_seed: Optional[int] = None
+        self._deal_rng = random.Random(deal_rng_seed)
+        self._deal_index = 0
         self._step_count = 0
         self._seen_positions: set[int] = set()
 
@@ -89,8 +124,18 @@ class CardGameEnv:
         silently perturb every other RNG consumer in the process (and never
         made the deal reproducible anyway, since the games shuffle with their
         own RNG).
+
+        When no seed is given, a `deal_seeds` pool supplies one. Without a pool
+        the game reshuffles from its own RNG, which nothing seeded -- fine for a
+        demo, but it makes an experiment's deals unreproducible and leaves them
+        belonging to no declared set.
         """
         self._step_count = 0
+        if seed is None and self.deal_seeds:
+            seed = self._next_deal_seed()
+        self.last_deal_seed = seed
+        if seed is not None:
+            self.dealt_seeds.append(seed)
         if seed is not None and self._game_reset_accepts_seed():
             observation = self.game.reset(seed=seed)
         else:
@@ -101,6 +146,25 @@ class CardGameEnv:
             "legal_actions": self.get_legal_actions(),
         }
         return observation, info
+
+    def _next_deal_seed(self) -> int:
+        """Take the next deal out of the pool, per `deal_order`."""
+        if self.deal_order == "cycle":
+            seed = self.deal_seeds[self._deal_index % len(self.deal_seeds)]
+            self._deal_index += 1
+            return seed
+        return self._deal_rng.choice(self.deal_seeds)
+
+    def reset_deal_cursor(self) -> None:
+        """Rewind the deal pool to its start.
+
+        An evaluation env built with deal_order="cycle" replays the identical
+        deals after this, so two evaluations of the same agent are comparable
+        and two agents are measured on the same board. Never call it on a
+        training env mid-run: that would restart the deal stream.
+        """
+        self._deal_index = 0
+        self._deal_rng = random.Random(self.deal_rng_seed)
 
     def _game_reset_accepts_seed(self) -> bool:
         """Whether the wrapped game's reset() takes a seed keyword.
@@ -198,6 +262,9 @@ class MaskedCardGameEnv(CardGameEnv):
         render_mode: Optional[str] = None,
         invalid_action_reward: float = -1.0,
         repeated_position_penalty: float = 0.0,
+        deal_seeds: Optional[Iterable[int]] = None,
+        deal_rng_seed: int = 0,
+        deal_order: str = "random",
     ):
         super().__init__(
             game,
@@ -205,6 +272,9 @@ class MaskedCardGameEnv(CardGameEnv):
             render_mode=render_mode,
             invalid_action_reward=invalid_action_reward,
             repeated_position_penalty=repeated_position_penalty,
+            deal_seeds=deal_seeds,
+            deal_rng_seed=deal_rng_seed,
+            deal_order=deal_order,
         )
 
         if spaces is not None and self.observation_space is not None:

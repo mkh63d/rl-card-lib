@@ -10,6 +10,8 @@ Macao registrations, but keep pools small.
 import rl_card_lib.games  # noqa: F401  (registers klondike + macao and solvers)
 from rl_card_lib.games import solve_klondike
 from rl_card_lib.harness import (
+    TEST_SEED_START,
+    TRAIN_SEEDS,
     curate_solvable_pool,
     load_trained_learner,
     measure_agent_on_pool,
@@ -126,12 +128,21 @@ class TestCurateSolvablePool:
             assert solve_klondike(env.game) is True
 
     def test_stub_solver_controls_membership(self):
-        # A solver that proves every deal winnable keeps the first `size` seeds.
+        # A solver that proves every deal winnable keeps the first `size` seeds
+        # of the scan, which starts in the held-out range by default so a
+        # trained learner is never benchmarked on a deal it trained on.
         always = _stub_sweep(solve_after=1, solver=lambda g: True)
-        assert curate_solvable_pool(always, 3) == [0, 1, 2]
+        assert curate_solvable_pool(always, 3) == [
+            TEST_SEED_START, TEST_SEED_START + 1, TEST_SEED_START + 2,
+        ]
+        assert curate_solvable_pool(always, 3, start_seed=0) == [0, 1, 2]
         # A solver that never returns True (only None/undecided) yields nothing.
         undecided = _stub_sweep(solve_after=1, solver=lambda g: None)
         assert curate_solvable_pool(undecided, 3, max_scan=10) == []
+
+    def test_default_pool_is_disjoint_from_the_training_deals(self):
+        always = _stub_sweep(solve_after=1, solver=lambda g: True)
+        assert set(curate_solvable_pool(always, 5)).isdisjoint(TRAIN_SEEDS)
 
 
 class TestSinglePlayerGating:

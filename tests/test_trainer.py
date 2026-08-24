@@ -12,7 +12,7 @@ from rl_card_lib.trainer.metrics import TrainingMetrics
 from rl_card_lib.trainer.trainer import Trainer, SelfPlayTrainer
 from rl_card_lib.games import KlondikeSolitaire, Macao
 from rl_card_lib.env import CardGameEnv
-from rl_card_lib.agents import RandomAgent, DQNAgent
+from rl_card_lib.agents import RandomAgent, DQNAgent, GreedyLookaheadAgent
 
 
 class TestTrainingMetrics:
@@ -180,6 +180,79 @@ class TestTrainer:
         # Check that checkpoint was saved
         files = os.listdir(tmp_path)
         assert any("checkpoint" in f for f in files)
+
+
+class TestTrainerDeals:
+    """Which deals a training run plays, and that it can be replayed."""
+
+    @staticmethod
+    def _trainer(env, **kwargs):
+        agent = RandomAgent(action_size=env.action_space.n, seed=42)
+        return Trainer(env, agent, log_interval=10**9, eval_interval=10**9,
+                       **kwargs)
+
+    @staticmethod
+    def _pooled(**kwargs):
+        return CardGameEnv(KlondikeSolitaire(), max_steps=10,
+                           deal_seeds=range(500), **kwargs)
+
+    def test_two_runs_train_on_the_identical_deals(self):
+        """The whole training deal stream follows from deal_rng_seed alone."""
+        first, second = self._pooled(deal_rng_seed=1), self._pooled(deal_rng_seed=1)
+        self._trainer(first).train(episodes=6, verbose=False)
+        self._trainer(second).train(episodes=6, verbose=False)
+
+        assert first.dealt_seeds == second.dealt_seeds
+        assert len(first.dealt_seeds) == 6
+
+    def test_evaluation_runs_in_the_eval_env(self):
+        train_env = self._pooled()
+        eval_env = CardGameEnv(KlondikeSolitaire(), max_steps=10,
+                               deal_seeds=[900, 901], deal_order="cycle")
+        trainer = self._trainer(train_env, eval_env=eval_env)
+
+        trainer.evaluate(episodes=2, verbose=False)
+
+        # The evaluation played held-out deals and left the training deal
+        # stream alone -- eval_env used to be stored and never read.
+        assert eval_env.dealt_seeds == [900, 901]
+        assert train_env.dealt_seeds == []
+
+    def test_every_evaluation_replays_the_same_deals(self):
+        train_env = self._pooled()
+        eval_env = CardGameEnv(KlondikeSolitaire(), max_steps=10,
+                               deal_seeds=[900, 901, 902], deal_order="cycle")
+        trainer = self._trainer(train_env, eval_env=eval_env)
+
+        trainer.evaluate(episodes=2, verbose=False)
+        trainer.evaluate(episodes=2, verbose=False)
+
+        assert eval_env.dealt_seeds == [900, 901, 900, 901]
+
+    def test_evaluation_does_not_rewind_a_shared_env(self):
+        """With no separate eval env, evaluating must not restart training deals."""
+        env = self._pooled(deal_order="cycle")
+        trainer = self._trainer(env)
+
+        trainer.train(episodes=2, verbose=False)
+        trainer.evaluate(episodes=2, verbose=False)
+
+        assert env.dealt_seeds == [0, 1, 2, 3]
+
+    def test_bound_agents_follow_the_eval_env_and_come_back(self):
+        """A game-reading agent must not judge the eval board from the training one."""
+        train_env = self._pooled()
+        eval_env = CardGameEnv(KlondikeSolitaire(), max_steps=10,
+                               deal_seeds=[900], deal_order="cycle")
+        agent = GreedyLookaheadAgent(depth=1, seed=0)
+        trainer = Trainer(train_env, agent, eval_env=eval_env,
+                          log_interval=10**9, eval_interval=10**9)
+        assert agent.game is train_env.game
+
+        trainer.evaluate(episodes=1, verbose=False)
+
+        assert eval_env.dealt_seeds == [900]      # it really played there
+        assert agent.game is train_env.game       # and was handed back
 
 
 class TestSelfPlayTrainer:
