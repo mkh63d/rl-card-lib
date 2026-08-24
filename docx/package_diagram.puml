@@ -5,6 +5,21 @@
 skinparam packageStyle rectangle
 skinparam backgroundColor white
 skinparam shadowing false
+left to right direction
+
+skinparam nodesep 15
+skinparam ranksep 20
+skinparam wrapWidth 180
+skinparam linetype ortho
+
+scale 1000 width
+skinparam dpi 600
+
+skinparam ClassFontSize 14
+skinparam ComponentFontSize 14
+skinparam PackageFontSize 16
+skinparam NoteFontSize 12
+skinparam ArrowFontSize 12
 
 title RL Card Library - Package Diagram
 
