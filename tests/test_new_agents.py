@@ -508,13 +508,13 @@ class TestQLearningAgent:
         agent = QLearningAgent(action_size=3, epsilon_start=1.0, epsilon_decay=0.9, seed=0)
         observation = np.ones(2, dtype=np.float32)
 
-        # Learning steps must not decay epsilon, and neither must the reset
-        # that opens the first episode; the second reset applies one decay.
+        # Neither a learning step nor a reset decays epsilon -- reset() runs
+        # for evaluation episodes too. Closing a training episode is what does.
         agent.learn(observation, 0, 1.0, observation, False)
         assert agent.epsilon == 1.0
         agent.reset()
         assert agent.epsilon == 1.0
-        agent.reset()
+        agent.on_episode_end()
         assert agent.epsilon == pytest.approx(0.9)
 
     def test_save_load_roundtrip(self, tmp_path):

@@ -400,7 +400,7 @@ class DQNAgent(Agent):
 
         return {"loss": loss.item()}
 
-    def reset(self) -> None:
+    def on_episode_end(self) -> None:
         """
         Count the episode and decay epsilon.
 
@@ -408,11 +408,16 @@ class DQNAgent(Agent):
         decay made the effective schedule depend on episode length: a 300-step
         Klondike episode used to burn 300 decays, so a "9000-step" schedule was
         exhausted after 20 episodes and training was greedy for the other 99.6%.
+
+        Decaying at the *end* of a training episode rather than at the start of
+        the next one is what keeps evaluation side-effect free: `reset()` runs
+        for measured episodes too, and decaying there let the number of
+        evaluation deals move the schedule.
         """
-        if self.episodes > 0 and self.epsilon > self.epsilon_end:
+        if self.epsilon > self.epsilon_end:
             self.epsilon *= self.epsilon_decay
         self.episodes += 1
-    
+
     def save(self, path: str) -> None:
         """
         Save agent state to file.

@@ -172,14 +172,16 @@ class QLearningAgent(Agent):
 
         return {"loss": abs(float(td_error))}
 
-    def reset(self) -> None:
+    def on_episode_end(self) -> None:
         """
         Count the episode and decay epsilon.
 
         Decaying here rather than in learn() keeps the exploration schedule in
-        episodes, independent of how many steps each episode happens to take.
+        episodes, independent of how many steps each episode happens to take;
+        decaying here rather than in reset() keeps it independent of how often
+        the agent was evaluated, since evaluation resets an episode too.
         """
-        if self.episodes > 0 and self.epsilon > self.epsilon_end:
+        if self.epsilon > self.epsilon_end:
             self.epsilon *= self.epsilon_decay
         self.episodes += 1
 

@@ -35,10 +35,13 @@ The main use cases for the three actors the library serves.
 
 ## Sequence diagram
 
-The DQN training workflow end to end: initialization, per-episode `agent.reset()`
-(where epsilon decays once per episode), the episode loop with masked
-exploitation, the optional self-play path (a frozen opponent snapshot refreshed
-every `opponent_update_interval` episodes), environment stepping, experience
-replay and target-network updates, then metrics, evaluation and checkpointing.
+The DQN training workflow end to end: initialization, the per-episode
+`agent.reset()`, the episode loop with masked exploitation, the optional
+self-play path (a frozen opponent snapshot refreshed every
+`opponent_update_interval` episodes), environment stepping, experience replay
+and target-network updates, the closing `agent.on_episode_end()` where epsilon
+decays once per training episode, then metrics, evaluation and checkpointing.
+`reset()` deliberately does no decaying: evaluation resets an episode too, and
+measuring an agent must not move the schedule it is measuring.
 
 [![Sequence diagram](assets/diagrams/sequence_diagram.svg){ loading=lazy }](assets/diagrams/sequence_diagram.svg)

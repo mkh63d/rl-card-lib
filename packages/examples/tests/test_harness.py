@@ -209,6 +209,40 @@ class TestEpisodeRecorder:
 
         assert all(0.0 <= v <= 1.0 for v in extras["epsilon"])
 
+    def test_epsilon_series_is_the_rate_each_episode_was_played_at(self):
+        """Episode k must be recorded at `start * decay**k`.
+
+        The agent decays epsilon in on_episode_end(), which has already run by
+        the time the callback fires, so reading the agent there would record
+        the *next* episode's rate and shift the whole chart forward by one.
+        """
+        env, agent, extras_fn = self.build("dqn")
+        agent.epsilon = agent.epsilon_start = 1.0
+        agent.epsilon_end, agent.epsilon_decay = 0.0, 0.5
+        trainer = Trainer(env, agent, log_interval=100, eval_interval=10_000)
+        callback, extras = make_episode_recorder(env, agent, extras_fn)
+
+        trainer.train(
+            episodes=4, max_steps_per_episode=15, verbose=False, callback=callback,
+        )
+
+        assert extras["epsilon"] == pytest.approx([1.0, 0.5, 0.25, 0.125])
+
+    def test_epsilon_series_survives_a_mid_training_evaluation(self):
+        """An evaluation between episodes must not appear in the schedule."""
+        env, agent, extras_fn = self.build("dqn")
+        agent.epsilon = agent.epsilon_start = 1.0
+        agent.epsilon_end, agent.epsilon_decay = 0.0, 0.5
+        trainer = Trainer(env, agent, log_interval=100, eval_interval=2,
+                          eval_episodes=3)
+        callback, extras = make_episode_recorder(env, agent, extras_fn)
+
+        trainer.train(
+            episodes=4, max_steps_per_episode=15, verbose=False, callback=callback,
+        )
+
+        assert extras["epsilon"] == pytest.approx([1.0, 0.5, 0.25, 0.125])
+
     def test_epsilon_is_absent_for_ppo(self):
         env, agent, extras_fn = self.build("ppo")
         trainer = Trainer(env, agent, log_interval=100, eval_interval=10_000)

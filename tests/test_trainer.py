@@ -485,7 +485,10 @@ class TestTimeLimitBootstrap:
         assert last["next_legal_actions"] is not None
 
     def test_selfplay_capped_episodes_report_no_terminal_transition(self):
-        env = CardGameEnv(Macao(num_players=2), max_steps=10)
+        # Seeded: an unseeded Macao deals a hand a player can empty inside the
+        # 10-step cap often enough to flake, and the assertion below is that
+        # nothing terminated.
+        env = CardGameEnv(Macao(num_players=2, seed=0), max_steps=10)
         agent = self.RecordingAgent(accepts_truncated=True)
         trainer = SelfPlayTrainer(env, agent, opponent_update_interval=10**9)
 
@@ -494,6 +497,99 @@ class TestTimeLimitBootstrap:
         assert agent.calls, "the agent never played"
         assert not any(call["done"] for call in agent.calls)
         assert any(call["truncated"] for call in agent.calls)
+
+
+class TestEvaluationIsSideEffectFree:
+    """Measuring an agent must not advance its exploration schedule.
+
+    Epsilon decayed in `Agent.reset()`, which every episode calls -- evaluation
+    episodes included. So an evaluation permanently moved the schedule of the
+    agent it was measuring, and the `epsilon` recorded in every run record as
+    the *start* value was really the value after the pre-training evaluation:
+    0.8647 rather than 1.0 for a 30-deal Klondike protocol.
+    """
+
+    @staticmethod
+    def _agent(env, **kwargs):
+        return DQNAgent(
+            state_size=env.observation_space.shape[0],
+            action_size=env.action_space.n,
+            hidden_sizes=[16], device="cpu", batch_size=4, buffer_size=100,
+            epsilon_start=1.0, epsilon_end=0.0, epsilon_decay=0.9, **kwargs
+        )
+
+    def test_evaluate_does_not_move_epsilon(self):
+        env = CardGameEnv(KlondikeSolitaire(), max_steps=10)
+        agent = self._agent(env)
+        trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
+
+        trainer.evaluate(episodes=8, verbose=False)
+
+        assert agent.epsilon == 1.0
+        assert agent.episodes == 0
+
+    def test_evaluation_episode_count_does_not_change_the_schedule(self):
+        """The whole point: the schedule is a training setting, not a reporting one."""
+        schedules = []
+        for eval_episodes in (2, 20):
+            env = CardGameEnv(KlondikeSolitaire(), max_steps=10)
+            agent = self._agent(env)
+            trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
+
+            trainer.evaluate(episodes=eval_episodes, verbose=False)
+            trainer.train(episodes=5, max_steps_per_episode=10, verbose=False)
+            schedules.append(agent.epsilon)
+
+        assert schedules[0] == pytest.approx(schedules[1])
+        assert schedules[0] == pytest.approx(0.9 ** 5)
+
+    def test_training_still_decays(self):
+        """The fix must not have quietly disabled exploration decay."""
+        env = CardGameEnv(KlondikeSolitaire(), max_steps=10)
+        agent = self._agent(env)
+        trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
+
+        for _ in range(4):
+            trainer._run_episode(training=True, max_steps=10)
+
+        assert agent.epsilon == pytest.approx(0.9 ** 4)
+        assert agent.episodes == 4
+
+    def test_selfplay_training_still_decays(self):
+        env = CardGameEnv(Macao(num_players=2), max_steps=10)
+        agent = self._agent(env)
+        trainer = SelfPlayTrainer(env, agent, opponent_update_interval=10**9)
+
+        for _ in range(4):
+            trainer._run_episode(training=True, max_steps=10)
+
+        assert agent.epsilon == pytest.approx(0.9 ** 4)
+        assert agent.episodes == 4
+
+    def test_selfplay_evaluation_does_not_move_epsilon(self):
+        env = CardGameEnv(Macao(num_players=2), max_steps=10)
+        agent = self._agent(env)
+        trainer = SelfPlayTrainer(env, agent, opponent_update_interval=10**9)
+
+        for _ in range(4):
+            trainer._run_episode(training=False, max_steps=10)
+
+        assert agent.epsilon == 1.0
+        assert agent.episodes == 0
+
+    def test_frozen_opponent_does_not_decay(self):
+        """A snapshot playing its part in the agent's episode is not training."""
+        env = CardGameEnv(Macao(num_players=2), max_steps=10)
+        agent = self._agent(env)
+        opponent = self._agent(env)
+        trainer = SelfPlayTrainer(env, agent, opponent=opponent,
+                                  opponent_update_interval=10**9)
+
+        for _ in range(4):
+            trainer._run_episode(training=True, max_steps=10)
+
+        assert opponent.epsilon == 1.0
+        assert opponent.episodes == 0
 
 
 class TestTrainerVerbose:

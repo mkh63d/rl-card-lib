@@ -6,6 +6,11 @@ holds its terminal position when we look at it. `Trainer.evaluate()` calls
 `_run_episode` directly and does not fire the callback, so mid-training
 evaluations cannot pollute these series.
 
+Most of what is captured describes the episode that just ended, which is what
+"after the episode" gives you. Epsilon is the exception: it describes how the
+episode was *played*, and the agent has already decayed it by the time the
+callback runs, so it is recorded one call behind (see `callback` below).
+
 This is why no change to the core trainer was needed to chart cards-to-
 foundation, the exploration schedule, or Q-table growth.
 """
@@ -41,14 +46,20 @@ def make_episode_recorder(
     extras: dict = {"epsilon": [], "wall_clock": [], "table_size": []}
     game = getattr(env, "game", None)
     last = {"at": time.perf_counter()}
+    # Absent on PPO, which explores by sampling its policy.
+    played_at = {"epsilon": getattr(agent, "epsilon", None)}
 
     def callback(episode_metrics: dict) -> bool:
         now = time.perf_counter()
         extras["wall_clock"].append(now - last["at"])
         last["at"] = now
 
-        # Absent on PPO, which explores by sampling its policy.
-        extras["epsilon"].append(getattr(agent, "epsilon", None))
+        # The rate the finished episode was *played* at, not the one the next
+        # will use: the agent decays epsilon in on_episode_end(), which has
+        # already run by the time this callback fires. Reading the agent
+        # directly here would shift the whole series forward by one episode.
+        extras["epsilon"].append(played_at["epsilon"])
+        played_at["epsilon"] = getattr(agent, "epsilon", None)
         # Present only on the tabular agent; this is the series that shows the
         # table growing without bound.
         extras["table_size"].append(getattr(agent, "table_size", None))
