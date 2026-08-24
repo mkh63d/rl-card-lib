@@ -1,0 +1,205 @@
+{
+  "klondike.py": {
+    "path": "packages/examples/src/rl_card_lib/games/klondike.py",
+    "total_lines": 640,
+    "code_lines": 436,
+    "classes": [
+      [
+        "KlondikeSolitaire",
+        21
+      ]
+    ],
+    "methods_in_classes": 21,
+    "module_level_functions": 1,
+    "method_names": {
+      "KlondikeSolitaire": [
+        "__init__",
+        "reset",
+        "get_observation",
+        "get_observation_shape",
+        "get_action_space_size",
+        "get_legal_actions",
+        "_can_place_on_tableau",
+        "_can_place_on_foundation",
+        "step",
+        "_can_recycle",
+        "_draw_from_stock",
+        "_move_waste_to_tableau",
+        "_move_waste_to_foundation",
+        "_move_tableau_to_foundation",
+        "_move_tableau_to_tableau",
+        "_check_win",
+        "is_game_over",
+        "copy",
+        "determinize",
+        "render",
+        "action_to_string"
+      ]
+    },
+    "contract_implemented": [
+      "get_action_space_size",
+      "get_legal_actions",
+      "get_observation",
+      "get_observation_shape",
+      "is_game_over",
+      "reset",
+      "step"
+    ],
+    "contract_missing": [],
+    "own_methods": 21
+  },
+  "macao.py": {
+    "path": "packages/examples/src/rl_card_lib/games/macao.py",
+    "total_lines": 693,
+    "code_lines": 493,
+    "classes": [
+      [
+        "Macao",
+        17
+      ]
+    ],
+    "methods_in_classes": 17,
+    "module_level_functions": 1,
+    "method_names": {
+      "Macao": [
+        "__init__",
+        "reset",
+        "get_observation",
+        "get_observation_shape",
+        "get_action_space_size",
+        "get_legal_actions",
+        "_can_play_card",
+        "_is_draw_card",
+        "_get_draw_penalty",
+        "step",
+        "_finish_step",
+        "get_reward",
+        "is_game_over",
+        "copy",
+        "determinize",
+        "render",
+        "action_to_string"
+      ]
+    },
+    "contract_implemented": [
+      "get_action_space_size",
+      "get_legal_actions",
+      "get_observation",
+      "get_observation_shape",
+      "is_game_over",
+      "reset",
+      "step"
+    ],
+    "contract_missing": [],
+    "own_methods": 17
+  },
+  "klondike_solver.py": {
+    "path": "packages/examples/src/rl_card_lib/games/klondike_solver.py",
+    "total_lines": 132,
+    "code_lines": 103,
+    "classes": [],
+    "methods_in_classes": 0,
+    "module_level_functions": 3,
+    "method_names": {}
+  },
+  "heuristics.py": {
+    "path": "packages/examples/src/rl_card_lib/games/heuristics.py",
+    "total_lines": 299,
+    "code_lines": 227,
+    "classes": [
+      [
+        "KlondikeHeuristicAgent",
+        8
+      ],
+      [
+        "MacaoHeuristicAgent",
+        3
+      ]
+    ],
+    "methods_in_classes": 11,
+    "module_level_functions": 0,
+    "method_names": {
+      "KlondikeHeuristicAgent": [
+        "__init__",
+        "reset",
+        "select_action",
+        "_foundation_rank",
+        "_is_safe_to_foundation",
+        "_reveals_by_removing_top",
+        "_tableau_move_index",
+        "score_action"
+      ],
+      "MacaoHeuristicAgent": [
+        "__init__",
+        "score_action",
+        "_score_declaration"
+      ]
+    }
+  },
+  "game.py": {
+    "path": "packages/core/src/rl_card_lib/core/game.py",
+    "total_lines": 163,
+    "code_lines": 129,
+    "classes": [
+      [
+        "Game",
+        19
+      ]
+    ],
+    "methods_in_classes": 19,
+    "module_level_functions": 0,
+    "method_names": {
+      "Game": [
+        "__init__",
+        "reset",
+        "step",
+        "get_legal_actions",
+        "get_observation",
+        "get_action_space_size",
+        "get_observation_shape",
+        "is_game_over",
+        "get_current_player",
+        "next_player",
+        "action_to_string",
+        "render",
+        "get_reward",
+        "get_winner",
+        "log_action",
+        "get_history",
+        "get_legal_action_mask",
+        "copy",
+        "determinize"
+      ]
+    }
+  },
+  "card_game.py": {
+    "path": "packages/cardgames/src/rl_card_lib/cardgames/card_game.py",
+    "total_lines": 63,
+    "code_lines": 46,
+    "classes": [
+      [
+        "CardGame",
+        13
+      ]
+    ],
+    "methods_in_classes": 13,
+    "module_level_functions": 0,
+    "method_names": {
+      "CardGame": [
+        "__init__",
+        "reset",
+        "step",
+        "get_legal_actions",
+        "get_observation",
+        "get_action_space_size",
+        "get_observation_shape",
+        "is_game_over",
+        "get_current_player",
+        "next_player",
+        "get_reward",
+        "get_winner",
+        "copy"
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+configuration,episodes,mean_steps,median_steps,min_steps,max_steps,terminated_rate,truncated_rate,win_rate,mean_cards_up
+klondike_random,200,300.0,300.0,300,300,0.0,1.0,0.0,11.59
+klondike_heuristic,200,230.7,300.0,108,300,0.455,0.545,0.455,28.74
+klondike_random_max_passes_3,200,290.6,300.0,69,300,0.045,0.955,0.0,9.79
+klondike_heuristic_max_passes_3,200,237.5,300.0,68,300,0.4,0.6,0.385,25.84
+macao_random_vs_random,200,195.9,200.0,10,200,0.03,0.97,0.015,
+macao_heuristic_vs_heuristic,200,38.7,34.0,9,200,0.995,0.005,0.555,
+macao_random_vs_heuristic,200,67.9,59.5,10,200,0.955,0.045,0.005,

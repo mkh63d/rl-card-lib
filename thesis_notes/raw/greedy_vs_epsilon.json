@@ -1,0 +1,98 @@
+{
+  "pool": "TEST (200 deals, seeds 100000-100199)",
+  "note": "same weights, only the action-selection rule differs",
+  "klondike": {
+    "dqn": [
+      {
+        "epsilon": 0.0,
+        "cards_up": 5.845,
+        "cards_up_sd": 3.663,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.8076
+      },
+      {
+        "epsilon": 0.05,
+        "cards_up": 8.13,
+        "cards_up_sd": 5.833,
+        "win_rate": 0.005,
+        "repeated_position_frac": 0.7083
+      },
+      {
+        "epsilon": 0.2,
+        "cards_up": 13.55,
+        "cards_up_sd": 12.267,
+        "win_rate": 0.055,
+        "repeated_position_frac": 0.5533
+      }
+    ],
+    "double_dqn": [
+      {
+        "epsilon": 0.0,
+        "cards_up": 5.14,
+        "cards_up_sd": 3.521,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.8396
+      },
+      {
+        "epsilon": 0.05,
+        "cards_up": 6.44,
+        "cards_up_sd": 4.179,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.7693
+      },
+      {
+        "epsilon": 0.2,
+        "cards_up": 10.465,
+        "cards_up_sd": 8.084,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.6166
+      }
+    ],
+    "ppo": [
+      {
+        "epsilon": 0.0,
+        "cards_up": 7.535,
+        "cards_up_sd": 5.533,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.7804
+      },
+      {
+        "epsilon": 0.05,
+        "cards_up": 13.9,
+        "cards_up_sd": 14.517,
+        "win_rate": 0.105,
+        "repeated_position_frac": 0.6384
+      },
+      {
+        "epsilon": 0.2,
+        "cards_up": 20.605,
+        "cards_up_sd": 18.948,
+        "win_rate": 0.24,
+        "repeated_position_frac": 0.468
+      }
+    ],
+    "q_learning": [
+      {
+        "epsilon": 0.0,
+        "cards_up": 11.245,
+        "cards_up_sd": 6.767,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.2295
+      },
+      {
+        "epsilon": 0.05,
+        "cards_up": 12.075,
+        "cards_up_sd": 7.683,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.2293
+      },
+      {
+        "epsilon": 0.2,
+        "cards_up": 11.91,
+        "cards_up_sd": 7.221,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.2392
+      }
+    ]
+  }
+}

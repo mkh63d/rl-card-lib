@@ -1,0 +1,26 @@
+{
+  "klondike_dqn": {
+    "positions": 9000,
+    "mean_legal_Q": 0.751,
+    "mean_legal_Q_spread": 0.0659,
+    "spread_as_pct_of_mean_Q": 8.8
+  },
+  "klondike_double_dqn": {
+    "positions": 9000,
+    "mean_legal_Q": 1.015,
+    "mean_legal_Q_spread": 0.3374,
+    "spread_as_pct_of_mean_Q": 33.3
+  },
+  "macao_dqn": {
+    "positions": 2593,
+    "mean_legal_Q": 6.436,
+    "mean_legal_Q_spread": 1.3801,
+    "spread_as_pct_of_mean_Q": 21.4
+  },
+  "macao_double_dqn": {
+    "positions": 2782,
+    "mean_legal_Q": 5.254,
+    "mean_legal_Q_spread": 0.8772,
+    "spread_as_pct_of_mean_Q": 16.7
+  }
+}
