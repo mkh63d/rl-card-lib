@@ -34,6 +34,32 @@ comparison in a card game is not between two learners, but between *learning*,
     make the trained greedy policy *worse* than an untrained one. Every learner
     here masks to the next state's legal actions.
 
+!!! note "Why the step cap is not an ending"
+    An episode can stop for two different reasons, and only one of them is a
+    fact about the game. `terminated` means the game reached a terminal state —
+    the future really is worth nothing. `truncated` means the step cap fired
+    while the game was still going, and the state it stopped at is worth
+    whatever the value function says. `Trainer` reports only `terminated` as
+    `done`, so a capped episode keeps its bootstrap. Collapsing the two used to
+    zero the target on the last transition of *every* Klondike episode, since
+    every one of them ended at the cap.
+
+### Writing a learner of your own
+
+`learn(observation, action, reward, next_observation, done)` is the whole
+contract, and `done` is enough for anything that only bootstraps. Two class
+flags ask `Trainer` for more:
+
+| Flag | Adds to `learn()` | Ask for it when |
+|---|---|---|
+| `accepts_next_legal_actions` | `next_legal_actions=[...]` | you maximize over the next state and want the illegal actions masked out |
+| `accepts_truncated` | `truncated=bool` | you hold several episodes in one buffer, so you need the boundary itself — `done` no longer marks a capped one |
+
+`PPOAgent` needs the second: its rollout spans episode resets, so it uses
+`truncated` to bootstrap through the cap while still cutting the advantage
+trace at the boundary. Leave both flags alone and your five-argument `learn()`
+is called exactly as before.
+
 ## Game-aware vs. observation-only agents
 
 Search and rule agents need the **game object** (to copy it, step it, and read

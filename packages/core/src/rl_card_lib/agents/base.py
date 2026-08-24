@@ -19,6 +19,13 @@ class Agent(ABC):
     #: argument to those that opt in.
     accepts_next_legal_actions: bool = False
 
+    #: Set True by agents whose learn() takes a `truncated` keyword. `done`
+    #: means the game reached a terminal state, never that the step cap fired,
+    #: so an agent that only bootstraps needs nothing more. Agents that hold
+    #: several episodes in one buffer need the boundary itself, so Trainer
+    #: passes it to those that opt in.
+    accepts_truncated: bool = False
+
     def __init__(self, name: str = "Agent"):
         """
         Initialize the agent.
@@ -65,8 +72,12 @@ class Agent(ABC):
             action: Action taken
             reward: Reward received
             next_observation: State after action
-            done: Whether episode ended
-            
+            done: Whether the game reached a terminal state. An episode cut
+                short by the step cap is *not* done -- its future is still
+                worth bootstrapping, and agents that need to know where the
+                episode ended anyway opt into `truncated` via
+                `accepts_truncated`.
+
         Returns:
             Optional dict with learning metrics
         """

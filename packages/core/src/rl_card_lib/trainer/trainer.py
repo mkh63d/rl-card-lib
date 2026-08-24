@@ -97,14 +97,17 @@ class Trainer:
         next_observation: np.ndarray,
         done: bool,
         info: dict,
+        truncated: bool = False,
     ) -> Optional[dict]:
         """
-        Hand a transition to an agent, including next-state legality if it wants it.
+        Hand a transition to an agent, including whatever extras it asks for.
 
         Agents that mask their bootstrap need to know which actions the next
-        state allows, which only the post-step info dict knows. Passing it
-        unconditionally would break every agent with a five-argument learn(), so
-        it goes only to those advertising accepts_next_legal_actions.
+        state allows, which only the post-step info dict knows; agents that
+        pack several episodes into one buffer need to know where an episode was
+        cut by the step cap, which `done` deliberately no longer says. Passing
+        either unconditionally would break every agent with a five-argument
+        learn(), so each goes only to those advertising it.
 
         Args:
             agent: Agent to update
@@ -112,18 +115,22 @@ class Trainer:
             action: Action taken
             reward: Reward received
             next_observation: State after action
-            done: Whether episode ended
+            done: Whether the game reached a terminal state -- *not* whether
+                the episode stopped, which the step cap can also cause
             info: Info dict returned by the step, holding the next legal actions
+            truncated: Whether the step cap ended the episode here
 
         Returns:
             Whatever the agent's learn() returned
         """
+        extras = {}
         if getattr(agent, "accepts_next_legal_actions", False):
-            return agent.learn(
-                observation, action, reward, next_observation, done,
-                next_legal_actions=info.get("legal_actions"),
-            )
-        return agent.learn(observation, action, reward, next_observation, done)
+            extras["next_legal_actions"] = info.get("legal_actions")
+        if getattr(agent, "accepts_truncated", False):
+            extras["truncated"] = truncated
+        return agent.learn(
+            observation, action, reward, next_observation, done, **extras,
+        )
 
     def train(
         self,
@@ -229,13 +236,17 @@ class Trainer:
 
             # Execute action
             next_observation, reward, terminated, truncated, info = env.step(action)
+            # The loop stops on either flag, but only a real termination is
+            # reported to the learner: a step cut by the cap still has a future
+            # worth bootstrapping, and zeroing it there biases every target on
+            # the last transition of every capped episode.
             done = terminated or truncated
-            
+
             # Learn
             if training:
                 learn_result = self._learn(
                     self.agent, observation, action, reward,
-                    next_observation, done, info,
+                    next_observation, terminated, info, truncated=truncated,
                 )
                 if learn_result and "loss" in learn_result:
                     losses.append(learn_result["loss"])
@@ -491,6 +502,8 @@ class SelfPlayTrainer(Trainer):
 
             # Execute action
             next_observation, reward, terminated, truncated, info = env.step(action)
+            # Ends the loop on either flag; only `terminated` reaches the
+            # learner. See Trainer._run_episode.
             done = terminated or truncated
 
             # The agent is only paid for its own plays, but it is paid whether
@@ -503,7 +516,7 @@ class SelfPlayTrainer(Trainer):
                 if training:
                     learn_result = self._learn(
                         self.agent, observation, action, reward,
-                        next_observation, done, info,
+                        next_observation, terminated, info, truncated=truncated,
                     )
                     if learn_result and "loss" in learn_result:
                         losses.append(learn_result["loss"])

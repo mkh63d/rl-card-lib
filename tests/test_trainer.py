@@ -13,6 +13,7 @@ from rl_card_lib.trainer.trainer import Trainer, SelfPlayTrainer
 from rl_card_lib.games import KlondikeSolitaire, Macao
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import RandomAgent, DQNAgent, GreedyLookaheadAgent
+from rl_card_lib.agents.base import Agent
 
 
 class TestTrainingMetrics:
@@ -387,6 +388,112 @@ class TestSelfPlayTrainer:
 
         trainer._run_episode(training=True, max_steps=20)
         assert agent.learn_calls > 0
+
+
+class TestTimeLimitBootstrap:
+    """What the trainer reports as `done`.
+
+    The loop ends on `terminated or truncated`, but only a termination is a
+    terminal state. Collapsing the two taught every learner that the state at
+    the step cap is worth its immediate reward and nothing more -- on Klondike,
+    where every episode used to end that way, the last transition of every
+    single episode.
+    """
+
+    class RecordingAgent(Agent):
+        """Stores the flags every transition arrived with."""
+
+        def __init__(self, **flags):
+            super().__init__(name="RecordingAgent")
+            self.action_size = 52
+            self.calls = []
+            for name, value in flags.items():
+                setattr(self, name, value)
+
+        def select_action(self, obs, legal_actions=None):
+            return legal_actions[0] if legal_actions else 0
+
+        def learn(self, obs, action, reward, next_obs, done, **kwargs):
+            self.calls.append({"done": done, **kwargs})
+            return None
+
+        def save(self, path): pass
+        def load(self, path): pass
+
+    def test_a_capped_episode_reports_no_terminal_transition(self):
+        env = CardGameEnv(KlondikeSolitaire(), max_steps=15)
+        agent = self.RecordingAgent()
+        trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
+
+        trainer.train(episodes=4, verbose=False)
+
+        # The episodes really did run and really did stop at the cap.
+        assert len(agent.calls) == 60
+        assert not any(call["done"] for call in agent.calls)
+
+    def test_a_real_termination_still_reports_done(self):
+        """Guard against fixing the bias by never reporting terminal at all."""
+        env = CardGameEnv(KlondikeSolitaire(), max_steps=15)
+        agent = self.RecordingAgent()
+        trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
+
+        # Terminate the game two steps in, without truncating.
+        real_step = env.step
+        countdown = [2]
+
+        def terminating_step(action):
+            observation, reward, terminated, truncated, info = real_step(action)
+            countdown[0] -= 1
+            return observation, reward, countdown[0] <= 0, truncated, info
+
+        env.step = terminating_step
+        trainer.train(episodes=1, verbose=False)
+
+        assert [call["done"] for call in agent.calls] == [False, True]
+
+    def test_the_truncation_flag_reaches_agents_that_ask_for_it(self):
+        env = CardGameEnv(KlondikeSolitaire(), max_steps=6)
+        agent = self.RecordingAgent(accepts_truncated=True)
+        trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
+
+        trainer.train(episodes=1, verbose=False)
+
+        assert [call["truncated"] for call in agent.calls] == [False] * 5 + [True]
+        assert not any(call["done"] for call in agent.calls)
+
+    def test_agents_that_do_not_ask_never_see_the_keyword(self):
+        """A plain five-argument learn() must keep working untouched."""
+        env = CardGameEnv(KlondikeSolitaire(), max_steps=6)
+        agent = self.RecordingAgent()
+        trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
+
+        trainer.train(episodes=1, verbose=False)
+
+        assert all(call.keys() == {"done"} for call in agent.calls)
+
+    def test_both_opt_ins_compose(self):
+        env = CardGameEnv(KlondikeSolitaire(), max_steps=6)
+        agent = self.RecordingAgent(
+            accepts_truncated=True, accepts_next_legal_actions=True,
+        )
+        trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
+
+        trainer.train(episodes=1, verbose=False)
+
+        last = agent.calls[-1]
+        assert last["truncated"] is True
+        assert last["next_legal_actions"] is not None
+
+    def test_selfplay_capped_episodes_report_no_terminal_transition(self):
+        env = CardGameEnv(Macao(num_players=2), max_steps=10)
+        agent = self.RecordingAgent(accepts_truncated=True)
+        trainer = SelfPlayTrainer(env, agent, opponent_update_interval=10**9)
+
+        trainer.train(episodes=4, verbose=False)
+
+        assert agent.calls, "the agent never played"
+        assert not any(call["done"] for call in agent.calls)
+        assert any(call["truncated"] for call in agent.calls)
 
 
 class TestTrainerVerbose:

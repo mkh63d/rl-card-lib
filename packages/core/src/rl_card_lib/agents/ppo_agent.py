@@ -110,6 +110,10 @@ class PPOAgent(Agent):
         seed: Random seed for reproducibility
     """
 
+    #: A rollout outlives the episodes it spans, so `dones` alone cannot mark
+    #: where one ended -- an episode cut by the step cap sets no `done` at all.
+    accepts_truncated = True
+
     def __init__(
         self,
         state_size: int,
@@ -168,6 +172,11 @@ class PPOAgent(Agent):
         self._masks: list[np.ndarray] = []
         self._rewards: list[float] = []
         self._dones: list[float] = []
+        # A truncated step ends an episode without being terminal, so it needs
+        # both a boundary marker and the bootstrap value the trainer's `done`
+        # can no longer supply: V(next_state) at the moment of the cut.
+        self._truncations: list[float] = []
+        self._truncation_values: list[float] = []
 
         self.steps = 0
         self.episodes = 0
@@ -244,7 +253,8 @@ class PPOAgent(Agent):
         action: int,
         reward: float,
         next_observation: np.ndarray,
-        done: bool
+        done: bool,
+        truncated: bool = False,
     ) -> Optional[dict]:
         """
         Record the outcome of the last action, updating once a rollout fills up.
@@ -254,7 +264,11 @@ class PPOAgent(Agent):
             action: Action taken
             reward: Reward received
             next_observation: State after action
-            done: Whether episode ended
+            done: Whether the game reached a terminal state
+            truncated: Whether the step cap ended the episode here. The future
+                is real -- so the value of `next_observation` is recorded and
+                bootstrapped from -- but the episode is over, so the advantage
+                trace must not run on into the next one.
 
         Returns:
             Dict with losses on update steps, None on the steps in between
@@ -265,11 +279,24 @@ class PPOAgent(Agent):
 
         self._rewards.append(float(reward))
         self._dones.append(float(done))
+        self._truncations.append(float(truncated and not done))
+        self._truncation_values.append(
+            self._state_value(next_observation) if truncated and not done else 0.0
+        )
 
         if len(self._rewards) < self.rollout_steps:
             return None
 
         return self._update(next_observation, done)
+
+    def _state_value(self, observation: np.ndarray) -> float:
+        """The critic's value for one state, off the graph."""
+        with torch.no_grad():
+            state = torch.as_tensor(
+                np.asarray(observation, dtype=np.float32), device=self.device
+            ).unsqueeze(0)
+            _, value = self.network(state)
+        return float(value.item())
 
     def _compute_advantages(
         self,
@@ -286,26 +313,30 @@ class PPOAgent(Agent):
         Returns:
             Tuple of (advantages, returns)
         """
-        with torch.no_grad():
-            state = torch.as_tensor(
-                np.asarray(last_observation, dtype=np.float32), device=self.device
-            ).unsqueeze(0)
-            _, last_value = self.network(state)
-            last_value = float(last_value.item()) * (1.0 - float(last_done))
+        last_value = self._state_value(last_observation) * (1.0 - float(last_done))
 
         rewards = np.asarray(self._rewards, dtype=np.float32)
         values = np.asarray(self._values, dtype=np.float32)
         dones = np.asarray(self._dones, dtype=np.float32)
+        truncations = np.asarray(self._truncations, dtype=np.float32)
+        truncation_values = np.asarray(self._truncation_values, dtype=np.float32)
 
         advantages = np.zeros_like(rewards)
         running = 0.0
         for t in reversed(range(len(rewards))):
-            next_value = values[t + 1] if t + 1 < len(rewards) else last_value
-            # After a terminal step the next stored state belongs to a new
-            # episode, so this zeroes both the bootstrap and the trace.
-            non_terminal = 1.0 - dones[t]
-            delta = rewards[t] + self.gamma * next_value * non_terminal - values[t]
-            running = delta + self.gamma * self.gae_lambda * non_terminal * running
+            # Bootstrap and trace are two separate questions, and a truncation
+            # answers them differently: the state at the step cap does have a
+            # future worth its critic value, but the step after it belongs to a
+            # new episode, so the trace stops either way.
+            if dones[t]:
+                next_value, continues = 0.0, 0.0
+            elif truncations[t]:
+                next_value, continues = truncation_values[t], 0.0
+            else:
+                next_value = values[t + 1] if t + 1 < len(rewards) else last_value
+                continues = 1.0
+            delta = rewards[t] + self.gamma * next_value - values[t]
+            running = delta + self.gamma * self.gae_lambda * continues * running
             advantages[t] = running
 
         return advantages, advantages + values
@@ -399,6 +430,8 @@ class PPOAgent(Agent):
         self._masks.clear()
         self._rewards.clear()
         self._dones.clear()
+        self._truncations.clear()
+        self._truncation_values.clear()
 
     def reset(self) -> None:
         """Reset episode counter. The rollout deliberately survives episodes."""
