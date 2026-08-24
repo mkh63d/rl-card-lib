@@ -258,14 +258,20 @@ class Trainer:
             
             if max_steps and episode_steps >= max_steps:
                 break
-        
+
+        # Only a training episode advances a schedule counted in episodes.
+        # Evaluation calls reset() like any episode, so decaying there made the
+        # exploration schedule depend on how often the agent was measured.
+        if training:
+            self.agent.on_episode_end()
+
         return {
             "reward": episode_reward,
             "steps": episode_steps,
             "win": 1 if info.get("winner") == 0 else 0,
             "loss": np.mean(losses) if losses else 0.0,
         }
-    
+
     def evaluate(
         self,
         episodes: int = 100,
@@ -529,6 +535,12 @@ class SelfPlayTrainer(Trainer):
 
             if max_steps and episode_steps >= max_steps:
                 break
+
+        # See Trainer._run_episode. The opponent never gets the call at all: a
+        # frozen snapshot playing its part in the agent's episode is not having
+        # a training episode of its own.
+        if training:
+            self.agent.on_episode_end()
 
         return {
             "reward": episode_reward,

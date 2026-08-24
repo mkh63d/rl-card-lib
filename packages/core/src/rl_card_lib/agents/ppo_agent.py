@@ -433,8 +433,12 @@ class PPOAgent(Agent):
         self._truncations.clear()
         self._truncation_values.clear()
 
-    def reset(self) -> None:
-        """Reset episode counter. The rollout deliberately survives episodes."""
+    def on_episode_end(self) -> None:
+        """Count the training episode. The rollout deliberately survives it.
+
+        PPO has no epsilon, but the counter is still training progress rather
+        than a per-episode reset, so an evaluation pass must not advance it.
+        """
         self.episodes += 1
 
     def save(self, path: str) -> None:

@@ -110,8 +110,26 @@ class Agent(ABC):
         raise NotImplementedError("load() not implemented")
     
     def reset(self) -> None:
-        """Reset agent state (called at start of episode)."""
+        """
+        Reset per-episode state (called at the start of every episode).
+
+        This runs for evaluation episodes as well as training ones, so it must
+        leave the agent's learning state alone -- measuring an agent is not
+        allowed to change it. Anything that advances with training belongs in
+        `on_episode_end()`.
+        """
         pass
-    
+
+    def on_episode_end(self) -> None:
+        """
+        Close a training episode (called only when the trainer is learning).
+
+        This is where a schedule counted in episodes advances -- epsilon decay
+        and the episode counter. Evaluation never calls it, so the exploration
+        schedule depends on the training configuration alone and not on how
+        often, or with how many episodes, the agent happened to be measured.
+        """
+        pass
+
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"

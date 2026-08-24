@@ -142,18 +142,34 @@ class TestDQNAgentExtended:
         agent.train()
         assert agent.training is True
 
-    def test_reset(self):
-        """Test episode reset."""
+    def test_reset_leaves_the_schedule_alone(self):
+        """reset() opens an episode; it must not advance training progress.
+
+        Evaluation resets an episode too, so anything reset() touches is
+        something a measurement changes.
+        """
+        agent = DQNAgent(
+            state_size=10, action_size=5,
+            hidden_sizes=[16], device="cpu",
+            epsilon_start=1.0, epsilon_decay=0.9
+        )
+        for _ in range(5):
+            agent.reset()
+        assert agent.episodes == 0
+        assert agent.epsilon == 1.0
+
+    def test_on_episode_end_counts_the_episode(self):
+        """Test episode accounting."""
         agent = DQNAgent(
             state_size=10, action_size=5,
             hidden_sizes=[16], device="cpu"
         )
         initial_episodes = agent.episodes
-        agent.reset()
+        agent.on_episode_end()
         assert agent.episodes == initial_episodes + 1
 
     def test_epsilon_decays_per_episode_not_per_step(self):
-        """Epsilon must decay once per episode (reset), not per gradient step."""
+        """Epsilon decays once per training episode, not per gradient step."""
         agent = DQNAgent(
             state_size=10, action_size=5,
             hidden_sizes=[16], device="cpu",
@@ -168,14 +184,31 @@ class TestDQNAgentExtended:
             agent.learn(obs, 0, 1.0, next_obs, False)
         assert agent.epsilon == initial_epsilon
 
-        # The first reset opens the first episode and must not decay either.
-        agent.reset()
-        assert agent.epsilon == initial_epsilon
-
-        agent.reset()
+        # The first episode is played at epsilon_start and only then decays.
+        agent.on_episode_end()
         assert agent.epsilon == pytest.approx(0.9)
-        agent.reset()
+        agent.on_episode_end()
         assert agent.epsilon == pytest.approx(0.81)
+
+    def test_schedule_matches_start_times_decay_to_the_episode(self):
+        """Episode k is played at `start * decay**k`.
+
+        `report.reconstruct_epsilon()` rebuilds legacy schedules from exactly
+        this formula, and moving the decay out of reset() must not have shifted
+        the series by an episode in either direction.
+        """
+        agent = DQNAgent(
+            state_size=10, action_size=5,
+            hidden_sizes=[16], device="cpu",
+            epsilon_start=1.0, epsilon_end=0.0, epsilon_decay=0.9
+        )
+        played = []
+        for _ in range(6):
+            agent.reset()
+            played.append(agent.epsilon)
+            agent.on_episode_end()
+
+        assert played == pytest.approx([0.9 ** k for k in range(6)])
 
     def test_dropout_network(self):
         """Test network with dropout."""
@@ -293,7 +326,7 @@ class TestDQNEpsilonEdgeCases:
 
         # Episodes pass, but epsilon is already at the floor.
         for _ in range(5):
-            agent.reset()
+            agent.on_episode_end()
 
         # Epsilon should not have changed
         assert agent.epsilon == initial_epsilon
@@ -311,7 +344,7 @@ class TestDQNEpsilonEdgeCases:
 
         # Episodes pass, but epsilon started below the floor.
         for _ in range(5):
-            agent.reset()
+            agent.on_episode_end()
 
         # Epsilon should not have changed since it was already below end
         assert agent.epsilon == initial_epsilon

@@ -87,6 +87,33 @@
 
 ### Fixed
 
+- **Evaluating an agent advanced its exploration schedule**
+  ([#16](https://github.com/mkh63d/rl-card-lib/issues/16)). Epsilon decayed in
+  `Agent.reset()`, and `reset()` runs at the start of *every* episode --
+  evaluation episodes included. Measuring an agent therefore moved the schedule
+  of the agent being measured, so the exploration curve depended on reporting
+  settings rather than on training configuration: change `--eval-episodes` and
+  you changed the schedule. The `epsilon` every run record captured before
+  training as the *start* value was really the value after the pre-training
+  evaluation -- 0.8647 rather than 1.0 on Klondike's 30-deal protocol, 0.7440
+  on Macao's two 30-deal opponents -- and a 5000-episode sweep run added ~200
+  further decays from its periodic evaluations, moving the epsilon floor from
+  episode ~599 to ~570.
+
+  The decay now lives in a new `Agent.on_episode_end()`, which only the
+  training loop calls: `reset()` means "start an episode" and is free of side
+  effects, `on_episode_end()` means "a training episode happened". The schedule
+  itself is unchanged -- episode *k* is still played at `start * decay**k` --
+  and a `SelfPlayTrainer` opponent, being a frozen snapshot rather than a
+  learner, never gets the call at all.
+
+  **API change:** an `Agent` subclass outside this repository that decays a
+  schedule inside `reset()` should move that code to `on_episode_end()`; the
+  base class provides a no-op, so nothing breaks, but such an agent will
+  otherwise stop decaying. `DQNAgent`, `DoubleDQNAgent`, `QLearningAgent` and
+  `PPOAgent` are all updated. Records written before this fix keep their
+  wrong `epsilon`; re-run the sweep to regenerate them.
+
 - **The environments were Gymnasium-shaped but not `gymnasium.Env`s**
   ([#15](https://github.com/mkh63d/rl-card-lib/issues/15)). `CardGameEnv`,
   `MaskedCardGameEnv` and `GymEnvWrapper` followed the conventions -- the

@@ -49,12 +49,11 @@ loop for episode in range(episodes)
 
     trainer -> agent: reset()
     activate agent
-    agent -> agent: epsilon *= epsilon_decay (floored at epsilon_end)
-    agent -> agent: episodes += 1
     note right of agent
-        Epsilon decays once per episode, not per
-        learning step, so the exploration schedule
-        no longer depends on episode length.
+        Opens the episode and nothing more.
+        Evaluation resets an episode too, so
+        anything reset() touched would make
+        measuring an agent change it.
     end note
     agent --> trainer: ready
     deactivate agent
@@ -146,6 +145,21 @@ loop for episode in range(episodes)
 
     == Episode Complete ==
 
+    trainer -> agent: on_episode_end()
+    activate agent
+    agent -> agent: epsilon *= epsilon_decay (floored at epsilon_end)
+    agent -> agent: episodes += 1
+    note right of agent
+        Only a training episode gets this call, so
+        the exploration schedule depends on the
+        training configuration alone -- not on how
+        often the agent was evaluated. Decaying
+        per episode rather than per learning step
+        also keeps it independent of episode length.
+    end note
+    agent --> trainer: ready
+    deactivate agent
+
     opt SelfPlayTrainer and episodes_since_snapshot >= opponent_update_interval
         trainer -> opponent: refresh from agent weights
         activate opponent
@@ -166,7 +180,7 @@ loop for episode in range(episodes)
 
     alt if episode % eval_interval == 0
         trainer -> trainer: evaluate(eval_episodes)
-        note right: Runs evaluation\nepisodes without\nlearning
+        note right: Runs evaluation episodes\nwithout learning and without\ndecaying epsilon
     end
 
     alt if episode % checkpoint_interval == 0
