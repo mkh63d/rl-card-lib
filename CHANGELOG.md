@@ -116,6 +116,17 @@
   heuristic baselines. Tests now pin the switch itself, since a safeguard that
   is silently off is worse than none.
 
+  This connects the safeguard; it does not on its own restore greedy play. A
+  smoke ablation (DQN, 400 episodes) left the greedy repeat rate unchanged at
+  ~88 %. The penalty is not Markovian in the observation -- `_seen_positions`
+  is episode history the agent cannot see, so a value learner can only learn an
+  action's *average* cost, never that a particular step is a repeat -- and the
+  structural property still holds regardless: a deterministic policy in a
+  deterministic environment cycles once it re-enters a visited state, so
+  pricing a cycle moves the policy to a cheaper one rather than removing it.
+  Terminating the draw/recycle loop outright (#18) or making the repeat visible
+  in the observation are the candidate remedies, and neither is done here.
+
 - **Evaluating an agent advanced its exploration schedule**
   ([#16](https://github.com/mkh63d/rl-card-lib/issues/16)). Epsilon decayed in
   `Agent.reset()`, and `reset()` runs at the start of *every* episode --
