@@ -421,7 +421,7 @@ class TestTimeLimitBootstrap:
         def load(self, path): pass
 
     def test_a_capped_episode_reports_no_terminal_transition(self):
-        env = CardGameEnv(KlondikeSolitaire(), max_steps=15)
+        env = CardGameEnv(KlondikeSolitaire(seed=0), max_steps=15)
         agent = self.RecordingAgent()
         trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
 
@@ -433,7 +433,7 @@ class TestTimeLimitBootstrap:
 
     def test_a_real_termination_still_reports_done(self):
         """Guard against fixing the bias by never reporting terminal at all."""
-        env = CardGameEnv(KlondikeSolitaire(), max_steps=15)
+        env = CardGameEnv(KlondikeSolitaire(seed=0), max_steps=15)
         agent = self.RecordingAgent()
         trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
 
@@ -452,7 +452,7 @@ class TestTimeLimitBootstrap:
         assert [call["done"] for call in agent.calls] == [False, True]
 
     def test_the_truncation_flag_reaches_agents_that_ask_for_it(self):
-        env = CardGameEnv(KlondikeSolitaire(), max_steps=6)
+        env = CardGameEnv(KlondikeSolitaire(seed=0), max_steps=6)
         agent = self.RecordingAgent(accepts_truncated=True)
         trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
 
@@ -463,7 +463,7 @@ class TestTimeLimitBootstrap:
 
     def test_agents_that_do_not_ask_never_see_the_keyword(self):
         """A plain five-argument learn() must keep working untouched."""
-        env = CardGameEnv(KlondikeSolitaire(), max_steps=6)
+        env = CardGameEnv(KlondikeSolitaire(seed=0), max_steps=6)
         agent = self.RecordingAgent()
         trainer = Trainer(env, agent, log_interval=10**9, eval_interval=10**9)
 
@@ -472,7 +472,7 @@ class TestTimeLimitBootstrap:
         assert all(call.keys() == {"done"} for call in agent.calls)
 
     def test_both_opt_ins_compose(self):
-        env = CardGameEnv(KlondikeSolitaire(), max_steps=6)
+        env = CardGameEnv(KlondikeSolitaire(seed=0), max_steps=6)
         agent = self.RecordingAgent(
             accepts_truncated=True, accepts_next_legal_actions=True,
         )
@@ -485,16 +485,21 @@ class TestTimeLimitBootstrap:
         assert last["next_legal_actions"] is not None
 
     def test_selfplay_capped_episodes_report_no_terminal_transition(self):
-        # Seeded: an unseeded Macao deals a hand a player can empty inside the
-        # 10-step cap often enough to flake, and the assertion below is that
-        # nothing terminated.
-        env = CardGameEnv(Macao(num_players=2, seed=0), max_steps=10)
+        # A deal pool, not a constructor seed: an unseeded Macao deals a hand a
+        # player can empty inside the 10-step cap often enough to flake, and
+        # both assertions below are about how the episodes ended. cycle gives
+        # each of the four episodes its own reproducible deal -- the form
+        # CardGameEnv's deal_seeds docstring recommends for a repeatable stream.
+        env = CardGameEnv(Macao(num_players=2), max_steps=10,
+                          deal_seeds=[0, 1, 2, 3], deal_order="cycle")
         agent = self.RecordingAgent(accepts_truncated=True)
         trainer = SelfPlayTrainer(env, agent, opponent_update_interval=10**9)
 
         trainer.train(episodes=4, verbose=False)
 
-        assert agent.calls, "the agent never played"
+        # 22, not 4 x max_steps: SelfPlayTrainer records only the learning
+        # agent's transitions, and the opponent takes roughly half the turns.
+        assert len(agent.calls) == 22
         assert not any(call["done"] for call in agent.calls)
         assert any(call["truncated"] for call in agent.calls)
 
