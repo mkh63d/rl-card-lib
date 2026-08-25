@@ -384,8 +384,8 @@
   terminal payoff (from `get_reward()`) enters the search values, so "the
   opponent wins" finally costs something and blocking moves are found. With
   both MCTS fixes, Macao win rate vs a random opponent went from ~3% (below
-  random) to ~87% at 60 simulations, and search strength now scales with the
-  simulation budget.
+  random) to 83% at 60 simulations and 88% at 120, and search strength now
+  scales with the simulation budget.
 - **Epsilon decays per episode, not per learning step.** `DQNAgent`,
   `DoubleDQNAgent` and `QLearningAgent` now apply `epsilon_decay` in `reset()`.
   Previously a 300-step episode burned 300 decays, so documented schedules ran

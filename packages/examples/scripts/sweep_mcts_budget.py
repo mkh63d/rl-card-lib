@@ -18,10 +18,13 @@ MCTS figure rather than a second implementation that could drift. Every budget
 is measured with the same episodes, seeds, opponent, determinizations and
 rollout depth; only the simulation count moves.
 
-The defaults are plain MCTS (determinizations=1, rollout_depth=20, seed=0),
-which reproduces the headline anchors: ~77% win rate at 40 simulations and ~90%
-at 60. The agent-comparison run's x4det variant (which splits the budget across
-4 hidden-card samples and so searches shallower) is available with
+The defaults are plain MCTS (determinizations=1, rollout_depth=20, seed=0). The
+committed curve in results/mcts_budget_sweep/ was measured that way over 100
+games per budget (--episodes 100): 64% at 20 simulations, 73% at 40, 83% at 60
+and 88% at 120. At 100 games a point the standard error is roughly 4-5
+percentage points, so the dip at 80 (76%) is sampling noise, not a finding. The
+agent-comparison run's x4det variant (which splits the budget across 4
+hidden-card samples and so searches shallower) is available with
 --determinizations 4.
 
 Nothing here fabricates or interpolates: only budgets you actually run are
@@ -213,7 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
                              "but MCTS is slow so this dominates runtime)")
     parser.add_argument("--determinizations", type=int, default=1,
                         help="Hidden-card samples per move; 1 is plain MCTS "
-                             "(matches the headline anchors). Use 4 for the "
+                             "(matches the committed curve). Use 4 for the "
                              "agent-comparison x4det variant")
     parser.add_argument("--rollout-depth", type=int, default=20)
     parser.add_argument("--max-steps", type=int, default=200)
