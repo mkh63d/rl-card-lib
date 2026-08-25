@@ -1,0 +1,48 @@
+{
+  "schema": "thesis_notes/noloop_preliminary/1",
+  "what": "Preliminary measurement of the noloop arm (repeated_position_penalty = -0.05).",
+  "why": "diagnosis.md D3 proposes the penalty as the remedy for greedy looping, and run_one.py implements the arm, but the arm was never run: tables/ablation_fixes.csv holds only asis and fixed. These are the first numbers for it.",
+  "off_protocol": true,
+  "protocol_deviation": {
+    "episodes": "1200, not the protocol's 5000",
+    "init_seeds": "2, not 3",
+    "test_deals": "30 (100000-100029), not the 200-deal TEST pool",
+    "agents": "DQN only",
+    "consequence": "NOT comparable with the asis/fixed rows in ablation_fixes.csv; indicative only."
+  },
+  "protocol_shared_with_run_one": {
+    "train_pool": "TRAIN_SEEDS",
+    "max_steps_per_episode": 300,
+    "evaluation": "greedy, unshaped env (no penalty at evaluation time)"
+  },
+  "greedy_evaluation": {
+    "metric_note": "repeats = share of greedy steps landing in a position already seen this episode; draw = share of steps choosing action 0 (draw from stock); cards_up = mean cards to foundation.",
+    "asis": {
+      "per_seed": [
+        {"init_seed": 0, "repeats": 0.869, "draw": 0.159, "cards_up": 4.87},
+        {"init_seed": 1, "repeats": 0.839, "draw": 0.287, "cards_up": 5.63}
+      ],
+      "mean": {"repeats": 0.854, "draw": 0.223, "cards_up": 5.25}
+    },
+    "noloop": {
+      "per_seed": [
+        {"init_seed": 0, "repeats": 0.856, "draw": 0.169, "cards_up": 5.03},
+        {"init_seed": 1, "repeats": 0.878, "draw": 0.131, "cards_up": 4.47}
+      ],
+      "mean": {"repeats": 0.867, "draw": 0.150, "cards_up": 4.75}
+    }
+  },
+  "final_train_reward": {
+    "note": "log_interval mean at episode 1200. The noloop figure includes the penalty the agent paid.",
+    "asis": {"seed_0": 6.47, "seed_1": 5.57},
+    "noloop": {"seed_0": -4.47, "seed_1": -4.30}
+  },
+  "findings": [
+    "The penalty does not reduce looping: 85.4% (asis) against 86.7% (noloop). The 1.3 pp difference is smaller than the between-seed spread within either arm (asis 83.9-86.9, noloop 85.6-87.8).",
+    "cards_up does not improve either: 5.25 against 4.75.",
+    "Training reward falls by ~10.4 between the arms and does not recover over 1200 episodes. Since greedy behaviour is near-identical between arms, that gap is the penalty actually paid: ~208 penalised steps per episode against a 300-step cap, i.e. the agent pays the penalty on roughly two thirds of its steps and learns to avoid almost none of them.",
+    "Mechanism: the penalty is not Markovian in the observation (_seen_positions is unobserved episode history), so a value learner can only learn an action's average cost; and pricing a cycle does not remove the property that creates it, since a deterministic policy in a deterministic environment cycles once it re-enters a visited state."
+  ],
+  "measured_on": "2026-08-25",
+  "measured_with": "packages/ as of PR #29 (branch fix/enable-repeated-position-penalty); arms differ only in repeated_position_penalty"
+}

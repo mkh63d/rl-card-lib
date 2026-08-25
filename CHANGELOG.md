@@ -87,6 +87,52 @@
 
 ### Fixed
 
+- **The repeated-position penalty was implemented but never switched on**
+  ([#17](https://github.com/mkh63d/rl-card-lib/issues/17)). `CardGameEnv` has
+  carried a `repeated_position_penalty` since it was written, documented as the
+  remedy for games whose reversible moves let an agent shuffle in circles, and
+  unit-tested. It defaults to `0.0`, and no registration, script or env factory
+  ever passed a value -- so the safeguard was inert in every run ever made.
+  Klondike is exactly the game it was written for: tableau moves are reversible
+  and, with the default `max_passes=None`, the draw/recycle cycle is free. In a
+  deterministic environment a deterministic policy that re-enters a visited
+  position repeats its entire future from there, so it cycles until the step
+  cap -- and that is what the trained policies did. 80-83 % of their greedy
+  steps landed in an already-seen position against 23 % for random, 70 % of the
+  DQN's moves were "draw from stock", and the greedy policies scored *below*
+  random as a result. This also accounts for the gap between the training
+  curves and the greedy evaluation: during training eps > 0 breaks the cycle
+  roughly every 20 steps, and the same weights evaluated greedily loop.
+  Klondike now trains with `KLONDIKE_REPEAT_PENALTY = -0.05`, declared in
+  `games/registration.py` beside `KLONDIKE_MAX_STEPS` and applied by the sweep's
+  training env, the standalone training scripts and the Gymnasium
+  `Klondike-v0` / `KlondikeMasked-v0` ids (overridable per env). Macao stays at
+  `0.0` deliberately and not by the same oversight -- its positions are
+  monotone, so over 5 826 random steps not one repeat occurs for a penalty to
+  price; a test asserts that, so the zero is not later "fixed". The penalty is
+  reward *shaping* and is applied only where an agent learns: the trainer's
+  periodic evaluation env stays unshaped, so the evaluation curve keeps
+  reporting the game's own return and stays comparable with the random and
+  heuristic baselines. Tests now pin the switch itself, since a safeguard that
+  is silently off is worse than none.
+
+  This connects the safeguard; it does not on its own restore greedy play.
+  Ablated (DQN, 1200 episodes, 2 seeds per arm) the greedy repeat rate does not
+  improve: 85.4 % inert against 86.7 % priced, a gap smaller than the spread
+  between seeds within either arm, with `cards_up` flat-to-worse (5.25 against
+  4.75). The training curve says why -- final training reward falls from ~+6.0
+  to ~-4.4, a gap of ~10.4 that is almost exactly the undiscounted penalty
+  total for an episode that never avoids it, and it does not close. The agent
+  pays essentially all of the penalty and learns to avoid essentially none of
+  it. The penalty is not Markovian in the observation -- `_seen_positions`
+  is episode history the agent cannot see, so a value learner can only learn an
+  action's *average* cost, never that a particular step is a repeat -- and the
+  structural property still holds regardless: a deterministic policy in a
+  deterministic environment cycles once it re-enters a visited state, so
+  pricing a cycle moves the policy to a cheaper one rather than removing it.
+  Terminating the draw/recycle loop outright (#18) or making the repeat visible
+  in the observation are the candidate remedies, and neither is done here.
+
 - **Evaluating an agent advanced its exploration schedule**
   ([#16](https://github.com/mkh63d/rl-card-lib/issues/16)). Epsilon decayed in
   `Agent.reset()`, and `reset()` runs at the start of *every* episode --

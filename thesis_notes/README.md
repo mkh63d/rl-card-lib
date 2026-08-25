@@ -6,6 +6,15 @@ w `packages/` nie zostało tu zmienione — wszystkie poprawki z
 [`scripts/harness.py`](scripts/harness.py), żeby biblioteka nadal zachowywała
 się dokładnie tak, jak praca ją opisuje.
 
+> **Uwaga po PR [#29](https://github.com/mkh63d/rl-card-lib/pull/29).** To
+> zdanie opisuje, jak powstały liczby w tym katalogu, i pozostaje prawdziwe.
+> Ale PR #29 **zmienia `packages/`**: włącza `repeated_position_penalty =
+> -0,05` dla Klondike w środowisku treningowym. Po jego scaleniu domyślne
+> środowisko biblioteki **nie jest już** ramieniem `asis` — powtórzenie
+> pomiarów bez jawnego `repeated_position_penalty=0.0` da inne liczby niż
+> tabele w tym katalogu. Sam pomiar mówi, że kara i tak nie usuwa zapętlenia
+> ([`diagnosis.md`](diagnosis.md) D3).
+
 ## Co gdzie jest
 
 | Plik | Odpowiada na |
@@ -45,6 +54,9 @@ python thesis_notes/scripts/baselines_on_test.py
 python thesis_notes/scripts/make_report.py
 python thesis_notes/scripts/make_results_md.py
 python thesis_notes/scripts/figures_concept.py
+
+# 6b. pomiar wstępny ramienia noloop (DQN, 2 seedy, ~1 h)
+python thesis_notes/scripts/probe_noloop_preliminary.py
 
 # 7. zgłoszenia na GitHubie (najpierw --dry-run)
 python thesis_notes/scripts/create_issues.py --dry-run

@@ -11,10 +11,12 @@ import random
 import numpy as np
 import pytest
 
-from rl_card_lib.agents import MCTSAgent
+from rl_card_lib.agents import MCTSAgent, RandomAgent
 from rl_card_lib.cardgames import Card, Rank, Suit
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games import KlondikeSolitaire, Macao
+from rl_card_lib.games.registration import KLONDIKE_REPEAT_PENALTY
+from rl_card_lib.harness.registry import sweep_game
 
 
 def fresh_macao_duel(hand0, hand1, top=None):
@@ -580,6 +582,95 @@ class TestRepeatedPositionHandling:
         assert len(env._seen_positions) == 1
         env.reset(seed=1)
         assert len(env._seen_positions) == 1
+
+
+class TestRepeatedPositionPenaltyIsEnabled:
+    """The penalty must stay switched *on* wherever an agent trains.
+
+    `TestRepeatedPositionHandling` above covers the mechanism; these cover the
+    switch. `CardGameEnv` has implemented the penalty, documented it as the
+    remedy for reversible-move loops and unit-tested it since the env was
+    written -- but it defaults to 0.0 and no registration ever passed a value,
+    so it was inert in every run ever made. Trained greedy policies then spent
+    80-83 % of their steps re-entering a position they had already visited,
+    against 23 % for random, and scored below random as a result.
+
+    A safeguard that is silently off is worse than none, so the fact that it is
+    on is itself a regression test.
+    """
+
+    def test_klondike_trains_with_the_penalty_on(self):
+        env = sweep_game("klondike").env_factory()
+        assert env.repeated_position_penalty < 0
+
+    def test_klondike_evaluation_stays_unshaped(self):
+        """Shaping is a training signal and must not reach the eval curve.
+
+        Otherwise a rising evaluation reward cannot be told apart from the
+        agent merely having stopped paying the penalty, and the number stops
+        being comparable with the baselines in `harness.baselines`, which
+        measure random and heuristic play on plain envs.
+        """
+        assert sweep_game("klondike").eval_env_factory(
+            ).repeated_position_penalty == 0.0
+
+    def test_macao_is_left_at_zero_because_it_cannot_loop(self):
+        """Macao's 0.0 is a finding, not the same oversight.
+
+        Its positions are monotone -- every action moves a card out of a hand
+        or the deck, and the observation carries the counts -- so no repeat can
+        occur for a penalty to price. Asserting the measurement keeps a later
+        reader from "fixing" a zero that is already correct.
+        """
+        assert sweep_game("macao").env_factory().repeated_position_penalty == 0.0
+
+        game = Macao(num_players=2)
+        env = CardGameEnv(game, max_steps=200)
+        agent = RandomAgent(action_size=game.get_action_space_size(), seed=0)
+        for deal in range(100000, 100010):
+            observation, info = env.reset(seed=deal)
+            agent.reset()
+            for _ in range(200):
+                action = agent.select_action(observation, info["legal_actions"])
+                observation, _, terminated, truncated, info = env.step(action)
+                assert not info.get("repeated_position")
+                if terminated or truncated:
+                    break
+
+    def test_the_draw_loop_costs_more_than_it_used_to(self):
+        """The closed loop the trained agents actually fell into.
+
+        "Draw from stock" is action 0, and with the default `max_passes=None`
+        the stock recycles forever, so pressing it is a cycle that only the
+        step cap ends. It has to cost strictly more with the penalty on than it
+        did with it inert, or nothing about the trained policies changes.
+        """
+        def always_draw(penalty):
+            env = CardGameEnv(KlondikeSolitaire(), max_steps=300,
+                              repeated_position_penalty=penalty)
+            _, info = env.reset(seed=100000)
+            total, repeats = 0.0, 0
+            for _ in range(300):
+                if 0 not in info["legal_actions"]:
+                    break
+                _, reward, terminated, truncated, info = env.step(0)
+                total += reward
+                repeats += bool(info.get("repeated_position"))
+                if terminated or truncated:
+                    break
+            return total, repeats
+
+        inert_return, inert_repeats = always_draw(0.0)
+        priced_return, priced_repeats = always_draw(KLONDIKE_REPEAT_PENALTY)
+
+        # Same trajectory either way -- the penalty prices the loop, it does
+        # not change where a fixed action sequence goes.
+        assert priced_repeats == inert_repeats
+        assert inert_repeats > 200
+
+        expected = inert_return + KLONDIKE_REPEAT_PENALTY * inert_repeats
+        assert priced_return == pytest.approx(expected)
+        assert priced_return < inert_return
 
 
 class TestMCTSValuesTerminals:

@@ -27,16 +27,31 @@ import gymnasium as gym
 from rl_card_lib.env import CardGameEnv, MaskedCardGameEnv
 from rl_card_lib.games.klondike import KlondikeSolitaire
 from rl_card_lib.games.macao import Macao
-from rl_card_lib.games.registration import KLONDIKE_MAX_STEPS, MACAO_MAX_STEPS
+from rl_card_lib.games.registration import (
+    KLONDIKE_MAX_STEPS,
+    KLONDIKE_REPEAT_PENALTY,
+    MACAO_MAX_STEPS,
+)
 
 #: Namespace prefix for every id this module registers.
 GYM_NAMESPACE = "rl_card_lib"
 
 
-def make_klondike(max_steps: Optional[int] = KLONDIKE_MAX_STEPS,
-                  **kwargs: Any) -> CardGameEnv:
-    """Klondike in a plain `CardGameEnv`."""
-    return CardGameEnv(KlondikeSolitaire(), max_steps=max_steps, **kwargs)
+def make_klondike(
+    max_steps: Optional[int] = KLONDIKE_MAX_STEPS,
+    repeated_position_penalty: float = KLONDIKE_REPEAT_PENALTY,
+    **kwargs: Any,
+) -> CardGameEnv:
+    """Klondike in a plain `CardGameEnv`.
+
+    Carries the repeated-position penalty by default, for the reason given on
+    `KLONDIKE_REPEAT_PENALTY`: an outside trainer reaching for this id is doing
+    the very thing the penalty exists for, and a greedy policy learned without
+    it cycles. Pass `repeated_position_penalty=0.0` for the unshaped game.
+    """
+    return CardGameEnv(KlondikeSolitaire(), max_steps=max_steps,
+                       repeated_position_penalty=repeated_position_penalty,
+                       **kwargs)
 
 
 def make_macao(max_steps: Optional[int] = MACAO_MAX_STEPS,
@@ -46,10 +61,18 @@ def make_macao(max_steps: Optional[int] = MACAO_MAX_STEPS,
                        **kwargs)
 
 
-def make_klondike_masked(max_steps: Optional[int] = KLONDIKE_MAX_STEPS,
-                         **kwargs: Any) -> MaskedCardGameEnv:
-    """Klondike with the action mask in the observation."""
-    return MaskedCardGameEnv(KlondikeSolitaire(), max_steps=max_steps, **kwargs)
+def make_klondike_masked(
+    max_steps: Optional[int] = KLONDIKE_MAX_STEPS,
+    repeated_position_penalty: float = KLONDIKE_REPEAT_PENALTY,
+    **kwargs: Any,
+) -> MaskedCardGameEnv:
+    """Klondike with the action mask in the observation.
+
+    Same default penalty as `make_klondike`.
+    """
+    return MaskedCardGameEnv(KlondikeSolitaire(), max_steps=max_steps,
+                             repeated_position_penalty=repeated_position_penalty,
+                             **kwargs)
 
 
 def make_macao_masked(max_steps: Optional[int] = MACAO_MAX_STEPS,
