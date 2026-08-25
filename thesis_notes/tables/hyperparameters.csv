@@ -18,5 +18,6 @@ Entropy coefficient,-,-,-,0.01
 Value coefficient,-,-,-,0.5
 Max gradient norm,-,-,-,0.5
 Duelling head,-,-,True,-
+Greedy evaluation (argmax of the policy),-,-,-,False
 State rounding (decimals),2,-,-,-
 Optimistic init,0.0,-,-,-

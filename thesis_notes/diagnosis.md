@@ -907,15 +907,23 @@ Metryka: Klondike — karty na bazach (0–52); Macao — win rate przeciwko heu
 
 | gra | agent | ramię | seedy | TEST przed | TEST po | Δ |
 |---|---|---|---|---|---|---|
-| klondike | PPO | `asis` — as published | 3 | 2.24 ± 0.43 | 7.07 ± 0.25 | +4.83 |
-| klondike | Double DQN | `asis` — as published | 3 | 1.90 ± 1.53 | 5.88 ± 0.30 | +3.98 |
-| klondike | Double DQN | `fixed` — + time-limit bootstrap fix | 3 | 1.90 ± 1.53 | 5.38 ± 0.44 | +3.48 |
-| klondike | DQN | `asis` — as published | 3 | 3.28 ± 0.93 | 5.67 ± 0.41 | +2.39 |
-| klondike | DQN | `fixed` — + time-limit bootstrap fix | 3 | 3.28 ± 0.93 | 5.77 ± 0.07 | +2.49 |
-| klondike | Q-learning | `asis` — as published | 3 | 11.31 ± 0.26 | 11.33 ± 0.20 | +0.02 |
-| macao | PPO | `asis` — as published | 3 | 3.2 ± 2.9 % | 35.5 ± 1.7 % | +32.3 pp |
-| macao | Double DQN | `asis` — as published | 3 | 0.0 ± 0.0 % | 7.5 ± 1.0 % | +7.5 pp |
-| macao | Double DQN | `fixed` — + time-limit bootstrap fix | 3 | 0.0 ± 0.0 % | 8.7 ± 0.6 % | +8.7 pp |
-| macao | DQN | `asis` — as published | 3 | 4.3 ± 7.5 % | 7.8 ± 0.6 % | +3.5 pp |
-| macao | DQN | `fixed` — + time-limit bootstrap fix | 3 | 4.3 ± 7.5 % | 7.8 ± 1.0 % | +3.5 pp |
-| macao | Q-learning | `asis` — as published | 3 | 2.2 ± 0.3 % | 2.2 ± 1.4 % | +0.0 pp |
+| klondike | PPO | `asis` — before the fixes (pre-#24) | 3 | 2.24 ± 0.43 | 7.07 ± 0.25 | +4.83 |
+| klondike | PPO | `fixed` — library as shipped | 3 | 9.07 ± 0.02 | 17.09 ± 2.12 | +8.02 |
+| klondike | PPO | `noloop` — + repeated-position penalty | 3 | 9.07 ± 0.02 | 9.73 ± 0.98 | +0.66 |
+| klondike | Double DQN | `asis` — before the fixes (pre-#24) | 3 | 1.90 ± 1.53 | 5.88 ± 0.30 | +3.98 |
+| klondike | Double DQN | `fixed` — library as shipped | 3 | 2.56 ± 1.22 | 6.44 ± 0.08 | +3.88 |
+| klondike | Double DQN | `noloop` — + repeated-position penalty | 3 | 2.56 ± 1.22 | 6.22 ± 0.10 | +3.66 |
+| klondike | DQN | `asis` — before the fixes (pre-#24) | 3 | 3.28 ± 0.93 | 5.67 ± 0.41 | +2.39 |
+| klondike | DQN | `fixed` — library as shipped | 3 | 3.36 ± 1.07 | 6.13 ± 0.59 | +2.77 |
+| klondike | DQN | `noloop` — + repeated-position penalty | 3 | 3.36 ± 1.07 | 6.41 ± 0.17 | +3.04 |
+| klondike | Q-learning | `asis` — before the fixes (pre-#24) | 3 | 11.31 ± 0.26 | 11.33 ± 0.20 | +0.02 |
+| klondike | Q-learning | `fixed` — library as shipped | 3 | 9.33 ± 0.41 | 9.37 ± 0.24 | +0.04 |
+| klondike | Q-learning | `noloop` — + repeated-position penalty | 3 | 9.33 ± 0.41 | 9.48 ± 0.23 | +0.14 |
+| macao | PPO | `asis` — before the fixes (pre-#24) | 3 | 3.2 ± 2.9 % | 35.5 ± 1.7 % | +32.3 pp |
+| macao | PPO | `fixed` — library as shipped | 3 | 1.7 ± 0.3 % | 37.7 ± 1.5 % | +36.0 pp |
+| macao | Double DQN | `asis` — before the fixes (pre-#24) | 3 | 0.0 ± 0.0 % | 7.5 ± 1.0 % | +7.5 pp |
+| macao | Double DQN | `fixed` — library as shipped | 3 | 0.0 ± 0.0 % | 12.7 ± 0.6 % | +12.7 pp |
+| macao | DQN | `asis` — before the fixes (pre-#24) | 3 | 4.3 ± 7.5 % | 7.8 ± 0.6 % | +3.5 pp |
+| macao | DQN | `fixed` — library as shipped | 3 | 4.3 ± 7.5 % | 7.7 ± 4.0 % | +3.3 pp |
+| macao | Q-learning | `asis` — before the fixes (pre-#24) | 3 | 2.2 ± 0.3 % | 2.2 ± 1.4 % | +0.0 pp |
+| macao | Q-learning | `fixed` — library as shipped | 3 | 2.2 ± 0.3 % | 2.2 ± 1.4 % | +0.0 pp |

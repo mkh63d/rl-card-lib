@@ -144,20 +144,28 @@ Wypełniane automatycznie z `raw/runs/*.json`; patrz
 
 | gra | agent | ramię | seedy | trening [s/seed] | trening [min/seed] | ewaluacja [s/seed] |
 |---|---|---|---|---|---|---|
-| klondike | PPO | `asis` | 3 | 2243 | 37.4 | 60 |
-| klondike | Double DQN | `asis` | 3 | 12226 | 203.8 | 70 |
-| klondike | Double DQN | `fixed` | 3 | 12198 | 203.3 | 69 |
-| klondike | DQN | `asis` | 3 | 8884 | 148.1 | 61 |
-| klondike | DQN | `fixed` | 3 | 8883 | 148.0 | 63 |
-| klondike | Q-learning | `asis` | 3 | 878 | 14.6 | 64 |
-| macao | PPO | `asis` | 3 | 266 | 4.4 | 0 |
-| macao | Double DQN | `asis` | 3 | 703 | 11.7 | 0 |
-| macao | Double DQN | `fixed` | 3 | 692 | 11.5 | 0 |
-| macao | DQN | `asis` | 3 | 491 | 8.2 | 0 |
-| macao | DQN | `fixed` | 3 | 477 | 7.9 | 0 |
-| macao | Q-learning | `asis` | 3 | 58 | 1.0 | 0 |
+| klondike | PPO | `asis` | 3 | 1860 | 31.0 | 65 |
+| klondike | PPO | `fixed` | 3 | 1459 | 24.3 | 61 |
+| klondike | PPO | `noloop` | 3 | 1417 | 23.6 | 62 |
+| klondike | Double DQN | `asis` | 3 | 15354 | 255.9 | 87 |
+| klondike | Double DQN | `fixed` | 3 | 14923 | 248.7 | 79 |
+| klondike | Double DQN | `noloop` | 3 | 14743 | 245.7 | 77 |
+| klondike | DQN | `asis` | 3 | 10712 | 178.5 | 65 |
+| klondike | DQN | `fixed` | 3 | 9736 | 162.3 | 52 |
+| klondike | DQN | `noloop` | 3 | 9436 | 157.3 | 50 |
+| klondike | Q-learning | `asis` | 3 | 716 | 11.9 | 52 |
+| klondike | Q-learning | `fixed` | 3 | 509 | 8.5 | 38 |
+| klondike | Q-learning | `noloop` | 3 | 524 | 8.7 | 37 |
+| macao | PPO | `asis` | 3 | 133 | 2.2 | 0 |
+| macao | PPO | `fixed` | 3 | 104 | 1.7 | 0 |
+| macao | Double DQN | `asis` | 3 | 883 | 14.7 | 0 |
+| macao | Double DQN | `fixed` | 3 | 843 | 14.0 | 0 |
+| macao | DQN | `asis` | 3 | 586 | 9.8 | 0 |
+| macao | DQN | `fixed` | 3 | 589 | 9.8 | 0 |
+| macao | Q-learning | `asis` | 3 | 36 | 0.6 | 0 |
+| macao | Q-learning | `fixed` | 3 | 30 | 0.5 | 0 |
 
-Łączny czas CPU treningu w nowym sweepie: **40.0 h**.
+Łączny czas CPU treningu w nowym sweepie: **70.5 h**.
 
 ---
 
@@ -184,6 +192,15 @@ Wypełniane automatycznie z `raw/runs/*.json`; patrz
 > przebiegu zapisuje pole `arm_config` w `raw/runs/*.json`. Stan roboczy przy
 > pomiarach: `3167467` + zmiany w `thesis_notes/scripts/` z tego samego
 > przemiarowania (gałąź `chore/rerun-metrics-on-head`).
+>
+> **Uściślenie do pola `host.git_commit`.** 55 z 60 przebiegów ma tam
+> `3167467`; pięć ostatnich (`klondike q_learning noloop s1/s2`,
+> `macao ppo fixed s2`, `macao q_learning fixed s1/s2`) ma hashe commitów
+> z tej gałęzi, bo kończyły się już w trakcie commitowania notatek.
+> **Nie oznacza to różnicy w mierzonym kodzie**: żaden z tych commitów nie
+> dotyka `packages/` (`git diff --name-only 3167467 <commit> -- packages/`
+> jest pusty dla każdego z nich), więc biblioteka była bajt w bajt ta sama we
+> wszystkich 60 przebiegach.
 
 ---
 

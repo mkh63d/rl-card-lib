@@ -126,8 +126,10 @@ def main() -> int:
             arm_samples = not ARM_EVAL_GREEDY[arm]
             variants = [(arm_samples, f"{agent} ({arm})")]
             if agent == "ppo":
+                # " / " rather than ", ": the label is a CSV cell, and a
+                # comma would force quoting and split it under naive parsing.
                 other = "sampled" if not arm_samples else "argmax"
-                variants.append((not arm_samples, f"{agent} ({arm}, {other})"))
+                variants.append((not arm_samples, f"{agent} ({arm} / {other})"))
             for sample, label in variants:
                 per_seed = []
                 for seed in SEEDS:
