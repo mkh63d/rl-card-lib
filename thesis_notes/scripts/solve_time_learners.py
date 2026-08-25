@@ -6,9 +6,11 @@ trained under the corrected protocol, from `thesis_notes/checkpoints/`, so the
 solve-rate table has both halves and every row covers the identical pool --
 whatever size `split.klondike_test_solvable` currently classifies it at.
 
-PPO is measured twice: once by sampling its policy (what `agent.eval()` does
-since #21) and once by argmax over that same policy, because on Klondike the two
-are very different policies -- see diagnosis.md D11.
+PPO is measured twice per arm, because on Klondike sampling its policy and
+taking that policy's argmax are very different policies (diagnosis.md D11). The
+row named plainly `ppo (<arm>)` is always the rule that arm actually uses --
+argmax for `asis`, sampling for `fixed` and `noloop` since #33 -- and the second
+row is the counterfactual, named for the rule it applies.
 
 Writes thesis_notes/raw/solve_time_learners.json.
 """
@@ -50,6 +52,11 @@ ARM_MAX_PASSES = {
     "fixed": KLONDIKE_MAX_PASSES,
     "noloop": KLONDIKE_MAX_PASSES,
 }
+
+#: How each arm reads a move out of PPO's policy, mirroring run_one.ARMS.
+#: Only PPO has the choice; for the DQN family the greedy policy is what it
+#: learned, and `measure` leaves agents without the attribute alone.
+ARM_EVAL_GREEDY = {"asis": True, "fixed": False, "noloop": False}
 ARMS = tuple(ARM_MAX_PASSES)
 
 
@@ -112,9 +119,15 @@ def main() -> int:
     out: dict = {"pool_size": len(pool), "seeds": SEEDS, "rows": []}
     for arm in ARMS:
         for agent in AGENTS:
-            variants = [(False, f"{agent} ({arm})")]
+            # The unlabelled row must be the arm's *own* evaluation rule, not
+            # a fixed choice: `asis` reads PPO by argmax and `fixed`/`noloop`
+            # by sampling (#33). Labelling the argmax measurement as
+            # "ppo (fixed)" would name a configuration that arm never uses.
+            arm_samples = not ARM_EVAL_GREEDY[arm]
+            variants = [(arm_samples, f"{agent} ({arm})")]
             if agent == "ppo":
-                variants.append((True, f"{agent} ({arm}, sampled)"))
+                other = "sampled" if not arm_samples else "argmax"
+                variants.append((not arm_samples, f"{agent} ({arm}, {other})"))
             for sample, label in variants:
                 per_seed = []
                 for seed in SEEDS:
