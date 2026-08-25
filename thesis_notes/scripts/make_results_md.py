@@ -48,16 +48,32 @@ HEAD = """# Wyniki po wprowadzeniu podziału train/test
 
 ### Ramiona eksperymentu
 
-Każde ramię zmienia **dokładnie jedną** rzecz względem `asis`:
+**To się zmieniło.** Kiedy te ramiona powstawały, poprawki mieszkały wyłącznie
+w [`scripts/harness.py`](scripts/harness.py), a `asis` znaczyło „biblioteka bez
+zmian”. PR-y #24–#34 wprowadziły je do `packages/`, więc role się odwróciły:
+`fixed` to dziś biblioteka **bez żadnych modyfikacji**, a `asis` jest
+*odtwarzane* na niej przez cofnięcie czterech rzeczy. Wszystkie ramiona liczone
+są na **tym samym commicie** i tym samym protokole ewaluacji.
 
-| Ramię | Co zmienia | Uzasadnienie |
+| Ramię | Co ustawia | Uzasadnienie |
 |---|---|---|
-| `asis` | nic w kodzie biblioteki — zmieniony jest **wyłącznie protokół** (pule rozdań, pełna pula TEST, ewaluacja bez skutków ubocznych) | punkt odniesienia dla zadania 3 |
-| `fixed` | truncation przestaje być traktowany jak stan terminalny w celu TD | [`diagnosis.md`](diagnosis.md) D1 |
-| `noloop` | kara `-0,05` za wejście w pozycję już widzianą w epizodzie (`repeated_position_penalty` — mechanizm już obecny w `CardGameEnv`, dotąd nigdy nie włączony) | [`diagnosis.md`](diagnosis.md) D3 |
+| `asis` | truncation znów liczony jak stan terminalny w celu TD; Klondike bez limitu przejść przez stos; `target_update_freq` 500 w obu grach; PPO oceniane przez argmax | stan sprzed PR-ów, punkt odniesienia dla zadania 3 |
+| `fixed` | dzisiejsza biblioteka, nic nie zmienione | — |
+| `noloop` | `fixed` + kara `-0,05` za wejście w pozycję już widzianą w epizodzie (`repeated_position_penalty`, tylko Klondike) | [`diagnosis.md`](diagnosis.md) D3 |
 
-Żaden plik w `packages/` nie był modyfikowany: poprawki są zaimplementowane
-jako podklasy w [`scripts/harness.py`](scripts/harness.py).
+> **Czego ta tabela nie mówi.** `fixed` różni się od `asis` **czterema**
+> rzeczami naraz, a nie jedną: obsługą truncation ([D1](diagnosis.md)),
+> skończonym `max_passes` ([D4](diagnosis.md)), kadencją `target_update_freq`
+> per gra ([D5](diagnosis.md)) i regułą wyboru akcji PPO w ewaluacji
+> ([D11](diagnosis.md)). W Klondike `asis` i `fixed` to w dodatku **inne
+> reguły gry** — bez limitu przejść przegrana jest nieosiągalna, więc każdy
+> epizod `asis` kończy się limitem kroków. Różnica `asis → fixed` jest więc
+> porównaniem „przed i po PR-ach”, a nie ablacją jednego czynnika; pojedynczy
+> czynnik izoluje tylko `fixed → noloop`.
+
+Ramię `asis` jest zaimplementowane jako podklasy w
+[`scripts/harness.py`](scripts/harness.py); konkretne wartości, których użył
+dany przebieg, są zapisane w polu `arm_config` każdego `raw/runs/*.json`.
 """
 
 
@@ -149,25 +165,48 @@ def game_block(runs, baselines, game, heading, metric_name) -> str:
 
 
 def solve_time_block(baselines) -> str:
-    if not baselines or "klondike_solve_time" not in baselines:
+    """Baselines and trained learners on one TEST_SOLVABLE table."""
+    learners = load_json("solve_time_learners.json")
+    has_baselines = bool(baselines and "klondike_solve_time" in baselines)
+    if not has_baselines and not learners:
         return ""
-    header = ["agent", "solve rate", "cards up", "ruchów do wygranej",
+
+    header = ["agent", "seedy", "solve rate", "cards up", "ruchów do wygranej",
               "czas do wygranej [s]"]
     rows = []
-    for row in baselines["klondike_solve_time"]:
-        rows.append([
-            row["agent"], f"{row['solve_rate'] * 100:.1f} %",
-            f"{row['cards_up']:.2f}",
-            "—" if row["solve_moves"] is None else f"{row['solve_moves']:.0f}",
-            "—" if row["solve_seconds"] is None else f"{row['solve_seconds']:.3f}",
-        ])
-    pool = baselines.get("test_solvable", {}).get("size", "?")
+    if has_baselines:
+        for row in baselines["klondike_solve_time"]:
+            rows.append([
+                row["agent"], "1", f"{row['solve_rate'] * 100:.1f} %",
+                f"{row['cards_up']:.2f}",
+                "—" if row["solve_moves"] is None else f"{row['solve_moves']:.0f}",
+                "—" if row["solve_seconds"] is None
+                else f"{row['solve_seconds']:.3f}",
+            ])
+    if learners:
+        for row in learners.get("rows", []):
+            rows.append([
+                row["label"], str(row["seeds"]),
+                f"{row['solve_rate_mean'] * 100:.1f} "
+                f"± {row['solve_rate_sd'] * 100:.1f} %",
+                f"{row['cards_up_mean']:.2f} ± {row['cards_up_sd']:.2f}",
+                "—" if row.get("solve_moves_mean") is None
+                else f"{row['solve_moves_mean']:.0f}",
+                "—",
+            ])
+
+    pool = (baselines.get("test_solvable", {}).get("size")
+            if has_baselines else None) or (learners or {}).get("pool_size", "?")
     return ("\n---\n\n## Klondike — benchmark czasu rozwiązania "
             f"(pula TEST_SOLVABLE, {pool} rozdań)\n\n"
             + markdown_table(header, rows)
             + "\n\nŚrednie ruchów i czasu liczone **tylko po rozdaniach "
               "rozwiązanych** — uśrednienie limitu ruchów z rozdania, którego "
-              "agent nie rozwiązał, robiłoby ze słabszego agenta szybszego.\n")
+              "agent nie rozwiązał, robiłoby ze słabszego agenta szybszego. "
+              "Wiersze baselinów to jeden deterministyczny pomiar; wiersze "
+              "agentów uczących się to średnia ± odchylenie po 3 seedach. "
+              "Czasu do wygranej nie mierzymy dla agentów uczących się — jeden "
+              "przebieg sieci jest tu tańszy niż narzut pomiaru.\n")
 
 
 def timing_table(runs) -> tuple[str, float]:

@@ -23,6 +23,7 @@ from rl_card_lib.games import KlondikeSolitaire, Macao  # noqa: E402
 from rl_card_lib.games.heuristics import (  # noqa: E402
     KlondikeHeuristicAgent, MacaoHeuristicAgent,
 )
+from rl_card_lib.games.registration import KLONDIKE_MAX_PASSES  # noqa: E402
 from rl_card_lib.harness import build_learner  # noqa: E402
 from rl_card_lib.harness.evaluation import evaluate_klondike  # noqa: E402
 from rl_card_lib.trainer import SelfPlayTrainer, Trainer  # noqa: E402
@@ -251,7 +252,11 @@ def hyperparameters() -> dict:
                       "target_update_freq", "hidden_sizes", "gae_lambda",
                       "clip_epsilon", "epochs", "minibatch_size", "rollout_steps",
                       "entropy_coef", "value_coef", "max_grad_norm", "precision",
-                      "optimistic_init", "dueling"):
+                      # Since #33 PPO's evaluation action rule is a setting, not
+                      # an assumption: sampling the policy and taking its argmax
+                      # are different policies on Klondike (diagnosis.md D11),
+                      # so the table has to say which one produced the numbers.
+                      "optimistic_init", "dueling", "eval_greedy"):
             if hasattr(agent, field):
                 value = getattr(agent, field)
                 row[field] = list(value) if isinstance(value, list) else value
@@ -344,43 +349,77 @@ def target_update_cadence() -> dict:
 
 
 def truncation_and_terminal_reward() -> dict:
-    """Is the terminal reward, or the bootstrap, lost at the step cap?"""
-    captured: list[dict] = []
+    """Is the terminal reward, or the bootstrap, lost at the step cap?
 
-    class Spy(Trainer):
-        def _learn(self, agent, obs, action, reward, next_obs, done, info):
-            captured.append({
-                "done": bool(done),
-                "terminated": bool(getattr(self.env.game, "done", False)),
-                "reward": float(reward),
-            })
-            return super()._learn(agent, obs, action, reward, next_obs, done, info)
-
+    Rewritten for the post-#24 contract. `Trainer._learn` now receives
+    `terminated` as `done` and `truncated` as its own argument, so the old
+    version of this probe -- which inferred truncation from `done` being set
+    while the game was not over -- would report zero truncations on today's
+    library and look like the problem had vanished. It measures both flags
+    directly instead, and on both pass rules: `max_passes=None` is the
+    configuration D4 calls pathological, and the bundled finite limit is what
+    the agents actually train on since #30.
+    """
     torch.set_num_threads(1)
-    env = CardGameEnv(KlondikeSolitaire(), max_steps=300)
-    agent = build_learner("dqn", 221, 68, 0)
-    trainer = Spy(env=env, agent=agent, log_interval=10**9, eval_interval=10**9,
-                  checkpoint_interval=10**9)
-    trainer.train(episodes=5, max_steps_per_episode=300, verbose=False)
-
-    done_flags = [c for c in captured if c["done"]]
-    return {
-        "klondike_default_max_passes": KlondikeSolitaire().max_passes,
+    out: dict = {
+        "klondike_class_default_max_passes": KlondikeSolitaire().max_passes,
+        "klondike_bundled_max_passes": KLONDIKE_MAX_PASSES,
         "klondike_loss_reward_constant": KlondikeSolitaire.LOSS_REWARD,
         "klondike_draw_always_legal_with_unlimited_passes": True,
-        "transitions_seen": len(captured),
-        "transitions_with_done_true": len(done_flags),
-        "of_those_actually_terminated": sum(1 for c in done_flags if c["terminated"]),
-        "of_those_only_truncated": sum(1 for c in done_flags if not c["terminated"]),
-        "terminal_rewards_at_done": [round(c["reward"], 4) for c in done_flags],
         "macao_pays_terminal_on_truncation": True,
         "macao_truncation_reward_rule":
             "0.1 * (mean opponent hand size - actor hand size), Macao._finish_step",
+        "by_max_passes": {},
     }
+
+    for label, passes in (("unlimited", None), ("bundled", KLONDIKE_MAX_PASSES)):
+        captured: list[dict] = []
+
+        class Spy(Trainer):
+            def _learn(self, agent, obs, action, reward, next_obs, done, info,
+                       truncated: bool = False):
+                captured.append({
+                    # `done` is `terminated` since #24; keep the game's own view
+                    # alongside it so the two can be shown to agree.
+                    "terminated": bool(done),
+                    "game_over": bool(getattr(self.env.game, "done", False)),
+                    "truncated": bool(truncated),
+                    "reward": float(reward),
+                })
+                return super()._learn(agent, obs, action, reward, next_obs,
+                                      done, info, truncated=truncated)
+
+        env = CardGameEnv(KlondikeSolitaire(max_passes=passes), max_steps=300)
+        agent = build_learner("dqn", 221, 68, 0)
+        trainer = Spy(env=env, agent=agent, log_interval=10**9,
+                      eval_interval=10**9, checkpoint_interval=10**9)
+        trainer.train(episodes=5, max_steps_per_episode=300, verbose=False)
+
+        ended = [c for c in captured if c["terminated"] or c["truncated"]]
+        out["by_max_passes"][label] = {
+            "max_passes": passes,
+            "transitions_seen": len(captured),
+            "transitions_ending_an_episode": len(ended),
+            "terminated": sum(1 for c in ended if c["terminated"]),
+            "truncated_only": sum(1 for c in ended
+                                  if c["truncated"] and not c["terminated"]),
+            "terminated_flag_matches_game_over": all(
+                c["terminated"] == c["game_over"] for c in captured),
+            "rewards_at_episode_end": [round(c["reward"], 4) for c in ended],
+        }
+    return out
 
 
 def invalid_action_livelock() -> dict:
-    """An episode of nothing but illegal actions never ends."""
+    """Does an episode of nothing but illegal actions end? Since #25, yes.
+
+    D10 reported this as a livelock: `CardGameEnv.step()` returned on the
+    illegal-action branch before touching `_step_count`, so `max_steps` was
+    never reached and the episode ran forever, paying `invalid_action_reward`
+    each time. PR #25 counts the step and applies the cap on that branch too.
+    The probe still runs the same experiment -- it just no longer hardcodes the
+    old conclusion, and reports what it observes.
+    """
     env = CardGameEnv(Macao(num_players=2), max_steps=200)
     obs, info = env.reset(seed=0)
     legal = set(info["legal_actions"])
@@ -399,8 +438,15 @@ def invalid_action_livelock() -> dict:
         "env_internal_step_count": env._step_count,
         "env_max_steps": env.max_steps,
         "reward_per_illegal_step": env.invalid_action_reward,
-        "cause": "CardGameEnv.step() returns before incrementing _step_count "
-                 "when the action is illegal, so max_steps is never reached",
+        "probe_step_budget": 5000,
+        "livelocks": not ended,
+        "cause": (
+            "CardGameEnv.step() returns before incrementing _step_count when "
+            "the action is illegal, so max_steps is never reached"
+            if not ended else
+            "fixed in #25: the illegal-action branch increments _step_count and "
+            "applies max_steps, so the episode truncates like any other"
+        ),
     }
 
 

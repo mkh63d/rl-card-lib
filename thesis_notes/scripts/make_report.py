@@ -57,9 +57,16 @@ LABEL = {
     "dqn": "DQN",
     "q_learning": "Q-learning",
 }
+# What each arm configures. `fixed` is the library itself since PRs #24-#34, so
+# it bundles four changes rather than isolating the bootstrap fix it once meant;
+# `asis` is reconstructed on the same commit by switching those four back. Only
+# `fixed` -> `noloop` is still a single-factor comparison. See results.md.
+# Kept short and comma-free: these strings land in a CSV column, a figure
+# legend and the injected diagnosis.md table. The four levers each arm actually
+# sets are spelled out in results.md and recorded per run in `arm_config`.
 ARM_LABEL = {
-    "asis": "as published",
-    "fixed": "+ time-limit bootstrap fix",
+    "asis": "before the fixes (pre-#24)",
+    "fixed": "library as shipped",
     "noloop": "+ repeated-position penalty",
 }
 AGENT_ORDER = ["ppo", "double_dqn", "dqn", "q_learning"]
@@ -579,19 +586,44 @@ def table_results(runs: dict, game: str, baselines, solvable) -> None:
 
 
 def table_solve_time(baselines, solvable) -> None:
-    if not baselines or "klondike_solve_time" not in baselines:
-        return
+    """Both halves of the solve-rate table: baselines and trained learners.
+
+    `baselines_on_test.py` measures the non-learning agents and
+    `solve_time_learners.py` the trained checkpoints, over the same
+    TEST_SOLVABLE pool, so the two sets of rows are one table rather than two.
+    A learner row carries a spread because it is three seeds; a baseline is a
+    single deterministic measurement, so its sd columns stay empty.
+    """
     rows = []
-    for row in baselines["klondike_solve_time"]:
-        rows.append([
-            row["agent"], row["pool_size"], round(row["solve_rate"], 4),
-            round(row["cards_up"], 2),
-            "" if row["solve_moves"] is None else round(row["solve_moves"], 1),
-            "" if row["solve_seconds"] is None else round(row["solve_seconds"], 4),
-        ])
+    if baselines and "klondike_solve_time" in baselines:
+        for row in baselines["klondike_solve_time"]:
+            rows.append([
+                row["agent"], row["pool_size"], 1,
+                round(row["solve_rate"], 4), "",
+                round(row["cards_up"], 2), "",
+                "" if row["solve_moves"] is None else round(row["solve_moves"], 1),
+                "" if row["solve_seconds"] is None
+                else round(row["solve_seconds"], 4),
+            ])
+
+    learners = load_json("solve_time_learners.json")
+    if learners:
+        for row in learners.get("rows", []):
+            rows.append([
+                row["label"], learners.get("pool_size", ""), row["seeds"],
+                round(row["solve_rate_mean"], 4), round(row["solve_rate_sd"], 4),
+                round(row["cards_up_mean"], 2), round(row["cards_up_sd"], 2),
+                "" if row.get("solve_moves_mean") is None
+                else round(row["solve_moves_mean"], 1),
+                "",
+            ])
+
+    if not rows:
+        return
     write_csv("solve_time_benchmark.csv",
-              ["agent", "pool_size", "solve_rate", "cards_up",
-               "mean_moves_to_solve", "mean_seconds_to_solve"], rows)
+              ["agent", "pool_size", "seeds", "solve_rate", "solve_rate_sd",
+               "cards_up", "cards_up_sd", "mean_moves_to_solve",
+               "mean_seconds_to_solve"], rows)
 
 
 def table_hyperparameters() -> None:
@@ -619,6 +651,7 @@ def table_hyperparameters() -> None:
         ("value_coef", "Value coefficient"),
         ("max_grad_norm", "Max gradient norm"),
         ("dueling", "Duelling head"),
+        ("eval_greedy", "Greedy evaluation (argmax of the policy)"),
         ("precision", "State rounding (decimals)"),
         ("optimistic_init", "Optimistic init"),
     ]
