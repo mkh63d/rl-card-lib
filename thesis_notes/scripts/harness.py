@@ -1,14 +1,19 @@
 """Experiment harness for the thesis_notes re-runs.
 
-Nothing under `packages/` is modified. Everything this module adds is either a
-thin subclass or a plain function, so the library still behaves exactly as the
-thesis describes it, and each deviation is visible here as a named object:
+Nothing under `packages/` is modified *by this module*, but the library it
+calls is no longer the one the thesis text describes: PRs #24-#34 merged the
+corrections that used to live here as subclasses. What is left is therefore the
+inverse of what this file once held -- the pieces that reconstruct the *pre-fix*
+behaviour on top of today's library, so the `asis` arm can still be measured:
 
-    PooledEnv                 draws every episode's deal from a named seed pool
-    frozen_exploration        evaluation no longer decays the epsilon schedule
-    TimeLimitBootstrapMixin   a time-limit truncation stops being treated as a
-                              terminal state in the TD target
-    evaluate_* on_pool        greedy evaluation over a fixed list of deal seeds
+    ConflatedTruncationMixin  puts a time-limit truncation back into the TD
+                              target as if it were a terminal state (pre-#24)
+    frozen_exploration        restores epsilon/eval-mode around a measurement
+    evaluate_* on_pool        greedy evaluation over a fixed list of deal seeds,
+                              on the same Klondike rules the run trained under
+
+`PooledEnv` is gone: `CardGameEnv(deal_seeds=..., deal_rng_seed=...)` does the
+same job in the library now, and records `dealt_seeds` itself.
 
 See thesis_notes/protocol.md and thesis_notes/diagnosis.md for why each exists.
 """
@@ -16,9 +21,8 @@ See thesis_notes/protocol.md and thesis_notes/diagnosis.md for why each exists.
 from __future__ import annotations
 
 import contextlib
-import random
 import time
-from typing import Any, Callable, Iterable, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -28,122 +32,105 @@ from rl_card_lib.trainer import SelfPlayTrainer, Trainer
 
 
 # ---------------------------------------------------------------------------
-# 1. Deals come from a declared pool
-# ---------------------------------------------------------------------------
-
-class PooledEnv(CardGameEnv):
-    """A CardGameEnv whose `reset()` always draws a deal from a seed pool.
-
-    The stock `CardGameEnv.reset()` forwards a seed when it is given one and
-    otherwise lets the game reshuffle from its own RNG, which the trainer never
-    seeds -- so training deals are unreproducible and belong to no declared set.
-    This subclass fills that gap: an unseeded `reset()` picks a seed uniformly
-    from `pool` using a private `random.Random`, so the deal sequence is
-    reproducible from `deal_rng_seed` alone and never touches the global RNG
-    the agents draw their exploration noise from.
-
-    It also records `info["_terminated"]`, which `TimeLimitBootstrapMixin`
-    needs in order to tell a real terminal state from a time-limit cut.
-    """
-
-    def __init__(self, game, pool: Iterable[int], deal_rng_seed: int = 0, **kwargs):
-        super().__init__(game, **kwargs)
-        self.pool = list(pool)
-        self.deal_rng_seed = deal_rng_seed
-        self._deal_rng = random.Random(deal_rng_seed)
-        self.dealt_seeds: list[int] = []
-
-    def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
-        if seed is None:
-            seed = self._deal_rng.choice(self.pool)
-        self.dealt_seeds.append(seed)
-        return super().reset(seed=seed, options=options)
-
-    def step(self, action: int):
-        obs, reward, terminated, truncated, info = super().step(action)
-        info["_terminated"] = bool(terminated)
-        info["_truncated"] = bool(truncated)
-        return obs, reward, terminated, truncated, info
-
-
-# ---------------------------------------------------------------------------
-# 2. Evaluation must not consume the exploration schedule
+# 1. Evaluation must not consume the exploration schedule
 # ---------------------------------------------------------------------------
 
 @contextlib.contextmanager
 def frozen_exploration(*agents: Any):
-    """Restore epsilon and the episode counter after a block.
+    """Restore epsilon, the episode counter and the action rule after a block.
 
-    `Agent.reset()` is what decays epsilon (once per episode, by design), and
-    every evaluation episode calls it -- so an evaluation permanently advances
-    the exploration schedule of the agent it is measuring. Wrapping evaluation
-    in this makes the measurement free of side effects.
+    Since #28 the trainer decays epsilon in `on_episode_end()` rather than in
+    `Agent.reset()`, so an evaluation no longer advances the schedule on its
+    own. This stays because the measurement functions below still flip
+    `training` and `eval_greedy` on the agent they are handed, and a caller that
+    goes on to train the same object must get it back unchanged.
     """
     saved = [
         (a, getattr(a, "epsilon", None), getattr(a, "episodes", None),
-         getattr(a, "training", None))
+         getattr(a, "training", None), getattr(a, "eval_greedy", None))
         for a in agents
     ]
     try:
         yield
     finally:
-        for agent, epsilon, episodes, training in saved:
+        for agent, epsilon, episodes, training, eval_greedy in saved:
             if epsilon is not None:
                 agent.epsilon = epsilon
             if episodes is not None:
                 agent.episodes = episodes
+            if eval_greedy is not None:
+                agent.eval_greedy = eval_greedy
             if training is True:
                 agent.train()
             elif training is False:
                 agent.eval()
 
 
+def set_eval_action_rule(agent: Any, eval_greedy: Optional[bool]) -> None:
+    """Ask `agent` for argmax or sampling at evaluation time, if it has a say.
+
+    Only PPO does: `PPOAgent.eval_greedy` (PR #33, issue #21) picks between the argmax
+    of the policy and a sample from it, and on Klondike those are very different
+    policies -- see diagnosis.md D11. The DQN family's greedy policy is the one
+    it learned, so there is nothing to choose and the attribute is absent.
+    """
+    if eval_greedy is not None and hasattr(agent, "eval_greedy"):
+        agent.eval_greedy = eval_greedy
+
+
 # ---------------------------------------------------------------------------
-# 3. A time-limit cut is not a terminal state
+# 2. A time-limit cut *was* treated as a terminal state -- the `asis` arm
 # ---------------------------------------------------------------------------
 
-class TimeLimitBootstrapMixin:
-    """Bootstrap through a truncation instead of zeroing the target at it.
+class ConflatedTruncationMixin:
+    """Teach the learner that a truncated step has no future, as it did pre-#24.
 
-    `Trainer._run_episode` computes `done = terminated or truncated` and hands
-    that single flag to `agent.learn()`. Every value-based target in the library
-    then multiplies the bootstrap by `(1 - done)`, so a step that was cut by the
-    step cap is taught that the future is worth exactly zero. On Klondike, where
-    essentially every episode ends at the 300-step cap, that is the last
-    transition of every episode. This mixin passes the game's own `terminated`
-    instead, which is the standard time-limit handling.
+    Before #24, `Trainer._run_episode` computed `done = terminated or truncated`
+    and handed that single flag to `agent.learn()`. Every value-based target in
+    the library multiplies the bootstrap by `(1 - done)`, so a step cut by the
+    step cap was taught that the future is worth exactly zero. On Klondike,
+    where essentially every episode ended at the 300-step cap, that was the last
+    transition of every episode.
+
+    Master now passes `terminated` and forwards `truncated` separately. This
+    mixin puts the old behaviour back, so the `asis` arm measures the library
+    the thesis describes while running on the same commit as every other arm: it
+    folds `truncated` into `done` and does *not* forward it, so an agent
+    declaring `accepts_truncated` (PPO) sees the pre-fix target too.
     """
 
-    def _learn(self, agent, observation, action, reward, next_observation, done, info):
-        if done and info.get("_terminated") is False:
-            done = False
+    def _learn(self, agent, observation, action, reward, next_observation,
+               done, info, truncated: bool = False):
         return super()._learn(
-            agent, observation, action, reward, next_observation, done, info,
+            agent, observation, action, reward, next_observation,
+            bool(done) or bool(truncated), info,
         )
 
 
-class BootstrapTrainer(TimeLimitBootstrapMixin, Trainer):
+class LegacyTrainer(ConflatedTruncationMixin, Trainer):
     pass
 
 
-class BootstrapSelfPlayTrainer(TimeLimitBootstrapMixin, SelfPlayTrainer):
+class LegacySelfPlayTrainer(ConflatedTruncationMixin, SelfPlayTrainer):
     pass
 
 
 # ---------------------------------------------------------------------------
-# 4. Greedy evaluation over a fixed pool of deals
+# 3. Greedy evaluation over a fixed pool of deals
 # ---------------------------------------------------------------------------
 
 def evaluate_klondike_on_pool(
     agent, seeds: list[int], max_steps: int = 300, reward_mode: str = "shaped",
+    max_passes: Optional[int] = None, eval_greedy: Optional[bool] = None,
 ) -> dict:
     """Play every deal in `seeds` greedily and report the aggregate.
 
-    Unlike `harness.evaluation.evaluate_klondike`, the deal really is fixed:
-    the seed goes to `game.reset(seed=...)`, not to the global `random` module
-    (which the game's private RNG never reads).
+    `max_passes` has to be the value the run trained under: since #30 the
+    bundled Klondike caps passes through the stock, which is what makes a deal
+    losable at all. Evaluating on the unlimited-pass default would score the
+    agent on a different game than the one it learned.
     """
-    game = KlondikeSolitaire(reward_mode=reward_mode)
+    game = KlondikeSolitaire(reward_mode=reward_mode, max_passes=max_passes)
     env = CardGameEnv(game, max_steps=max_steps)
     if hasattr(agent, "bind"):
         agent.bind(env)
@@ -153,6 +140,7 @@ def evaluate_klondike_on_pool(
     started = time.perf_counter()
 
     with frozen_exploration(agent):
+        set_eval_action_rule(agent, eval_greedy)
         agent.eval()
         for seed in seeds:
             observation, info = env.reset(seed=seed)
@@ -190,6 +178,7 @@ def evaluate_klondike_on_pool(
 
 def evaluate_macao_on_pool(
     agent, opponent, seeds: list[int], max_steps: int = 200,
+    eval_greedy: Optional[bool] = None,
 ) -> dict:
     """Play every deal in `seeds` greedily against `opponent`, agent seated as 0."""
     game = Macao(num_players=2)
@@ -204,6 +193,7 @@ def evaluate_macao_on_pool(
     started = time.perf_counter()
 
     with frozen_exploration(agent, opponent):
+        set_eval_action_rule(agent, eval_greedy)
         agent.eval()
         if hasattr(opponent, "eval"):
             opponent.eval()
@@ -251,7 +241,8 @@ def evaluate_macao_on_pool(
 
 
 def evaluate_macao_suite_on_pool(agent, seeds: list[int], max_steps: int = 200,
-                                 opponent_seed: int = 0) -> dict:
+                                 opponent_seed: int = 0,
+                                 eval_greedy: Optional[bool] = None) -> dict:
     """Evaluate against both scripted opponents on the same deals."""
     from rl_card_lib.agents import RandomAgent
     from rl_card_lib.games.heuristics import MacaoHeuristicAgent
@@ -262,7 +253,8 @@ def evaluate_macao_suite_on_pool(agent, seeds: list[int], max_steps: int = 200,
         "heuristic": MacaoHeuristicAgent(seed=opponent_seed),
     }
     for name, opponent in opponents.items():
-        result = evaluate_macao_on_pool(agent, opponent, seeds, max_steps)
+        result = evaluate_macao_on_pool(agent, opponent, seeds, max_steps,
+                                        eval_greedy=eval_greedy)
         for key, value in result.items():
             out[f"{key}_vs_{name}"] = value
     out["episodes"] = len(seeds)
@@ -270,7 +262,7 @@ def evaluate_macao_suite_on_pool(agent, seeds: list[int], max_steps: int = 200,
 
 
 # ---------------------------------------------------------------------------
-# 5. Per-episode TRAIN recorder
+# 4. Per-episode TRAIN recorder
 # ---------------------------------------------------------------------------
 
 def make_train_recorder(env, agent, game_name: str):
@@ -320,14 +312,14 @@ def block_average(values: list, block: int) -> list[dict]:
 
 
 __all__ = [
-    "BootstrapSelfPlayTrainer",
-    "BootstrapTrainer",
-    "PooledEnv",
-    "TimeLimitBootstrapMixin",
+    "ConflatedTruncationMixin",
+    "LegacySelfPlayTrainer",
+    "LegacyTrainer",
     "block_average",
     "evaluate_klondike_on_pool",
     "evaluate_macao_on_pool",
     "evaluate_macao_suite_on_pool",
     "frozen_exploration",
     "make_train_recorder",
+    "set_eval_action_rule",
 ]
