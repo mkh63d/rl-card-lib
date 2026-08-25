@@ -30,6 +30,14 @@ Każde ramię zmienia **dokładnie jedną** rzecz względem `asis`:
 | `fixed` | truncation przestaje być traktowany jak stan terminalny w celu TD | [`diagnosis.md`](diagnosis.md) D1 |
 | `noloop` | kara `-0,05` za wejście w pozycję już widzianą w epizodzie (`repeated_position_penalty` — mechanizm już obecny w `CardGameEnv`, dotąd nigdy nie włączony) | [`diagnosis.md`](diagnosis.md) D3 |
 
+> **Ramię `noloop` nie zostało policzone w tym protokole** — w
+> [`tables/ablation_fixes.csv`](tables/ablation_fixes.csv) i w tabeli ablacji
+> są tylko `asis` i `fixed`. Pomiar wstępny na krótszym przebiegu (DQN, 1200
+> epizodów, 2 seedy) pokazuje, że kara **nie zmniejsza zapętlenia**: 86,7 %
+> powtórzonych pozycji wobec 85,4 % bez niej. Szczegóły i mechanizm w
+> [`diagnosis.md`](diagnosis.md) D3, dane w
+> [`raw/noloop_preliminary.json`](raw/noloop_preliminary.json).
+
 Żaden plik w `packages/` nie był modyfikowany: poprawki są zaimplementowane
 jako podklasy w [`scripts/harness.py`](scripts/harness.py).
 

@@ -15,7 +15,7 @@
 | **D0** | Pojemność bufora **64** z Tabeli 6.1 **nie istnieje w kodzie** — kod ma 50 000 | błąd w tekście pracy, nie w kodzie | n/d — sprawdzone w kodzie i w historii git |
 | **D1** | Truncation traktowany jak stan terminalny: bootstrap zerowany w **100 %** epizodów Klondike | **wysoka** | tak — osobne ramię `fixed` |
 | **D2** | Jak mocno Q różnicuje legalne akcje: rozstęp 8,8 % średniej dla Klondike DQN, ale 33 % dla Double DQN — **płaskość Q nie tłumaczy zapętlenia** | średnia (hipoteza odrzucona) | tak — pomiar |
-| **D3** | Zachłanna polityka **zapętla się**: 80–83 % kroków wraca do pozycji już widzianej (losowa: 23 %); dla DQN 70 % ruchów to „dobierz”. Mechanizm kary za powtórzenie istnieje w kodzie i nigdy nie został włączony | **wysoka — główna przyczyna** | tak — osobne ramię `noloop` |
+| **D3** | Zachłanna polityka **zapętla się**: 80–83 % kroków wraca do pozycji już widzianej (losowa: 23 %); dla DQN 70 % ruchów to „dobierz”. Mechanizm kary za powtórzenie istnieje w kodzie i nigdy nie został włączony | **wysoka — główna przyczyna**; ale samo włączenie kary **nie pomaga** — zapętlenie zostaje (86,7 % vs 85,4 %) | diagnoza tak; lekarstwo **obalone** pomiarem wstępnym — ramię `noloop` nadal nie policzone w pełnym protokole |
 | **D4** | Klondike nie ma sygnału terminalnego: `LOSS_REWARD` jest kodem nieosiągalnym przy `max_passes=None` | **wysoka** | częściowo — pomiar + ramię `fixed` |
 | **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar |
 | **D6** | Harmonogram ε schodzi do 0,05 po **599 epizodach** — 88 % treningu jest prawie zachłanne | średnia | pomiar analityczny |
@@ -328,9 +328,69 @@ uczenia): rozdanie „umiera” w 4,5 % przypadków przy grze losowej i 1,5 % pr
 heurystyce, czyli gałąź `LOSS_REWARD` przestaje być kodem martwym — ale kosztem
 spadku wyniku heurystyki z 28,7 do 25,8 karty.
 
-### Wynik po poprawce
+### Wynik po poprawce — kara **nie** usuwa zapętlenia
 
-Patrz §Wyniki ablacji.
+> **Pomiar wstępny, poza protokołem.** Ramię `noloop` nigdy nie zostało
+> policzone w pełnym protokole (5000 epizodów, 3 seedy, pula TEST 200 rozdań),
+> więc w [`tables/ablation_fixes.csv`](tables/ablation_fixes.csv) do dziś go
+> nie ma — są tylko `asis` i `fixed`. Liczby poniżej pochodzą z krótszego
+> przebiegu: DQN, 1200 epizodów, 2 seedy inicjalizacji, ewaluacja zachłanna na
+> 30 rozdaniach TEST (100000–100029). **Nie są porównywalne** z wierszami
+> `asis` / `fixed` w tabeli ablacji i nie zastępują tamtego przebiegu. Podaję
+> je, bo prowadzą do wniosku, który zmienia status samej poprawki.
+> Źródło: [`raw/noloop_preliminary.json`](raw/noloop_preliminary.json).
+
+| ramię | udział kroków wracających do znanej pozycji | udział „dobierz” | karty na bazach |
+|---|---:|---:|---:|
+| `asis` (kara 0,0) | 85,4 % | 22,3 % | 5,25 |
+| `noloop` (kara −0,05) | **86,7 %** | 15,0 % | 4,75 |
+
+Kara **nie zmniejsza zapętlenia**. Różnica 1,3 pp idzie w złą stronę i jest
+mniejsza niż rozrzut między seedami wewnątrz każdego ramienia (`asis`
+83,9–86,9 %, `noloop` 85,6–87,8 %), a karty na bazach nie rosną.
+
+Najmocniejsza przesłanka jest w krzywej treningowej — nagroda na końcu
+przebiegu:
+
+| ramię | seed 0 | seed 1 |
+|---|---:|---:|
+| `asis` | +6,47 | +5,57 |
+| `noloop` | −4,47 | −4,30 |
+
+Ponieważ zachowanie zachłanne jest w obu ramionach niemal identyczne, różnica
+~10,4 to po prostu **kara faktycznie zapłacona**: ~208 ukaranych kroków na
+epizod przy limicie 300, czyli agent płaci na około dwóch trzecich kroków —
+i przez 1200 epizodów tego nie zmniejsza. Gdyby sygnał był wyuczalny, ta luka
+zamykałaby się w stronę zera.
+
+### Dlaczego kara nie działa
+
+Dwa powody, oba strukturalne:
+
+1. **Kara nie jest markowowska względem obserwacji.** `_seen_positions` to
+   historia epizodu, której agent nie widzi. Ta sama para (obserwacja, akcja)
+   dostaje różną nagrodę zależnie od tego, czy pozycja była już odwiedzona,
+   więc funkcja wartości może nauczyć się najwyżej *średniego* kosztu akcji —
+   nigdy tego, że **ten** krok jest powtórzeniem.
+
+2. **Wycena cyklu nie usuwa własności, która go tworzy.** Argument z tego
+   znaleziska jest mocniejszy niż zaproponowane lekarstwo: polityka
+   deterministyczna w środowisku deterministycznym zapętla się, gdy tylko wróci
+   do odwiedzonego stanu. Podrożenie cyklu przenosi politykę na *tańszy* cykl,
+   nie likwiduje cyklu.
+
+Ciężar przechodzi więc na wariant odłożony wyżej jako „nie testowany”:
+**`max_passes=3`** — talia przestaje być odnawialna, więc pętla dobierania się
+**kończy**, zamiast tylko kosztować. Pozostałe kierunki: umieścić znacznik
+odwiedzenia w obserwacji (kara staje się wyuczalna) albo ewaluować z małym ε.
+
+Sam fakt, że mechanizm był martwy, pozostaje usterką wartą naprawienia —
+PR [#29](https://github.com/mkh63d/rl-card-lib/pull/29) podłącza go i dokłada
+testy, które nie pozwolą mu znowu zgasnąć. Ale **nie jest to lekarstwo na
+zapętlenie**, wbrew temu, co obiecuje docstring w `CardGameEnv`. Diagnoza
+z tego znaleziska (że polityka zachłanna się zapętla i że to tłumaczy lukę
+zachłanne–eksploracyjne) stoi niezmieniona; upada tylko zaproponowane
+lekarstwo.
 
 ---
 
