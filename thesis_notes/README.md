@@ -1,19 +1,21 @@
 # thesis_notes — fakty, dane i wykresy do rozdziału 6
 
-Katalog z materiałem źródłowym dla pracy. **Nie jest to tekst pracy** i nic
-w `packages/` nie zostało tu zmienione — wszystkie poprawki z
-[`diagnosis.md`](diagnosis.md) są zaimplementowane jako podklasy w
-[`scripts/harness.py`](scripts/harness.py), żeby biblioteka nadal zachowywała
-się dokładnie tak, jak praca ją opisuje.
+Katalog z materiałem źródłowym dla pracy. **Nie jest to tekst pracy.**
 
-> **Uwaga po PR [#29](https://github.com/mkh63d/rl-card-lib/pull/29).** To
-> zdanie opisuje, jak powstały liczby w tym katalogu, i pozostaje prawdziwe.
-> Ale PR #29 **zmienia `packages/`**: włącza `repeated_position_penalty =
-> -0,05` dla Klondike w środowisku treningowym. Po jego scaleniu domyślne
-> środowisko biblioteki **nie jest już** ramieniem `asis` — powtórzenie
-> pomiarów bez jawnego `repeated_position_penalty=0.0` da inne liczby niż
-> tabele w tym katalogu. Sam pomiar mówi, że kara i tak nie usuwa zapętlenia
-> ([`diagnosis.md`](diagnosis.md) D3).
+> **Wszystkie liczby w tym katalogu zostały przemierzone po PR-ach #24–#34.**
+> Wcześniejsze pomiary powstały na commicie `2bd42ab`, czyli na bibliotece
+> sprzed tych poprawek; leżą w [`raw/archive_2bd42ab/`](raw/archive_2bd42ab/)
+> i **nie są porównywalne** z bieżącymi tabelami.
+>
+> Zmieniło się też znaczenie ramion. Poprawki z
+> [`diagnosis.md`](diagnosis.md) mieszkały kiedyś wyłącznie jako podklasy w
+> [`scripts/harness.py`](scripts/harness.py), a `asis` znaczyło „biblioteka bez
+> zmian”. Teraz są w `packages/`, więc `fixed` to biblioteka bez zmian, a
+> `asis` jest *odtwarzane* na niej przez cofnięcie czterech rzeczy (obsługa
+> truncation, `max_passes`, `target_update_freq`, reguła akcji PPO w
+> ewaluacji). Każde ramię liczy się na tym samym commicie, a użyte wartości
+> zapisuje pole `arm_config` w każdym `raw/runs/*.json`. Szczegóły i
+> zastrzeżenia: [`results.md`](results.md).
 
 ## Co gdzie jest
 
@@ -28,6 +30,7 @@ się dokładnie tak, jak praca ją opisuje.
 | [`tables/`](tables/) | Tabele wynikowe w CSV, ze średnią ± odchyleniem standardowym. |
 | [`figures/`](figures/) | PNG (300 dpi) i SVG, czcionka ≥ 10 pt, podpisy osi po angielsku. |
 | [`raw/`](raw/) | Surowe wyniki pomiarów w JSON — źródło każdej liczby powyżej. |
+| [`raw/archive_2bd42ab/`](raw/archive_2bd42ab/) | Poprzedni komplet pomiarów, z biblioteki sprzed PR-ów #24–#34. Trzymane dla historii; **nie mieszać** z bieżącymi tabelami. |
 | [`logs/`](logs/) | Logi uruchomień. |
 | [`scripts/`](scripts/) | Kod, który to wszystko wyprodukował. |
 | [`issues/`](issues/) | Treści zgłoszeń GitHub — jedno na *poprawkę*, nie na objaw. Tworzone przez [`scripts/create_issues.py`](scripts/create_issues.py); utworzone adresy lądują w `issues/created.json`. |
@@ -41,6 +44,9 @@ python thesis_notes/scripts/split.py
 # 2. fakty o kontrakcie Gymnasium + test ze Stable-Baselines3
 python thesis_notes/scripts/probe_gymnasium.py
 
+# 2b. rozmiary plików, klasy i kontrakt 7 metod (parser AST, sekundy)
+python thesis_notes/scripts/probe_code_facts.py
+
 # 3. fakty o protokole (epizody, epsilon, truncation, ...)
 python thesis_notes/scripts/probe_protocol.py
 
@@ -49,6 +55,14 @@ python thesis_notes/scripts/run_sweep_all.py --workers 6
 
 # 5. baseliny na tej samej puli TEST (MCTS jest wolny, ~1.5 h)
 python thesis_notes/scripts/baselines_on_test.py
+
+# 5b. wyuczone agenty na tej samej puli TEST_SOLVABLE — druga połowa
+#     tabeli solve-rate; wymaga checkpointów z kroku 4
+python thesis_notes/scripts/solve_time_learners.py
+
+# 5c. zachowanie wyuczonych polityk: zapętlanie, miks akcji, rozrzut Q,
+#     argmax vs próbkowanie dla PPO; wymaga checkpointów z kroku 4
+python thesis_notes/scripts/probe_policy_diagnostics.py
 
 # 6. tabele i wykresy
 python thesis_notes/scripts/make_report.py

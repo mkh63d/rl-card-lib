@@ -10,20 +10,20 @@
 
 ## Spis znalezisk
 
-| # | Znalezisko | Waga | Czy zweryfikowane eksperymentem? |
-|---|---|---|---|
-| **D0** | Pojemność bufora **64** z Tabeli 6.1 **nie istnieje w kodzie** — kod ma 50 000 | błąd w tekście pracy, nie w kodzie | n/d — sprawdzone w kodzie i w historii git |
-| **D1** | Truncation traktowany jak stan terminalny: bootstrap zerowany w **100 %** epizodów Klondike | **wysoka** | tak — osobne ramię `fixed` |
-| **D2** | Jak mocno Q różnicuje legalne akcje: rozstęp 8,8 % średniej dla Klondike DQN, ale 33 % dla Double DQN — **płaskość Q nie tłumaczy zapętlenia** | średnia (hipoteza odrzucona) | tak — pomiar |
-| **D3** | Zachłanna polityka **zapętla się**: 80–83 % kroków wraca do pozycji już widzianej (losowa: 23 %); dla DQN 70 % ruchów to „dobierz”. Mechanizm kary za powtórzenie istnieje w kodzie i nigdy nie został włączony | **wysoka — główna przyczyna**; ale samo włączenie kary **nie pomaga** — zapętlenie zostaje (86,7 % vs 85,4 %) | diagnoza tak; lekarstwo **obalone** pomiarem wstępnym — ramię `noloop` nadal nie policzone w pełnym protokole |
-| **D4** | Klondike nie ma sygnału terminalnego: `LOSS_REWARD` jest kodem nieosiągalnym przy `max_passes=None` | **wysoka** | częściowo — pomiar + ramię `fixed` |
-| **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar |
-| **D6** | Harmonogram ε schodzi do 0,05 po **599 epizodach** — 88 % treningu jest prawie zachłanne | średnia | pomiar analityczny |
-| **D7** | Ewaluacja **zużywa** harmonogram ε (`agent.reset()` obniża ε) | niska, ale psuje reprodukowalność | pomiar |
-| **D8** | Tablica Q-learningu rośnie o **0,84 wpisu na krok** — czysta memoryzacja | wysoka dla Q-learningu | pomiar |
-| **D9** | γ = 0,95 przy epizodzie 300-krokowym: horyzont efektywny ~20 kroków | średnia | analiza |
-| **D10** | Epizod z samych nielegalnych akcji nigdy się nie kończy | poza zakresem wyników, ważne dla §Gymnasium | pomiar |
-| **D11** | **Zachłanna ewaluacja niszczy wyuczoną politykę.** Te same wagi PPO: `argmax` → 7,5 karty i 0,0 % wygranych; próbkowanie własnego rozkładu → **22,5 karty i 28,5 % wygranych** | **najwyższa — zmienia główny wniosek rozdz. 6** | tak — pomiar na tych samych 200 rozdaniach TEST |
+| # | Znalezisko | Waga | Czy zweryfikowane eksperymentem? | Stan w kodzie |
+|---|---|---|---|---|
+| **D0** | Pojemność bufora **64** z Tabeli 6.1 **nie istnieje w kodzie** — kod ma 50 000 | błąd w tekście pracy, nie w kodzie | n/d — sprawdzone w kodzie i w historii git | n/d — poprawka dotyczy tekstu pracy |
+| **D1** | Truncation traktowany jak stan terminalny: bootstrap zerowany w **100 %** epizodów Klondike | **wysoka** | tak — osobne ramię `fixed` | **scalone w #24** |
+| **D2** | Jak mocno Q różnicuje legalne akcje: rozstęp 8,8 % średniej dla Klondike DQN, ale 33 % dla Double DQN — **płaskość Q nie tłumaczy zapętlenia** | średnia (hipoteza odrzucona) | tak — pomiar | n/d — hipoteza, nie usterka |
+| **D3** | Zachłanna polityka **zapętla się**: 80–83 % kroków wraca do pozycji już widzianej (losowa: 23 %); dla DQN 70 % ruchów to „dobierz”. Mechanizm kary za powtórzenie istnieje w kodzie i nigdy nie został włączony | **wysoka — główna przyczyna**; ale samo włączenie kary **nie pomaga** — zapętlenie zostaje (86,7 % vs 85,4 %) | diagnoza tak; lekarstwo **obalone** — ramię `noloop` policzone w pełnym protokole (Klondike, 4 agenty × 3 seedy) | kara **scalona w #29**; pomiar mówi, że nie pomaga |
+| **D4** | Klondike nie ma sygnału terminalnego: `LOSS_REWARD` jest kodem nieosiągalnym przy `max_passes=None` | **wysoka** | częściowo — pomiar + ramię `fixed` | **scalone w #30** (`BUNDLED_MAX_PASSES = 3`) i #24 |
+| **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar | **scalone w #31** — kadencja per gra (klondike 500, macao 100) |
+| **D6** | Harmonogram ε schodzi do 0,05 po **599 epizodach** — 88 % treningu jest prawie zachłanne | średnia | pomiar analityczny | bez zmian — świadomy wybór harmonogramu |
+| **D7** | Ewaluacja **zużywa** harmonogram ε (`agent.reset()` obniża ε) | niska, ale psuje reprodukowalność | pomiar | **scalone w #28** |
+| **D8** | Tablica Q-learningu rośnie o **0,84 wpisu na krok** — czysta memoryzacja | wysoka dla Q-learningu | pomiar | bez zmian — właściwość metody tabelarycznej |
+| **D9** | γ = 0,95 przy epizodzie 300-krokowym: horyzont efektywny ~20 kroków | średnia | analiza | bez zmian — świadomy wybór γ |
+| **D10** | Epizod z samych nielegalnych akcji nigdy się nie kończył (dziś: truncation po `max_steps`) | poza zakresem wyników, ważne dla §Gymnasium | pomiar | **scalone w #25** |
+| **D11** | **Zachłanna ewaluacja niszczy wyuczoną politykę.** Te same wagi PPO: `argmax` → 7,5 karty i 0,0 % wygranych; próbkowanie własnego rozkładu → **22,5 karty i 28,5 % wygranych** | **najwyższa — zmienia główny wniosek rozdz. 6** | tak — pomiar na tych samych 200 rozdaniach TEST | **scalone w #33** (zgłoszenie #21) |
 
 ---
 
@@ -165,10 +165,12 @@ learn_result = self._learn(self.agent, observation, action, reward,
                            next_observation, terminated, info)
 ```
 
-W eksperymentach zrealizowane bez modyfikacji `packages/` — jako
-`TimeLimitBootstrapMixin` w
-[`scripts/harness.py`](scripts/harness.py), który podmienia flagę w `_learn`
-na podstawie `info["_terminated"]`. Ramię eksperymentu: **`fixed`**.
+**Scalone w PR [#24](https://github.com/mkh63d/rl-card-lib/pull/24).**
+`Trainer._run_episode` przekazuje dziś `terminated`, a `truncated` osobnym
+argumentem, więc to jest zachowanie biblioteki — ramię **`fixed`**. Odwrotność
+mieszka teraz w [`scripts/harness.py`](scripts/harness.py) jako
+`ConflatedTruncationMixin`, który skleja obie flagi z powrotem, żeby dało się
+zmierzyć stan sprzed poprawki: ramię **`asis`**.
 
 ### Wynik po poprawce
 
@@ -441,9 +443,21 @@ Dwa niezależne warianty, oba jednoliniowe:
    terminalne (mierzone: 4,5 % rozdań przy grze losowej);
 2. potraktowanie truncation jako truncation, a nie terminacji — czyli **D1**.
 
-W eksperymentach wybrano wariant 2 (ramię `fixed`), bo nie zmienia reguł gry
-i pozostaje porównywalny z liczbami z pracy. Wariant 1 zmienia definicję gry
-i jego wpływ na wyniki nie był mierzony pod treningiem.
+**Oba zostały scalone**: wariant 2 w PR
+[#24](https://github.com/mkh63d/rl-card-lib/pull/24), wariant 1 w PR
+[#30](https://github.com/mkh63d/rl-card-lib/pull/30), gdzie
+`KlondikeSolitaire.BUNDLED_MAX_PASSES = 3` stało się regułą gry dołączonej do
+biblioteki (klasa nadal domyślnie ma `max_passes=None`, żeby użytkownik mógł
+grać bez limitu). Ramię `fixed` zawiera więc dziś **oba** warianty naraz, co jest
+też powodem, dla którego `asis → fixed` nie jest ablacją jednego czynnika —
+patrz [`results.md`](results.md).
+
+Wpływ wariantu 1 na trening jest teraz zmierzony: w ramieniu `fixed` **2–11 %
+epizodów Klondike kończy się terminacją** zamiast 0 % w `asis`, czyli przegrana
+przestała być kodem nieosiągalnym. Skutkiem ubocznym jest to, że baseliny na
+Klondike spadły (losowa 11,59 → 9,79 karty, heurystyka 28,74 → 25,84), bo trzy
+przejścia przez stos dają mniej okazji niż nieskończenie wiele — porównania
+„agent vs losowy” trzeba czytać na nowej wartości odniesienia.
 
 ### Wynik po poprawce
 
@@ -577,12 +591,18 @@ i `eval_episodes = 20` dochodzi **200 dodatkowych zaników ε** na przebieg
 
 ### Poprawka
 
-Ewaluacja nie powinna mieć efektów ubocznych. W eksperymentach zrealizowane
-jako kontekst `frozen_exploration()` w
-[`scripts/harness.py`](scripts/harness.py), zapisujący i przywracający
-`epsilon`, `episodes` oraz tryb `train`/`eval`. W bibliotece równoważną
-poprawką jest przeniesienie zaniku ε z `Agent.reset()` do jawnego
-`agent.on_episode_end()` wołanego tylko przez pętlę treningową.
+Ewaluacja nie powinna mieć efektów ubocznych.
+
+**Scalone w PR [#28](https://github.com/mkh63d/rl-card-lib/pull/28)** dokładnie
+tą drogą, którą ta sekcja proponowała: zanik ε przeniesiono z `Agent.reset()` do
+jawnego `agent.on_episode_end()`, wołanego przez pętlę treningową **tylko dla
+epizodów treningowych**. Ewaluacja woła `reset()` jak każdy epizod, ale `reset()`
+już niczego nie zanika.
+
+Kontekst `frozen_exploration()` w [`scripts/harness.py`](scripts/harness.py)
+został zachowany, bo nadal ma co robić — funkcje pomiarowe przełączają na
+agencie tryb `train`/`eval` oraz `eval_greedy` (PPO, D11) i muszą oddać obiekt
+w stanie, w jakim go dostały. Samego ε nie musi już pilnować.
 
 ### Wynik po poprawce
 
@@ -661,17 +681,28 @@ skrócenie epizodu przez `max_passes`. Nie było to zmieniane w eksperymentach,
 
 ---
 
-## D10. Epizod z samych nielegalnych akcji nigdy się nie kończy
+## D10. Epizod z samych nielegalnych akcji nigdy się nie kończył
 
-Opisane w [`gymnasium.md`](gymnasium.md) §5c. W skrócie: w
-[card_game_env.py:121-130](../packages/core/src/rl_card_lib/env/card_game_env.py#L121-L130)
-nielegalna akcja wraca **przed** `self._step_count += 1`, więc `max_steps` nigdy
-nie zadziała. Zmierzone: 5000 nielegalnych akcji, `_step_count = 0`,
-`terminated = truncated = False`.
+Opisane w [`gymnasium.md`](gymnasium.md) §5c. W skrócie: `CardGameEnv.step()`
+zwracała wynik **przed** `self._step_count += 1`, gdy akcja była nielegalna, więc
+`max_steps` nigdy nie zadziałało. Zmierzone wtedy: 5000 nielegalnych akcji,
+`_step_count = 0`, `terminated = truncated = False`.
 
-Nie dotyczy wyników z pracy (agenci biblioteki zawsze dostają `legal_actions`),
-ale jest realnym błędem środowiska. Poprawka: przenieść inkrementację przed
-gałąź nielegalnej akcji, albo sprawdzać limit również w tej gałęzi.
+### Poprawka i wynik
+
+**Scalone w PR [#25](https://github.com/mkh63d/rl-card-lib/pull/25)** —
+gałąź nielegalnej akcji zlicza krok i stosuje limit. Ten sam pomiar dziś:
+
+| 5000 nielegalnych akcji, `max_steps=200` | `2bd42ab` | dziś |
+|---|---|---|
+| epizod się zakończył | nie | **tak, po 200 krokach** |
+| `env._step_count` | 0 | **200** |
+
+Nie dotyczy żadnej liczby w wynikach uczenia — agenci biblioteki zawsze dostają
+`legal_actions` i nie proponują nielegalnego ruchu — ale było realnym błędem
+środowiska dla każdego konsumenta z zewnątrz. Widać to w teście
+interoperacyjności ze Stable-Baselines3: demo na Macao trwało 300 kroków
+i płaciło −300,0, a dziś kończy się limitem po 200 krokach z −198,9.
 
 ---
 
@@ -768,10 +799,19 @@ Trzy niezależne, każda działa osobno:
 
 1. **Ewaluować politykę, której agent się nauczył.** Dla PPO to znaczy
    próbkować, a nie brać `argmax` — jedna linia w `PPOAgent.select_action`.
+   **Scalone w PR [#33](https://github.com/mkh63d/rl-card-lib/pull/33)**
+   (zgłoszenie #21): `PPOAgent` próbkuje w trybie ewaluacji, a `eval_greedy=True`
+   pozwala jawnie poprosić o `argmax`. Ramię `fixed` używa próbkowania, ramię
+   `asis` — `argmax`, więc obie liczby są w tabelach obok siebie.
 2. **Włączyć karę za powtórzoną pozycję** (D3), żeby polityka zachłanna
-   przestała cyklować — poprawka po stronie środowiska.
+   przestała cyklować — poprawka po stronie środowiska. **Scalone w PR
+   [#29](https://github.com/mkh63d/rl-card-lib/pull/29)** (ramię `noloop`), ale
+   pomiar mówi, że **to lekarstwo nie działa** — patrz D3.
 3. **Raportować obie liczby.** Zachłanna i stochastyczna to dwie różne
-   polityki; dla gry z ruchami odwracalnymi obie warto podać.
+   polityki; dla gry z ruchami odwracalnymi obie warto podać. Zrealizowane:
+   `tables/solve_time_benchmark.csv` ma osobne wiersze `ppo (fixed)`
+   i `ppo (fixed, sampled)`, a `hyperparameters.csv` podaje `eval_greedy`
+   jako jawny hiperparametr.
 
 ### Konsekwencja dla tekstu pracy
 

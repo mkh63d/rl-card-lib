@@ -10,15 +10,30 @@
 
 ## Odpowiedź w jednym akapicie
 
-Z Gymnasium pochodzą **wyłącznie obiekty przestrzeni** (`spaces.Box`,
-`spaces.Discrete`, a w wariancie maskowanym dodatkowo `spaces.Dict` i
-`spaces.MultiBinary`) oraz **konwencja** pięcioelementowej krotki
-`(observation, reward, terminated, truncated, info)`. Cała reszta — pętla
-uczenia, bufor odtwarzania, maskowanie akcji, agenci, kodowanie obserwacji,
-metryki — jest napisana od zera. Środowisko **nie dziedziczy** po
-`gymnasium.Env`, więc `gymnasium.utils.env_checker.check_env` je odrzuca,
-wrappery Gymnasium go nie przyjmują, a Stable-Baselines3 nie przyjmuje go bez
-adaptera.
+Z Gymnasium pochodzą **obiekty przestrzeni** (`spaces.Box`, `spaces.Discrete`,
+a w wariancie maskowanym dodatkowo `spaces.Dict` i `spaces.MultiBinary`),
+**konwencja** pięcioelementowej krotki
+`(observation, reward, terminated, truncated, info)` oraz — od PR #26 — **klasa
+bazowa `gymnasium.Env`**. Cała reszta — pętla uczenia, bufor odtwarzania,
+maskowanie akcji, agenci, kodowanie obserwacji, metryki — jest napisana od zera.
+
+> **Ta sekcja zmieniła się w PR [#26](https://github.com/mkh63d/rl-card-lib/pull/26).**
+> Do commita `2bd42ab` środowisko **nie dziedziczyło** po `gymnasium.Env`, więc
+> `check_env` je odrzucał, wrappery Gymnasium go nie przyjmowały, a
+> Stable-Baselines3 wymagał adaptera. Dziś jest odwrotnie i **wszystkie cztery
+> stwierdzenia są nieaktualne** — zmierzone na nowo:
+>
+> | Test | `2bd42ab` | dziś |
+> |---|---|---|
+> | `check_env` — 4 środowiska | `TypeError` ×4 | **PASS ×4** |
+> | `gym.wrappers.TimeLimit` | `AssertionError` | **przyjmuje** |
+> | `gym.wrappers.RecordEpisodeStatistics` | `AssertionError` | **przyjmuje** |
+> | SB3 na surowym `CardGameEnv` | `ValueError` | **PASS** (obie gry) |
+> | `isinstance(env, gymnasium.Env)` | `False` | **`True`** |
+>
+> Adapter z §5b nadal działa i nadal jest potrzebny do **maskowania akcji** —
+> ale nie jest już potrzebny, żeby SB3 w ogóle przyjęło środowisko. Sekcje 4
+> i 5a poniżej opisują stan sprzed PR #26 i są oznaczone jako historyczne.
 
 ---
 
@@ -63,14 +78,21 @@ Sprawdzone programowo dla wszystkich czterech klas środowisk
 
 | Element kontraktu Gymnasium | Obecny? |
 |---|---|
-| dziedziczenie po `gymnasium.Env` | **nie** — MRO to `['CardGameEnv', 'object']` |
-| `metadata` (np. `render_modes`) | **nie** |
-| `spec` | **nie** |
-| `self.np_random` zasilany przez `Env.reset(seed=…)` | **nie** |
-| `unwrapped` | **nie** |
-| rejestracja przez `gymnasium.register` / `gymnasium.make` | **nie** — w repo nie ma ani jednego wywołania |
-| `gymnasium.Wrapper`, `TimeLimit`, `RecordEpisodeStatistics`, `VectorEnv` | **nie używane i nie dające się użyć** (§4) |
-| `render_mode` jako atrybut | tak, ale własna implementacja (`"human"` / `"ansi"`), bez wpisu w `metadata` |
+Kolumna „`2bd42ab`” to stan sprzed PR #26; kolumna „dziś” to pomiar bieżący.
+Nagłówek tej sekcji („Czego z Gymnasium nie ma”) po PR #26 jest już w większości
+nieaktualny — zostaje dla porównania.
+
+| Element kontraktu Gymnasium | `2bd42ab` | dziś |
+|---|---|---|
+| dziedziczenie po `gymnasium.Env` | **nie** — MRO `['CardGameEnv', 'object']` | **tak** — MRO `['CardGameEnv', 'Env', 'Generic', 'object']` |
+| `metadata` (np. `render_modes`) | nie | **tak** |
+| `spec` | nie | **tak** |
+| `self.np_random` zasilany przez `Env.reset(seed=…)` | nie | **tak** |
+| `unwrapped` | nie | **tak** |
+| rejestracja przez `gymnasium.register` / `gymnasium.make` | nie — ani jednego wywołania | **tak** — `games/gym_registration.py` rejestruje `rl_card_lib/Klondike-v0`, `rl_card_lib/Macao-v0`, `rl_card_lib/KlondikeMasked-v0`, `rl_card_lib/MacaoMasked-v0` przy imporcie `rl_card_lib.games` |
+| `gymnasium.Wrapper`, `TimeLimit`, `RecordEpisodeStatistics` | nie używane i nie dające się użyć | **przyjmują środowisko** (§4); `gym.make` zwraca je już opakowane w `OrderEnforcing` |
+| `VectorEnv` | nie używane | nie używane (biblioteka nie zrównolegla środowisk) |
+| `render_mode` jako atrybut | tak, własna implementacja, bez wpisu w `metadata` | tak, własna implementacja, **z** wpisem w `metadata` |
 
 ---
 
@@ -168,29 +190,50 @@ Dwie rzeczy warte odnotowania w pracy:
 
 ## 4. Czy środowisko przechodzi `gymnasium.utils.env_checker.check_env`?
 
-**Nie. Żadna z czterech konfiguracji.** Uruchomione na gymnasium 1.3.0:
+**Tak — wszystkie cztery konfiguracje.** Uruchomione na gymnasium 1.3.0 po
+PR #26:
 
 ```
-check_env(CardGameEnv(KlondikeSolitaire(seed=0), max_steps=300))   -> TypeError
-check_env(CardGameEnv(Macao(num_players=2, seed=0), max_steps=200)) -> TypeError
-check_env(MaskedCardGameEnv(Macao(num_players=2, seed=0)))          -> TypeError
-check_env(GymEnvWrapper(Macao(num_players=2, seed=0)))              -> TypeError
+check_env(CardGameEnv(KlondikeSolitaire(seed=0), max_steps=300))   -> PASS
+check_env(CardGameEnv(Macao(num_players=2, seed=0), max_steps=200)) -> PASS
+check_env(MaskedCardGameEnv(Macao(num_players=2, seed=0)))          -> PASS
+check_env(GymEnvWrapper(Macao(num_players=2, seed=0)))              -> PASS
 ```
 
-Komunikat we wszystkich czterech przypadkach identyczny co do treści:
+Jedyne, co checker zgłasza, to dwa **ostrzeżenia** (nie błędy), identyczne dla
+obu gier i wynikające ze świadomej decyzji projektowej:
 
 ```
-TypeError: The environment must inherit from the gymnasium.Env class,
-actual class: <class 'rl_card_lib.env.card_game_env.CardGameEnv'>.
-See https://gymnasium.farama.org/introduction/create_custom_env/ for more info.
+UserWarning: A Box observation space minimum value is -infinity.
+UserWarning: A Box observation space maximum value is infinity.
 ```
 
-Check przerywa się na **pierwszym** teście (`isinstance`), więc reszta kontraktu
-nie została w ogóle sprawdzona. To trzeba w pracy napisać uczciwie: *nie
-wiadomo*, czy środowisko przeszłoby pozostałe testy — wiadomo tylko, że nie
-przechodzi testu wejściowego.
+Obserwacje są w praktyce ograniczone (znormalizowane liczniki i flagi 0–1), więc
+zawężenie `Box` do faktycznych granic jest możliwe i byłoby drobnym
+usprawnieniem — ale nie jest błędem kontraktu.
 
-To samo dotyczy wrapperów Gymnasium:
+Środowisko dziedziczy dziś po `gymnasium.Env` (`mro`: `CardGameEnv → Env →
+Generic → object`) i ma `metadata`, `spec`, `np_random` oraz `unwrapped`.
+
+> **Stan sprzed PR #26 (historyczny).** Do `2bd42ab` `check_env` przerywał się
+> na **pierwszym** teście (`isinstance`) z `TypeError: The environment must
+> inherit from the gymnasium.Env class`, we wszystkich czterech przypadkach —
+> więc reszta kontraktu nie była w ogóle sprawdzana i *nie było wiadomo*, czy
+> środowisko przeszłoby pozostałe testy. Teraz wiadomo: przechodzi.
+
+Wrappery Gymnasium — tak samo, obie przyjmują środowisko bez adaptera:
+
+```
+gym.wrappers.TimeLimit(CardGameEnv(Macao(...)), max_episode_steps=50)   -> OK
+gym.wrappers.RecordEpisodeStatistics(CardGameEnv(Macao(...)))           -> OK
+```
+
+Przed PR #26 obie podnosiły `AssertionError: Expected env to be a
+`gymnasium.Env``.
+
+<!-- Poniższy blok opisuje stan sprzed PR #26 i jest zachowany dla historii. -->
+<details>
+<summary>Dawny komunikat błędu (2bd42ab)</summary>
 
 ```
 gym.wrappers.TimeLimit(CardGameEnv(Macao(...)), max_episode_steps=50)
@@ -200,16 +243,22 @@ gym.wrappers.RecordEpisodeStatistics(CardGameEnv(Macao(...)))
   -> AssertionError: (identyczny komunikat)
 ```
 
-### 4a. Co trzeba zmienić, żeby przechodziło
+</details>
 
-Cztery zmiany, wszystkie mechaniczne:
+### 4a. Co zostało zmienione, żeby przechodziło
 
-1. `class CardGameEnv(gym.Env):` zamiast `class CardGameEnv:`, plus
+Cztery zmiany, wszystkie mechaniczne — **wykonane w PR #26**:
+
+1. ✅ `class CardGameEnv(gym.Env):` zamiast `class CardGameEnv:`, plus
    `super().__init__()`;
-2. atrybut klasowy `metadata = {"render_modes": ["human", "ansi"], "render_fps": 4}`;
-3. `super().reset(seed=seed)` w `reset()`, żeby powstał `self.np_random`;
-4. gałąź fallbacku `gym = None` musi wtedy dostarczyć atrapę klasy bazowej,
-   inaczej biblioteka przestaje się importować bez Gymnasium.
+2. ✅ atrybut klasowy `metadata = {"render_modes": ["human", "ansi"], "render_fps": 4}`;
+3. ✅ `super().reset(seed=seed)` w `reset()`, żeby powstał `self.np_random`;
+4. ✅ gałąź fallbacku `gym = None` dostarcza atrapę klasy bazowej, więc
+   biblioteka nadal importuje się bez Gymnasium.
+
+Potwierdzenie z pomiaru: `is_gym_Env_subclass = True` dla wszystkich czterech
+środowisk, `has_metadata`, `has_spec`, `has_np_random` i `has_unwrapped`
+również `True` (poprzednio wszystkie `False`).
 
 Piąta rzecz nie jest formalnością, tylko realną wadą (§5c): przy polityce
 proponującej same nielegalne akcje **epizod nigdy się nie kończy**, więc nawet
@@ -220,7 +269,7 @@ konsument Gymnasium by się zawiesił.
 
 ## 5. Minimalny przykład ze Stable-Baselines3
 
-### 5a. Bez adaptera — nie działa
+### 5a. Bez adaptera — **działa od PR #26**
 
 ```python
 from stable_baselines3 import PPO
@@ -230,15 +279,23 @@ from rl_card_lib.games import Macao
 PPO("MlpPolicy", CardGameEnv(Macao(num_players=2, seed=0), max_steps=200))
 ```
 
-```
-ValueError: The environment is of type
-<class 'rl_card_lib.env.card_game_env.CardGameEnv'>, not a Gymnasium
-environment. In this case, we expect OpenAI Gym to be installed and the
-environment to be an OpenAI Gym environment.
-```
+Przechodzi dla obu gier (`stable_baselines3[*].raw_env.passed = true`). SB3
+sprawdza `isinstance(env, gym.Env)`, zanim zrobi cokolwiek innego — a to jest
+dziś spełnione, więc surowe środowisko biblioteki wystarcza.
 
-Identyczny błąd dla Klondike. SB3 sprawdza `isinstance(env, gym.Env)`, zanim
-zrobi cokolwiek innego, więc przyczyna jest ta sama co w §4.
+> **Stan sprzed PR #26 (historyczny).** Ten sam kod podnosił:
+>
+> ```
+> ValueError: The environment is of type
+> <class 'rl_card_lib.env.card_game_env.CardGameEnv'>, not a Gymnasium
+> environment. In this case, we expect OpenAI Gym to be installed and the
+> environment to be an OpenAI Gym environment.
+> ```
+>
+> — identycznie dla Klondike, z tej samej przyczyny co w §4.
+
+Adapter z §5b **nadal ma sens**, ale z innego powodu niż dotąd: nie po to, żeby
+SB3 przyjęło środowisko, tylko po to, żeby podać maskę legalnych akcji (§5c).
 
 ### 5b. Z ~30-liniowym adapterem — działa
 
@@ -310,37 +367,40 @@ Epizod demonstracyjny po treningu (`deterministic=True`, rozdanie `seed=100000`)
 
 ### 5c. Dlaczego ten wynik jest merytorycznie pusty — i to jest właśnie wynik
 
-Nagroda −300,0 w 300 krokach Macao to dokładnie 300 × `invalid_action_reward`
-(−1,0): **polityka SB3 nie wybrała ani jednej legalnej akcji**. To nie jest
-awaria SB3. W Macao w typowej pozycji legalne są 2–4 akcje z 65 (w rozdaniu
-`seed=100003`: 4 z 65, czyli ~6 %), a SB3 nie ma dostępu do maski.
+Nagroda −198,9 w **200** krokach Macao to niemal dokładnie 200 ×
+`invalid_action_reward` (−1,0): **polityka SB3 prawie nie wybrała legalnej
+akcji**. To nie jest awaria SB3. W Macao w typowej pozycji legalne są 2–4 akcje
+z 65 (w rozdaniu `seed=100003`: 4 z 65, czyli ~6 %), a SB3 nie ma dostępu do
+maski.
 
-Co więcej, epizod **nie zakończył się sam**. W
-[card_game_env.py:121-130](../packages/core/src/rl_card_lib/env/card_game_env.py#L121-L130)
-nielegalna akcja wraca z funkcji **przed** `self._step_count += 1`
-([:133](../packages/core/src/rl_card_lib/env/card_game_env.py#L133)), więc licznik
-kroków nie rośnie i `max_steps` nigdy nie zostaje osiągnięty. Zmierzone
-bezpośrednio:
+Epizod **kończy się teraz sam** — i to jest zmiana. Do PR
+[#25](https://github.com/mkh63d/rl-card-lib/pull/25) nielegalna akcja wracała
+z `CardGameEnv.step()` **przed** `self._step_count += 1`, więc licznik kroków
+nie rósł i `max_steps` nigdy nie było osiągane. Dziś gałąź nielegalnej akcji
+zlicza krok i stosuje limit. Zmierzone bezpośrednio, ta sama próba w obu
+wersjach:
 
-```
-5000 kolejnych nielegalnych akcji przy max_steps=200
-  -> terminated=False, truncated=False, env._step_count = 0
-```
+| 5000 kolejnych nielegalnych akcji, `max_steps=200` | `2bd42ab` | dziś |
+|---|---|---|
+| epizod się zakończył | **nie** | **tak, po 200 krokach** |
+| `env._step_count` | 0 | 200 |
+| demo SB3 (Macao) | 300 kroków, −300,0 | 200 kroków, −198,9 |
 
-Dla generycznego konsumenta Gymnasium jest to **zawieszenie**, nie długi epizod.
-Wewnętrzny `Trainer` biblioteki tego nie ujawnia, bo jego agenci zawsze
-dostają `legal_actions` i nigdy nie proponują nielegalnego ruchu.
+Dla generycznego konsumenta Gymnasium dawne zachowanie było **zawieszeniem**,
+nie długim epizodem. Wewnętrzny `Trainer` biblioteki nigdy tego nie ujawniał, bo
+jego agenci zawsze dostają `legal_actions` i nie proponują nielegalnego ruchu —
+dlatego ta poprawka nie zmienia żadnej liczby w wynikach uczenia.
 
-**Zdanie do pracy.** Kompatybilność z Gymnasium jest w tej bibliotece
-*nominalna* (typy i konwencja sygnatur), a nie *operacyjna*. Uczciwe
-sformułowanie: „środowisko przyjmuje konwencję API Gymnasium, ale nie
-implementuje klasy `gymnasium.Env`, więc nie współpracuje z `env_checker`,
-z wrapperami ani z zewnętrznymi bibliotekami algorytmów bez cienkiego adaptera;
-dodatkowo, ponieważ maskowanie akcji odbywa się poza obserwacją, algorytm
-zewnętrzny działa bez maski i w tych grach nie osiąga niczego.” Ścieżką
-naprawy, której biblioteka ma już połowę, jest `MaskedCardGameEnv` +
-`sb3-contrib MaskablePPO`; nie jest ona w repozytorium ani wykorzystana, ani
-zmierzona.
+**Zdanie do pracy — wersja po PR #25 i #26.** Zgodność z Gymnasium jest dziś
+*operacyjna*, nie tylko nominalna: środowisko implementuje `gymnasium.Env`,
+przechodzi `env_checker`, przyjmuje wrappery i jest bezpośrednio akceptowane
+przez Stable-Baselines3, a epizod złożony z samych nielegalnych akcji kończy się
+limitem kroków zamiast wisieć. **Pozostaje jedno realne ograniczenie**: ponieważ
+maska legalnych akcji jest podawana kanałem `info["legal_actions"]`, a nie
+w obserwacji, algorytm zewnętrzny bez maski działa w tych grach na oślep i nie
+osiąga niczego. Ścieżką naprawy, której biblioteka ma już połowę, jest
+`MaskedCardGameEnv` + `sb3-contrib MaskablePPO`; nie jest ona w repozytorium ani
+wykorzystana, ani zmierzona.
 
 ---
 
