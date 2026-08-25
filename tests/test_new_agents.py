@@ -810,6 +810,122 @@ class TestPPOAgent:
         for _ in range(10):
             assert agent.select_action(observation, [4]) == 4
 
+    @staticmethod
+    def _eval_agent(eval_greedy: bool = False) -> PPOAgent:
+        """An evaluating PPO with a policy worth sampling from."""
+        agent = PPOAgent(
+            state_size=8, action_size=6, hidden_sizes=[16], device="cpu",
+            seed=0, eval_greedy=eval_greedy,
+        )
+        agent.eval()
+        return agent
+
+    def test_eval_samples_the_learned_policy(self):
+        """Evaluation must measure the distribution PPO trained, not its argmax.
+
+        The clipped surrogate, the entropy bonus and the importance ratio are all
+        defined over pi(a|s), so the argmax is a policy that was never trained.
+        """
+        agent = self._eval_agent()
+        observation = np.random.RandomState(1).randn(8).astype(np.float32)
+        legal = [0, 2, 5]
+
+        draws = [agent.select_action(observation, legal) for _ in range(500)]
+
+        assert len(set(draws)) > 1, "eval mode is still deterministic"
+        expected = agent.get_action_probabilities(observation, legal)
+        for action in legal:
+            assert draws.count(action) / len(draws) == pytest.approx(
+                expected[action], abs=0.08
+            )
+
+    def test_sampling_still_respects_legality(self):
+        """The masked path is softmax+multinomial now, not argmax over logits."""
+        agent = self._eval_agent()
+        observation = np.random.RandomState(2).randn(8).astype(np.float32)
+        for _ in range(200):
+            assert agent.select_action(observation, [1, 3]) in (1, 3)
+
+    def test_eval_greedy_restores_the_argmax_rule(self):
+        """The deterministic policy stays available -- it is a second number."""
+        agent = self._eval_agent(eval_greedy=True)
+        observation = np.random.RandomState(3).randn(8).astype(np.float32)
+        legal = [0, 2, 5]
+        best = int(np.argmax(agent.get_action_probabilities(observation, legal)))
+
+        assert all(
+            agent.select_action(observation, legal) == best for _ in range(20)
+        )
+
+    def test_greedy_kwarg_overrides_the_default_either_way(self):
+        agent = self._eval_agent()
+        observation = np.random.RandomState(4).randn(8).astype(np.float32)
+        legal = [0, 2, 5]
+        best = int(np.argmax(agent.get_action_probabilities(observation, legal)))
+
+        assert all(
+            agent.select_action(observation, legal, greedy=True) == best
+            for _ in range(20)
+        )
+
+        greedy_agent = self._eval_agent(eval_greedy=True)
+        sampled = [
+            greedy_agent.select_action(observation, legal, greedy=False)
+            for _ in range(200)
+        ]
+        assert len(set(sampled)) > 1
+
+    def test_a_sampled_evaluation_is_repeatable(self):
+        """Two measurements of one agent must return the same numbers."""
+        agent = self._eval_agent()
+        observation = np.random.RandomState(5).randn(8).astype(np.float32)
+        legal = [0, 2, 5]
+
+        first = [agent.select_action(observation, legal) for _ in range(30)]
+        # No eval() in between: the stream carries on rather than repeating.
+        carried_on = [agent.select_action(observation, legal) for _ in range(30)]
+        agent.eval()
+        second = [agent.select_action(observation, legal) for _ in range(30)]
+
+        assert first == second
+        assert first != carried_on
+
+    def test_evaluating_leaves_the_training_stream_alone(self):
+        """eval() rewinds only the evaluation draws.
+
+        Trainer.evaluate() wraps each periodic evaluation in eval()/train(), so a
+        shared sampler would make every rollout after an evaluation replay the
+        one before it.
+        """
+        agent = PPOAgent(
+            state_size=8, action_size=6, hidden_sizes=[16],
+            rollout_steps=1000, device="cpu", seed=0,
+        )
+        observation = np.random.RandomState(6).randn(8).astype(np.float32)
+        legal = [0, 2, 5]
+
+        before = [agent.select_action(observation, legal) for _ in range(30)]
+        agent.eval()
+        agent.select_action(observation, legal)
+        agent.train()
+        after = [agent.select_action(observation, legal) for _ in range(30)]
+
+        assert before != after
+
+    def test_evaluating_does_not_touch_the_rollout(self):
+        """Measuring an agent must not feed it experience.
+
+        Sampling used to require agent.train(), which recorded every evaluation
+        step into the rollout it was supposed to be only observing.
+        """
+        agent = self._eval_agent()
+        observation = np.random.RandomState(7).randn(8).astype(np.float32)
+        for _ in range(20):
+            agent.select_action(observation, [0, 2, 5])
+
+        assert agent._states == [] and agent._actions == []
+        assert agent._masks == [] and agent._log_probs == []
+
     def test_updates_once_the_rollout_fills(self):
         agent = PPOAgent(
             state_size=8, action_size=6, hidden_sizes=[16],

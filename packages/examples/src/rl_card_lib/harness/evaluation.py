@@ -9,6 +9,12 @@ reseeds the game's own RNG, so two runs of the same evaluation return the same
 numbers and two agents are compared on the same boards. The seeds are the
 held-out TEST pool declared in `rl_card_lib.harness.deals`, disjoint from the
 deals a training run draws. Nothing global is reseeded.
+
+An agent whose evaluation policy is stochastic -- `PPOAgent` samples the
+distribution it learned rather than taking its argmax -- is no exception: these
+protocols call `agent.eval()` once before the first deal, and that is where such
+an agent rewinds the stream its actions are drawn from. So two runs of the same
+evaluation still return the same numbers.
 """
 
 from __future__ import annotations

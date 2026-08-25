@@ -90,6 +90,18 @@ class PPOAgent(Agent):
     rollout_steps of fresh experience, updates a few times over it, and throws it
     away. That is less sample-efficient than DQN but much more stable.
 
+    Evaluation samples the policy rather than taking its argmax, which is where
+    this agent parts company with the DQN family. A value-based agent learns
+    Q(s,a) and *derives* a greedy policy from it, so argmax at evaluation time is
+    the thing it learned. PPO learns the distribution itself -- the clipped
+    surrogate, the entropy bonus and the importance ratio are all defined over
+    pi(a|s) -- so its argmax is a different policy, one that was never trained
+    and whose value the critic never estimated. On a game with reversible moves
+    the difference is not academic: a deterministic policy that walks back into a
+    state it has already visited replays its whole future from there, so it
+    cycles until the step cap. Pass `eval_greedy=True` (or `greedy=True` per
+    call) for the deterministic number; on Klondike the two differ threefold.
+
     Args:
         state_size: Dimension of state observation
         action_size: Number of possible actions
@@ -108,6 +120,10 @@ class PPOAgent(Agent):
         max_grad_norm: Gradient clipping threshold
         device: Device to use ("cuda", "cpu", or None for auto)
         seed: Random seed for reproducibility
+        eval_greedy: Take the argmax of the policy in evaluation mode instead of
+            sampling it. Mutable afterwards as `agent.eval_greedy`, which is how
+            a generic harness asks for the other rule -- `Agent.select_action`
+            has no keyword for it
     """
 
     #: A rollout outlives the episodes it spans, so `dones` alone cannot mark
@@ -131,6 +147,7 @@ class PPOAgent(Agent):
         max_grad_norm: float = 0.5,
         device: Optional[str] = None,
         seed: Optional[int] = None,
+        eval_greedy: bool = False,
     ):
         super().__init__(name="PPOAgent")
 
@@ -148,6 +165,7 @@ class PPOAgent(Agent):
         self.value_coef = value_coef
         self.max_grad_norm = max_grad_norm
         self.seed = seed
+        self.eval_greedy = eval_greedy
 
         if seed is not None:
             torch.manual_seed(seed)
@@ -158,6 +176,17 @@ class PPOAgent(Agent):
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             self.device = torch.device(device)
+
+        # Evaluation samples the policy, so it needs a stream of its own that
+        # eval() can rewind -- otherwise measuring the same agent twice would
+        # give two different numbers. Deliberately *not* the stream training
+        # samples from: Trainer.evaluate() wraps a periodic evaluation in
+        # eval()/train(), and rewinding the training draws there would make
+        # every rollout after an evaluation replay the previous one. Seeded even
+        # when the agent is not, because a measurement should repeat regardless.
+        self._eval_seed = seed if seed is not None else 0
+        self._eval_sampler = torch.Generator(device=self.device)
+        self._eval_sampler.manual_seed(self._eval_seed)
 
         self.network = ActorCritic(state_size, action_size, self.hidden_sizes)
         self.network = self.network.to(self.device)
@@ -194,14 +223,24 @@ class PPOAgent(Agent):
     def select_action(
         self,
         observation: np.ndarray,
-        legal_actions: Optional[list[int]] = None
+        legal_actions: Optional[list[int]] = None,
+        *,
+        greedy: Optional[bool] = None,
     ) -> int:
         """
-        Sample an action from the masked policy, or take the best one in eval mode.
+        Sample an action from the masked policy.
+
+        Training always samples -- the recorded log-probability has to be the one
+        the behaviour policy actually used, or the importance ratio means
+        nothing. Evaluation samples too, because the distribution is what this
+        agent learned; `greedy` asks for its argmax instead.
 
         Args:
             observation: Current state observation
             legal_actions: List of valid action indices
+            greedy: Take the argmax rather than sampling. None defers to
+                `self.eval_greedy`. Consulted only in evaluation mode; a
+                training rollout must stay on-policy.
 
         Returns:
             Selected action index
@@ -218,7 +257,16 @@ class PPOAgent(Agent):
             logits = logits.masked_fill(~mask_tensor, MASK_VALUE)
 
             if not self.training:
-                return int(logits.argmax(dim=1).item())
+                take_argmax = self.eval_greedy if greedy is None else greedy
+                if take_argmax:
+                    return int(logits.argmax(dim=1).item())
+                # torch.multinomial rather than Categorical.sample() because only
+                # the former takes a generator, and the evaluation draws have to
+                # come from the rewindable stream.
+                probabilities = F.softmax(logits, dim=1)
+                return int(torch.multinomial(
+                    probabilities, 1, generator=self._eval_sampler
+                ).item())
 
             distribution = Categorical(logits=logits)
             action = distribution.sample()
@@ -432,6 +480,17 @@ class PPOAgent(Agent):
         self._dones.clear()
         self._truncations.clear()
         self._truncation_values.clear()
+
+    def eval(self) -> None:
+        """Switch to evaluation, rewinding the stream its actions are drawn from.
+
+        Evaluating a stochastic policy is only reproducible if the draws are, and
+        every harness here calls eval() once at the start of a measurement pass
+        -- so that is where the sampler goes back to its seed, and two passes
+        over the same deals return the same numbers.
+        """
+        super().eval()
+        self._eval_sampler.manual_seed(self._eval_seed)
 
     def on_episode_end(self) -> None:
         """Count the training episode. The rollout deliberately survives it.

@@ -5,9 +5,9 @@ deals a perfect-information solver proved winnable. This adds the learners
 trained under the corrected protocol, from `thesis_notes/checkpoints/`, so the
 solve-rate table has both halves and every row is the same 102 deals.
 
-PPO is measured twice: once by argmax over its policy (what `agent.eval()`
-does) and once by sampling that same policy, because on Klondike the two are
-very different policies -- see diagnosis.md D11.
+PPO is measured twice: once by sampling its policy (what `agent.eval()` does
+since #21) and once by argmax over that same policy, because on Klondike the two
+are very different policies -- see diagnosis.md D11.
 
 Writes thesis_notes/raw/solve_time_learners.json.
 """
@@ -49,10 +49,13 @@ def measure(agent, seeds: list[int], sample: bool = False) -> dict:
     solved_moves, solved_seconds, cards = [], [], []
     with frozen_exploration(agent):
         for seed in seeds:
-            # `training=True` is the branch that samples PPO's policy; the DQN
-            # family would also start exploring there, so sampling is only ever
-            # requested for PPO.
-            agent.train() if sample else agent.eval()
+            # Both arms evaluate. `eval_greedy` picks the action rule, so the
+            # sampled arm no longer has to enter training mode -- which used to
+            # record every step of the measurement into PPO's rollout. Only PPO
+            # has the flag; the DQN family's greedy policy is what it learned.
+            if hasattr(agent, "eval_greedy"):
+                agent.eval_greedy = not sample
+            agent.eval()
             observation, info = env.reset(seed=seed)
             agent.reset()
             moves = 0

@@ -27,6 +27,24 @@ comparison in a card game is not between two learners, but between *learning*,
 | `DoubleDQNAgent` | Adds double-Q, a dueling network head, and Huber loss on top of the shared masking. |
 | `PPOAgent` | On-policy actor-critic with a masked policy. |
 
+!!! note "What `eval()` means, per family"
+    Turning exploration off is not one rule. The value-based agents
+    (`QLearningAgent`, `DQNAgent`, `DoubleDQNAgent`) learn `Q(s,a)` and *derive*
+    a policy from it, so `eval()` takes the argmax — that greedy policy is
+    exactly what they learned. `PPOAgent` learns the distribution itself, so
+    `eval()` **samples** it; its argmax is a policy that was never trained and
+    whose value the critic never estimated.
+
+    On a game with reversible moves the two are far apart. A deterministic
+    policy that walks back into a position it has already seen replays its whole
+    future from there and cycles until the step cap, which on Klondike is the
+    difference between 7.5 and 22.5 cards to the foundation from one set of
+    weights. Ask for the deterministic number with
+    `PPOAgent(..., eval_greedy=True)`, the mutable `agent.eval_greedy`, or
+    `select_action(obs, legal, greedy=True)` for a single call. Sampled
+    evaluation stays reproducible: `eval()` rewinds the sampler, so measuring the
+    same agent twice gives the same numbers.
+
 !!! note "Why masking matters"
     In any card-game position most actions are illegal. An unmasked DQN target
     maximizes over illegal actions too, so their garbage Q-values leak into the

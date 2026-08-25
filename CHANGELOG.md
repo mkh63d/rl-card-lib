@@ -87,6 +87,64 @@
 
 ### Fixed
 
+- **Evaluation took the argmax of PPO's policy, which discarded the policy it
+  learned** ([#21](https://github.com/mkh63d/rl-card-lib/issues/21)).
+  `PPOAgent.select_action` returned `logits.argmax()` whenever `self.training`
+  was false. But PPO optimises a *stochastic* policy -- the clipped surrogate,
+  the entropy bonus and the importance ratio are all defined over `pi(a|s)` --
+  so its argmax is a different policy, one that was never trained and whose
+  value the critic never estimated. Same checkpoint, same 200 held-out Klondike
+  deals, only the action rule differing:
+
+  | Action rule | cards to foundation | win rate | steps revisiting a seen position |
+  |---|---:|---:|---:|
+  | argmax over the policy (before) | 7.54 | 0.0 % | 78.0 % |
+  | sampling the same policy (now) | **22.45** | **28.5 %** | 44.8 % |
+
+  For scale on the identical pool: `RandomAgent` 11.59, `GreedyLookahead(1)`
+  9.22, `MCTS(20)` 26.80, the scripted heuristic 28.74. The mechanism is
+  cycling. A deterministic policy in a deterministic game that returns to a
+  position it has already visited repeats its whole future from there, and
+  Klondike's tableau moves are reversible -- so the first revisit closes a loop
+  that lasts until the step cap. Macao is the control: its episodes are short
+  and have no reversible cycle (0.0 % revisits), and there the two rules differ
+  by 35.0 % vs 39.5 % rather than threefold.
+
+  `eval()` now samples the masked policy. The deterministic policy is still a
+  legitimate second measurement -- for a game with reversible moves the two
+  really are different policies and both are informative -- so it stays
+  reachable through `PPOAgent(..., eval_greedy=True)`, the mutable
+  `agent.eval_greedy` (which is how a harness calling `select_action` through
+  the `Agent` ABC asks for it), or `select_action(obs, legal, greedy=True)` for
+  one call. Nothing changes for the value-based agents: `QLearningAgent`,
+  `DQNAgent` and `DoubleDQNAgent` learn `Q(s,a)` and derive their policy from
+  it, so argmax at evaluation time is what they learned. Their own response to
+  exploration at evaluation time is the same cycling, and its fix is the
+  repeated-position penalty of [#17](https://github.com/mkh63d/rl-card-lib/issues/17).
+
+  Sampling does not cost reproducibility. `PPOAgent` draws its evaluation
+  actions from a dedicated seeded `torch.Generator` that `eval()` rewinds, and
+  every evaluation protocol here calls `eval()` once before its first deal -- so
+  two runs of one evaluation still return the same numbers, even for an agent
+  constructed without a seed. It is deliberately *not* the stream training draws
+  from: `Trainer.evaluate()` wraps each periodic evaluation in `eval()` /
+  `train()`, and a shared sampler would make every rollout after an evaluation
+  replay the one before it. Training behaviour is unchanged.
+
+  This also closes an API gap. Asking PPO for its stochastic policy previously
+  meant calling `agent.train()`, which turns learning back on and records every
+  step of the measurement into the rollout;
+  `thesis_notes/scripts/solve_time_learners.py` had to do exactly that and now
+  sets the flag instead.
+
+  **This changes what every recorded Klondike PPO number measured, so those
+  numbers are not comparable across it** -- they need re-measuring rather than
+  reinterpreting. No re-training is involved: the weights were always fine, only
+  the rule for reading a move out of them was wrong. The generated reports and
+  the thesis text conclude that no learner clears the random baseline on
+  Klondike; that conclusion is an artefact of the evaluation rule and should be
+  revisited against fresh measurements.
+
 - **One `target_update_freq` served two games with 6.5x different episode
   lengths** ([#19](https://github.com/mkh63d/rl-card-lib/issues/19)).
   `build_learner` hard-coded `target_update_freq=500` for the whole DQN family,
