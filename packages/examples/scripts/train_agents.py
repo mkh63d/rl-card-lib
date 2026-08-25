@@ -33,6 +33,12 @@ from rl_card_lib.games import (
     Macao,
     MacaoHeuristicAgent,
 )
+from rl_card_lib.games.registration import (
+    KLONDIKE_MAX_STEPS,
+    KLONDIKE_REPEAT_PENALTY,
+    MACAO_MAX_STEPS,
+    MACAO_REPEAT_PENALTY,
+)
 from rl_card_lib.harness import (
     LEARNERS,
     TRAIN_SEEDS,
@@ -46,7 +52,9 @@ from rl_card_lib.trainer import SelfPlayTrainer, Trainer
 def train_klondike(kind: str, episodes: int, seed: int, checkpoint_dir: str) -> dict:
     """Train one learner on Klondike and compare it to the baselines."""
     game = KlondikeSolitaire()
-    env = CardGameEnv(game, max_steps=300, deal_seeds=TRAIN_SEEDS)
+    env = CardGameEnv(game, max_steps=KLONDIKE_MAX_STEPS,
+                      deal_seeds=TRAIN_SEEDS,
+                      repeated_position_penalty=KLONDIKE_REPEAT_PENALTY)
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, seed
     )
@@ -88,7 +96,9 @@ def train_macao(
 ) -> dict:
     """Train one learner on Macao and compare it to the baselines."""
     game = Macao(num_players=2)
-    env = CardGameEnv(game, max_steps=200, deal_seeds=TRAIN_SEEDS)
+    env = CardGameEnv(game, max_steps=MACAO_MAX_STEPS,
+                      deal_seeds=TRAIN_SEEDS,
+                      repeated_position_penalty=MACAO_REPEAT_PENALTY)
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, seed
     )

@@ -11,6 +11,7 @@ This script demonstrates the basic workflow:
 from rl_card_lib.games import KlondikeSolitaire
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import DQNAgent
+from rl_card_lib.games.registration import KLONDIKE_REPEAT_PENALTY
 from rl_card_lib.harness import TRAIN_SEEDS
 from rl_card_lib.trainer import Trainer
 
@@ -19,8 +20,11 @@ def main():
     # Create the game and environment. deal_seeds makes every episode's deal
     # come from the declared training pool, so the run is reproducible and the
     # agent never trains on a deal it will later be evaluated on.
+    # repeated_position_penalty prices Klondike's reversible-move cycle; without
+    # it the greedy policy this trains loops instead of playing (issue #17).
     game = KlondikeSolitaire(draw_count=1)
-    env = CardGameEnv(game, max_steps=500, deal_seeds=TRAIN_SEEDS)
+    env = CardGameEnv(game, max_steps=500, deal_seeds=TRAIN_SEEDS,
+                      repeated_position_penalty=KLONDIKE_REPEAT_PENALTY)
 
     print(f"Observation space: {env.observation_space.shape}")
     print(f"Action space: {env.action_space.n}")

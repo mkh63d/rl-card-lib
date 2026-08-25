@@ -87,6 +87,35 @@
 
 ### Fixed
 
+- **The repeated-position penalty was implemented but never switched on**
+  ([#17](https://github.com/mkh63d/rl-card-lib/issues/17)). `CardGameEnv` has
+  carried a `repeated_position_penalty` since it was written, documented as the
+  remedy for games whose reversible moves let an agent shuffle in circles, and
+  unit-tested. It defaults to `0.0`, and no registration, script or env factory
+  ever passed a value -- so the safeguard was inert in every run ever made.
+  Klondike is exactly the game it was written for: tableau moves are reversible
+  and, with the default `max_passes=None`, the draw/recycle cycle is free. In a
+  deterministic environment a deterministic policy that re-enters a visited
+  position repeats its entire future from there, so it cycles until the step
+  cap -- and that is what the trained policies did. 80-83 % of their greedy
+  steps landed in an already-seen position against 23 % for random, 70 % of the
+  DQN's moves were "draw from stock", and the greedy policies scored *below*
+  random as a result. This also accounts for the gap between the training
+  curves and the greedy evaluation: during training eps > 0 breaks the cycle
+  roughly every 20 steps, and the same weights evaluated greedily loop.
+  Klondike now trains with `KLONDIKE_REPEAT_PENALTY = -0.05`, declared in
+  `games/registration.py` beside `KLONDIKE_MAX_STEPS` and applied by the sweep's
+  training env, the standalone training scripts and the Gymnasium
+  `Klondike-v0` / `KlondikeMasked-v0` ids (overridable per env). Macao stays at
+  `0.0` deliberately and not by the same oversight -- its positions are
+  monotone, so over 5 826 random steps not one repeat occurs for a penalty to
+  price; a test asserts that, so the zero is not later "fixed". The penalty is
+  reward *shaping* and is applied only where an agent learns: the trainer's
+  periodic evaluation env stays unshaped, so the evaluation curve keeps
+  reporting the game's own return and stays comparable with the random and
+  heuristic baselines. Tests now pin the switch itself, since a safeguard that
+  is silently off is worse than none.
+
 - **Evaluating an agent advanced its exploration schedule**
   ([#16](https://github.com/mkh63d/rl-card-lib/issues/16)). Epsilon decayed in
   `Agent.reset()`, and `reset()` runs at the start of *every* episode --
