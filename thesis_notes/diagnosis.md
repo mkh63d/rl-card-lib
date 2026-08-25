@@ -490,9 +490,14 @@ druga opcja — `target_update_freq` jest teraz wartością per gra
 w `register_sweep_game(...)`, obok `mcts_simulations`. Klondike zachowuje 500
 (1,7 epizodu), Macao dostaje 100 (~2,2 epizodu, 2300 aktualizacji zamiast 460).
 Rdzeń `DQNAgent` liczy dalej w krokach gradientu, zgodnie z literaturą.
-Wyniki Macao z tej pracy pochodzą sprzed tej zmiany i nie są z nią porównywalne;
-liczby w `raw/protocol_probe.json` opisują stan sprzed poprawki, dopóki sonda
-nie zostanie uruchomiona ponownie.
+
+Tabela hiperparametrów (`tables/hyperparameters.csv`) oraz klucze
+`hyperparameters` i `target_update_cadence` w `raw/protocol_probe.json` zostały
+przeliczone i podają teraz wartość per gra. Pozostałe pomiary w tym pliku
+(`episode_shape`, `deal_stream`, …) celowo zostawiono nietknięte — opisują stan
+z przebiegu pomiarowego i nie zależą od tego hiperparametru. **Wyniki uczenia
+Macao z tej pracy pochodzą sprzed zmiany i nie są z nią porównywalne** —
+wymagają ponownego treningu, nie reinterpretacji.
 
 ---
 

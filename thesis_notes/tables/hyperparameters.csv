@@ -7,7 +7,7 @@ Replay-buffer capacity,-,50000,50000,-
 Batch size,-,64,64,-
 Minibatch size,-,-,-,64
 Rollout length,-,-,-,1024
-Target-update frequency (gradient steps),-,500,500,-
+"Target-update frequency (gradient steps, per game)",-,klondike: 500; macao: 100,klondike: 500; macao: 100,-
 Epsilon start,1.0,1.0,1.0,-
 Epsilon end,0.05,0.05,0.05,-
 Epsilon decay (per episode),0.995,0.995,0.995,-

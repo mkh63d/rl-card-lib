@@ -123,8 +123,11 @@
   **This changes a hyper-parameter Macao was trained under, so recorded Macao
   numbers are not comparable across it.** Any previously recorded Macao run
   needs re-training rather than reinterpreting; Klondike results are unaffected.
-  The `thesis_notes` measurements describe the pre-fix configuration until the
-  protocol probe is re-run.
+  The reported hyper-parameter table now carries the value per game -- the
+  `thesis_notes` probe records it as a mapping and the rendered table reads
+  `klondike: 500; macao: 100` -- while the surrounding measurements
+  (`episode_shape`, `deal_stream`) are left as taken, since they do not depend
+  on this hyper-parameter.
 
 - **Klondike's `LOSS_REWARD` was unreachable, so a deal could never be lost**
   ([#18](https://github.com/mkh63d/rl-card-lib/issues/18)). `LOSS_REWARD` is
