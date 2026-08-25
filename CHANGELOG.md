@@ -116,9 +116,15 @@
   heuristic baselines. Tests now pin the switch itself, since a safeguard that
   is silently off is worse than none.
 
-  This connects the safeguard; it does not on its own restore greedy play. A
-  smoke ablation (DQN, 400 episodes) left the greedy repeat rate unchanged at
-  ~88 %. The penalty is not Markovian in the observation -- `_seen_positions`
+  This connects the safeguard; it does not on its own restore greedy play.
+  Ablated (DQN, 1200 episodes, 2 seeds per arm) the greedy repeat rate does not
+  improve: 85.4 % inert against 86.7 % priced, a gap smaller than the spread
+  between seeds within either arm, with `cards_up` flat-to-worse (5.25 against
+  4.75). The training curve says why -- final training reward falls from ~+6.0
+  to ~-4.4, a gap of ~10.4 that is almost exactly the undiscounted penalty
+  total for an episode that never avoids it, and it does not close. The agent
+  pays essentially all of the penalty and learns to avoid essentially none of
+  it. The penalty is not Markovian in the observation -- `_seen_positions`
   is episode history the agent cannot see, so a value learner can only learn an
   action's *average* cost, never that a particular step is a repeat -- and the
   structural property still holds regardless: a deterministic policy in a
