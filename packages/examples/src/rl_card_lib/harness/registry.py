@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
+from rl_card_lib.harness.learners import DEFAULT_TARGET_UPDATE_FREQ
 from rl_card_lib.report import register_game
 
 # Execution fields belong to SweepGame; everything else is forwarded to the
@@ -47,6 +48,13 @@ class SweepGame:
     heuristic_factory: Optional[Callable[[int], Any]] = None
     mcts_simulations: int = 20
     mcts_rollout_depth: int = 15
+    # Gradient steps between target-network refreshes for the DQN family. It is
+    # per-game because it is effectively counted in environment steps, so the
+    # same number buys a different number of refreshes per episode in a game
+    # with shorter episodes: 500 is a refresh every 1.7 episodes on 300-step
+    # Klondike but every 10.9 on 46-step Macao. Declare a smaller value for a
+    # short-episode game to keep the per-episode cadence comparable.
+    target_update_freq: int = DEFAULT_TARGET_UPDATE_FREQ
     # Per-episode custom series, read after each episode while the game still
     # holds its terminal state. Klondike returns {"cards_up": ...}.
     episode_extras: Optional[Callable[[Any, Any], dict]] = None
@@ -76,6 +84,7 @@ def register_sweep_game(
     heuristic_factory: Optional[Callable[[int], Any]] = None,
     mcts_simulations: int = 20,
     mcts_rollout_depth: int = 15,
+    target_update_freq: int = DEFAULT_TARGET_UPDATE_FREQ,
     episode_extras: Optional[Callable[[Any, Any], dict]] = None,
     solver: Optional[Callable[[Any], Optional[bool]]] = None,
     single_player: bool = False,
@@ -111,6 +120,7 @@ def register_sweep_game(
         self_play=self_play,
         opponent_factory=opponent_factory, heuristic_factory=heuristic_factory,
         mcts_simulations=mcts_simulations, mcts_rollout_depth=mcts_rollout_depth,
+        target_update_freq=target_update_freq,
         episode_extras=episode_extras,
         solver=solver, single_player=single_player,
         presentation={k: presentation[k] for k in _PRESENTATION_KEYS

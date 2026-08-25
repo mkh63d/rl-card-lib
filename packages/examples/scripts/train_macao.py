@@ -34,7 +34,9 @@ def main():
         epsilon_decay=0.9995,  # per episode: reaches the 0.1 floor around episode 4600
         buffer_size=30000,
         batch_size=32,
-        target_update_freq=500,
+        # Gradient steps, and a Macao episode averages 46 of them -- 500 would
+        # refresh the target only every 10.9 episodes. See the registered value.
+        target_update_freq=100,
     )
 
     print(f"Agent: {agent}")

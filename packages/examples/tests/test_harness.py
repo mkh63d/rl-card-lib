@@ -6,6 +6,7 @@ from rl_card_lib.agents import RandomAgent
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games import KlondikeSolitaire, Macao
 from rl_card_lib.harness import (
+    DEFAULT_TARGET_UPDATE_FREQ,
     LEARNERS,
     TEST_SEEDS,
     TRAIN_SEEDS,
@@ -58,6 +59,75 @@ class TestLearners:
         """Q-learning pickles; the rest use torch.save."""
         assert checkpoint_suffix("q_learning") == ".pkl"
         assert checkpoint_suffix("dqn") == ".pt"
+
+
+class TestTargetUpdateCadence:
+    """The target-network refresh rate is per game, not one shared number.
+
+    `DQNAgent.learn()` takes one gradient step per environment step, so
+    `target_update_freq` is effectively counted in environment steps -- and the
+    two bundled games differ by 6.5x in episode length. One shared 500 meant a
+    refresh every 1.7 episodes on Klondike but every 10.9 on Macao.
+    """
+
+    # Measured over 200 TEST deals; see thesis_notes/raw/protocol_probe.json
+    # (episode_shape). Klondike always runs to its 300-step cap.
+    MEAN_EPISODE_STEPS = {"klondike": 300.0, "macao": 46.0}
+
+    @pytest.mark.parametrize("kind", ("dqn", "double_dqn"))
+    def test_override_reaches_the_agent(self, kind):
+        agent = build_learner(kind, 221, 68, seed=0, target_update_freq=100)
+        assert agent.target_update_freq == 100
+
+    @pytest.mark.parametrize("kind", ("dqn", "double_dqn"))
+    def test_default_is_unchanged(self, kind):
+        """No override still builds the agent Klondike's runs were recorded with."""
+        agent = build_learner(kind, 221, 68, seed=0)
+        assert agent.target_update_freq == DEFAULT_TARGET_UPDATE_FREQ == 500
+
+    @pytest.mark.parametrize("kind", ("q_learning", "ppo"))
+    def test_agents_without_a_target_network_ignore_it(self, kind):
+        """The sweep passes the game's value for every learner, so it must not raise."""
+        agent = build_learner(kind, 221, 68, seed=0, target_update_freq=100)
+        assert not hasattr(agent, "target_update_freq")
+
+    def test_each_bundled_game_declares_its_own_cadence(self):
+        from rl_card_lib.harness import sweep_game
+
+        assert sweep_game("klondike").target_update_freq == 500
+        assert sweep_game("macao").target_update_freq == 100
+
+    def test_the_cadence_is_comparable_across_games(self):
+        """The point of the issue: the same declaration must buy a similar
+        number of refreshes per episode in both games."""
+        from rl_card_lib.harness import sweep_game
+
+        per_episode = {
+            game: sweep_game(game).target_update_freq / steps
+            for game, steps in self.MEAN_EPISODE_STEPS.items()
+        }
+        ratio = max(per_episode.values()) / min(per_episode.values())
+        # 1.67 vs 2.17 episodes per refresh. It was 6.5x before the fix.
+        assert ratio < 2.0
+
+    def test_custom_game_inherits_the_default(self):
+        from rl_card_lib.harness.registry import (
+            _SWEEP_GAMES, register_sweep_game, sweep_game,
+        )
+        from rl_card_lib.report.run_record import GAME_SPEC
+
+        try:
+            register_sweep_game(
+                "toy_cadence", env_factory=lambda: None, max_steps=10,
+                evaluate=lambda a, e, s: {"score": 1.0},
+                label="Toy", headline_key="score", headline_label="Score",
+                headline_max=100, higher_is_better=True,
+            )
+            assert (sweep_game("toy_cadence").target_update_freq
+                    == DEFAULT_TARGET_UPDATE_FREQ)
+        finally:
+            _SWEEP_GAMES.pop("toy_cadence", None)
+            GAME_SPEC.pop("toy_cadence", None)
 
 
 class TestEvaluation:

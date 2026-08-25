@@ -485,6 +485,15 @@ zmieniałaby hiperparametr opisany w Tabeli 6.1, a nie naprawiała błędu.
 **Rekomendacja do rozdziału o dalszych pracach:** wyrazić częstość
 w epizodach (np. co 20 epizodów) albo ustawić dla Macao 100–200 kroków.
 
+**Zastosowano po pomiarze** ([#19](https://github.com/mkh63d/rl-card-lib/issues/19)):
+druga opcja — `target_update_freq` jest teraz wartością per gra
+w `register_sweep_game(...)`, obok `mcts_simulations`. Klondike zachowuje 500
+(1,7 epizodu), Macao dostaje 100 (~2,2 epizodu, 2300 aktualizacji zamiast 460).
+Rdzeń `DQNAgent` liczy dalej w krokach gradientu, zgodnie z literaturą.
+Wyniki Macao z tej pracy pochodzą sprzed tej zmiany i nie są z nią porównywalne;
+liczby w `raw/protocol_probe.json` opisują stan sprzed poprawki, dopóki sonda
+nie zostanie uruchomiona ponownie.
+
 ---
 
 ## D6. Harmonogram ε — czy faktycznie schodzi do 0,05 i kiedy

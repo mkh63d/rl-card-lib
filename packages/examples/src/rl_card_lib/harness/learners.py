@@ -22,8 +22,24 @@ from rl_card_lib.agents import (
 
 LEARNERS = ("q_learning", "dqn", "double_dqn", "ppo")
 
+# Gradient steps between target-network refreshes. `DQNAgent.learn()` takes one
+# gradient step per environment step once the buffer holds `batch_size`
+# transitions, so this is effectively counted in environment steps -- which is
+# why it cannot be one number for every game. 500 is calibrated to Klondike's
+# 300-step episodes (a refresh every 1.7 episodes); a game with shorter episodes
+# needs a smaller number to get the same per-episode cadence, and declares one
+# via `register_sweep_game(target_update_freq=...)`.
+DEFAULT_TARGET_UPDATE_FREQ = 500
 
-def build_learner(kind: str, state_size: int, action_size: int, seed: int) -> Agent:
+
+def build_learner(
+    kind: str,
+    state_size: int,
+    action_size: int,
+    seed: int,
+    *,
+    target_update_freq: Optional[int] = None,
+) -> Agent:
     """
     Construct one learning agent by name.
 
@@ -32,10 +48,15 @@ def build_learner(kind: str, state_size: int, action_size: int, seed: int) -> Ag
         state_size: Observation width
         action_size: Number of actions
         seed: Random seed
+        target_update_freq: Gradient steps between target-network refreshes,
+            or None for DEFAULT_TARGET_UPDATE_FREQ. Games declare their own
+            through `register_sweep_game`; q-learning and PPO have no target
+            network and ignore it, so a caller can pass it for every kind.
 
     Returns:
         The constructed agent
     """
+    freq = target_update_freq or DEFAULT_TARGET_UPDATE_FREQ
     if kind == "q_learning":
         return QLearningAgent(
             action_size=action_size,
@@ -51,7 +72,7 @@ def build_learner(kind: str, state_size: int, action_size: int, seed: int) -> Ag
             state_size=state_size, action_size=action_size,
             hidden_sizes=[256, 128], learning_rate=5e-4, gamma=0.95,
             epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995,
-            buffer_size=50_000, batch_size=64, target_update_freq=500,
+            buffer_size=50_000, batch_size=64, target_update_freq=freq,
             device="cpu", seed=seed,
         )
     if kind == "double_dqn":
@@ -59,7 +80,7 @@ def build_learner(kind: str, state_size: int, action_size: int, seed: int) -> Ag
             state_size=state_size, action_size=action_size,
             hidden_sizes=[256, 128], learning_rate=5e-4, gamma=0.95,
             epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995,
-            buffer_size=50_000, batch_size=64, target_update_freq=500,
+            buffer_size=50_000, batch_size=64, target_update_freq=freq,
             dueling=True, device="cpu", seed=seed,
         )
     if kind == "ppo":
@@ -142,7 +163,10 @@ def load_trained_learner(
     dueling network and the DQN family matches the trained `hidden_sizes`),
     then the checkpoint is loaded onto it. Returns None when no checkpoint is
     found -- e.g. an agent still training -- so callers can skip it rather than
-    crash. Sizes come from the env, matching how the sweep built the agent.
+    crash. Sizes come from the env, matching how the sweep built the agent, and
+    a registered game's `target_update_freq` is applied too so the rebuilt
+    agent reports the configuration it was trained under rather than the
+    default.
 
     Args:
         kind: One of LEARNERS
@@ -163,8 +187,15 @@ def load_trained_learner(
     if path is None:
         return None
 
+    # Imported here rather than at module scope: `registry` is a sibling in this
+    # package and only this one function needs it.
+    from rl_card_lib.harness.registry import is_registered, sweep_game
+
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, seed,
+        target_update_freq=(
+            sweep_game(game).target_update_freq if is_registered(game) else None
+        ),
     )
     agent.load(str(path))
     agent.eval()

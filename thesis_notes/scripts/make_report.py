@@ -608,7 +608,7 @@ def table_hyperparameters() -> None:
         ("batch_size", "Batch size"),
         ("minibatch_size", "Minibatch size"),
         ("rollout_steps", "Rollout length"),
-        ("target_update_freq", "Target-update frequency (gradient steps)"),
+        ("target_update_freq", "Target-update frequency (gradient steps, per game)"),
         ("epsilon_start", "Epsilon start"),
         ("epsilon_end", "Epsilon end"),
         ("epsilon_decay", "Epsilon decay (per episode)"),
@@ -632,6 +632,10 @@ def table_hyperparameters() -> None:
                 row.append("-")
             elif isinstance(value, list):
                 row.append(", ".join(str(v) for v in value))
+            elif isinstance(value, dict):
+                # A per-game hyper-parameter (target_update_freq since #19):
+                # one agent column, one number per game inside it.
+                row.append("; ".join(f"{g}: {v}" for g, v in value.items()))
             else:
                 row.append(str(value))
         if any(cell != "-" for cell in row[1:]):

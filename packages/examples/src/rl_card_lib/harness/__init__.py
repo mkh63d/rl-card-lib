@@ -30,6 +30,7 @@ from rl_card_lib.harness.evaluation import (
     evaluate_macao_suite,
 )
 from rl_card_lib.harness.learners import (
+    DEFAULT_TARGET_UPDATE_FREQ,
     LEARNERS,
     agent_class_name,
     build_learner,
@@ -53,6 +54,7 @@ from rl_card_lib.harness.solve_benchmark import (
 )
 
 __all__ = [
+    "DEFAULT_TARGET_UPDATE_FREQ",
     "LEARNERS",
     "SweepGame",
     "TEST_SEEDS",
