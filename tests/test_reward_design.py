@@ -163,6 +163,101 @@ class TestKlondikeTerminals:
             KlondikeSolitaire(reward_mode="dense")
 
 
+class TestBundledKlondikeCanActuallyLose:
+    """The shipped Klondike must be able to reach LOSS_REWARD at all.
+
+    `TestKlondikeTerminals` above covers the mechanism, and it passes -- but it
+    builds its games with an explicit `max_passes=1`. The bundled game took the
+    class default of None, under which draw/recycle is legal forever, so a deal
+    can never run out of legal moves and the loss branch cannot fire. Over 200
+    TEST deals a random policy terminated 0.0 % of the time: it never won and
+    never lost, so `LOSS_REWARD = -1.0` was paid to nobody, ever, and the
+    docstring promising it made a stuck deal distinguishable from running out
+    of time described something that could not happen (issue #18).
+
+    These tests pin the configuration rather than the mechanism.
+    """
+
+    def test_registered_klondike_limits_its_passes(self):
+        env = sweep_game("klondike").env_factory()
+        assert env.game.max_passes is not None
+
+    def test_evaluation_plays_the_very_same_rules(self):
+        """`max_passes` defines the game, so it cannot differ across the run.
+
+        Unlike `repeated_position_penalty`, which is shaping and belongs to
+        training alone, this changes what the environment *is*. A learner
+        trained on three passes and scored on unlimited ones has been measured
+        on a game it never played.
+        """
+        train = sweep_game("klondike").env_factory().game
+        evaluate = sweep_game("klondike").eval_env_factory().game
+        assert train.max_passes == evaluate.max_passes
+
+    def test_the_library_default_is_left_unlimited(self):
+        """Only the *bundled* game changes; a plain construction does not.
+
+        Someone reaching for KlondikeSolitaire() wants ordinary Klondike, which
+        has no pass limit. The finite value is a property of this project's
+        experiment, so it lives on the entry points, not on the class.
+        """
+        assert KlondikeSolitaire().max_passes is None
+        assert KlondikeSolitaire.BUNDLED_MAX_PASSES == 3
+
+    def test_a_real_deal_really_does_die(self):
+        """End to end: play the bundled rules until something actually loses.
+
+        The unit tests above hand-build a dead position. This one deals real
+        Klondike and checks that death is reachable by playing -- which is the
+        claim the issue disproved for the shipped configuration.
+        """
+        game = KlondikeSolitaire(max_passes=KlondikeSolitaire.BUNDLED_MAX_PASSES)
+        env = CardGameEnv(game, max_steps=300)
+        agent = RandomAgent(action_size=game.get_action_space_size(), seed=0)
+
+        deaths, final_rewards = 0, []
+        for deal in range(100000, 100060):
+            observation, info = env.reset(seed=deal)
+            agent.reset()
+            for _ in range(300):
+                action = agent.select_action(observation, info["legal_actions"])
+                observation, reward, terminated, truncated, info = env.step(action)
+                if terminated:
+                    deaths += 1
+                    final_rewards.append(reward)
+                    assert game.winner is None, "a random policy should not win"
+                    break
+                if truncated:
+                    break
+
+        # 4 of these 60 deals die; the assertion is >= 1 so that a change in
+        # the shuffle does not make the test brittle, but 0 means the loss
+        # branch went unreachable again.
+        assert deaths >= 1
+        for reward in final_rewards:
+            assert reward <= KlondikeSolitaire.LOSS_REWARD
+
+    def test_unlimited_passes_still_cannot_lose(self):
+        """The defect itself, pinned so the contrast stays visible.
+
+        Same deals, same policy, unlimited passes: nothing terminates. This is
+        what the bundled game used to do.
+        """
+        game = KlondikeSolitaire(max_passes=None)
+        env = CardGameEnv(game, max_steps=300)
+        agent = RandomAgent(action_size=game.get_action_space_size(), seed=0)
+
+        for deal in range(100000, 100020):
+            observation, info = env.reset(seed=deal)
+            agent.reset()
+            for _ in range(300):
+                action = agent.select_action(observation, info["legal_actions"])
+                observation, _, terminated, truncated, info = env.step(action)
+                assert not terminated, "unlimited passes cannot produce a loss"
+                if truncated:
+                    break
+
+
 class TestKlondikeActionSpace:
     """The action space is 68 wide and every tableau move is unambiguous."""
 

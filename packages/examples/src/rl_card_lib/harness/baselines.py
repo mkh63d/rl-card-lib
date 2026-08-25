@@ -72,15 +72,22 @@ def macao_baseline_agents(seed: int = 0, *, mcts_simulations: int = 40) -> list:
 
 def run_klondike_baselines(
     agents: list, episodes: int, max_steps: int = 300, verbose: bool = True,
+    *, max_passes: Optional[int] = KlondikeSolitaire.BUNDLED_MAX_PASSES,
 ) -> list[dict]:
-    """Play every agent over the same deals and report how far each one gets."""
+    """Play every agent over the same deals and report how far each one gets.
+
+    `max_passes` defaults to the bundled finite value rather than the game's
+    unlimited default, so a baseline is measured on the same rules the learners
+    train and are evaluated on. Comparing a learner against a baseline that
+    played a different game is not a comparison.
+    """
     deals = evaluation_seeds(episodes)
     results = []
     for name, agent in agents:
         rewards, cards_up, wins = [], [], 0
         started = time.time()
 
-        game = KlondikeSolitaire()
+        game = KlondikeSolitaire(max_passes=max_passes)
         env = CardGameEnv(game, max_steps=max_steps)
         if hasattr(agent, "bind"):
             agent.bind(env)

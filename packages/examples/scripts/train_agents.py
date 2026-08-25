@@ -34,6 +34,7 @@ from rl_card_lib.games import (
     MacaoHeuristicAgent,
 )
 from rl_card_lib.games.registration import (
+    KLONDIKE_MAX_PASSES,
     KLONDIKE_MAX_STEPS,
     KLONDIKE_REPEAT_PENALTY,
     MACAO_MAX_STEPS,
@@ -51,7 +52,7 @@ from rl_card_lib.trainer import SelfPlayTrainer, Trainer
 
 def train_klondike(kind: str, episodes: int, seed: int, checkpoint_dir: str) -> dict:
     """Train one learner on Klondike and compare it to the baselines."""
-    game = KlondikeSolitaire()
+    game = KlondikeSolitaire(max_passes=KLONDIKE_MAX_PASSES)
     env = CardGameEnv(game, max_steps=KLONDIKE_MAX_STEPS,
                       deal_seeds=TRAIN_SEEDS,
                       repeated_position_penalty=KLONDIKE_REPEAT_PENALTY)

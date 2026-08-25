@@ -11,7 +11,10 @@ This script demonstrates the basic workflow:
 from rl_card_lib.games import KlondikeSolitaire
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import DQNAgent
-from rl_card_lib.games.registration import KLONDIKE_REPEAT_PENALTY
+from rl_card_lib.games.registration import (
+    KLONDIKE_MAX_PASSES,
+    KLONDIKE_REPEAT_PENALTY,
+)
 from rl_card_lib.harness import TRAIN_SEEDS
 from rl_card_lib.trainer import Trainer
 
@@ -22,7 +25,10 @@ def main():
     # agent never trains on a deal it will later be evaluated on.
     # repeated_position_penalty prices Klondike's reversible-move cycle; without
     # it the greedy policy this trains loops instead of playing (issue #17).
-    game = KlondikeSolitaire(draw_count=1)
+    # max_passes is finite so the deal can actually die: with unlimited
+    # passes draw/recycle stays legal forever and LOSS_REWARD is
+    # unreachable, leaving no terminal signal at all (issue #18).
+    game = KlondikeSolitaire(draw_count=1, max_passes=KLONDIKE_MAX_PASSES)
     env = CardGameEnv(game, max_steps=500, deal_seeds=TRAIN_SEEDS,
                       repeated_position_penalty=KLONDIKE_REPEAT_PENALTY)
 

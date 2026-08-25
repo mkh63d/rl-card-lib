@@ -87,6 +87,37 @@
 
 ### Fixed
 
+- **Klondike's `LOSS_REWARD` was unreachable, so a deal could never be lost**
+  ([#18](https://github.com/mkh63d/rl-card-lib/issues/18)). `LOSS_REWARD` is
+  paid when a position has no legal action, and it is documented as the thing
+  that makes a stuck deal distinguishable from running out of time. Under the
+  shipped `max_passes=None` the draw/recycle action is legal forever, so a deal
+  can never run out of legal moves, so the branch could not fire. Over 200 TEST
+  deals a random policy terminated **0.0 %** of the time -- it never won and
+  never lost, and `LOSS_REWARD = -1.0` was paid to nobody, ever. The agent was
+  learning from a game it could neither win nor lose, with the step cap as the
+  only ending. The bundled Klondike now plays `BUNDLED_MAX_PASSES = 3` (the
+  common draw-1 house rule), which makes the loss branch live: 4.5 % of random
+  deals and 1.5 % of heuristic deals now die and are paid the loss.
+  `max_passes` defines what the environment *is*, unlike the reward shaping
+  above, so the same value is threaded through every bundled entry point at
+  once -- the sweep's training and evaluation envs, `evaluate_klondike`,
+  `run_klondike_baselines`, the Gymnasium `Klondike-v0` / `KlondikeMasked-v0`
+  ids and the solver that curates the solvable-deal pool -- and a test asserts
+  training and evaluation agree, since a learner scored on rules it never
+  played has not been measured. The number lives on `KlondikeSolitaire` because
+  `harness` cannot import `games.registration`, and a second copy of it is
+  precisely how the two halves of an experiment drift apart. The class default
+  stays `None`: a plain `KlondikeSolitaire()` is still ordinary unlimited-pass
+  Klondike, because the limit is a property of this project's protocol rather
+  than of the game.
+
+  **This changes what the environment is, so numbers from before it are not
+  comparable with numbers after it.** Measured on 200 TEST deals with a 300-step
+  cap, the cost is about three cards of headline performance: the heuristic goes
+  from 28.74 to 25.84 cards to foundation, and random from 11.59 to 9.79. Any
+  previously recorded Klondike result needs re-running rather than reinterpreting.
+
 - **The repeated-position penalty was implemented but never switched on**
   ([#17](https://github.com/mkh63d/rl-card-lib/issues/17)). `CardGameEnv` has
   carried a `repeated_position_penalty` since it was written, documented as the

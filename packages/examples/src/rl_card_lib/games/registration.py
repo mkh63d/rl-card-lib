@@ -21,6 +21,20 @@ from rl_card_lib.harness.registry import register_sweep_game
 KLONDIKE_MAX_STEPS = 300
 MACAO_MAX_STEPS = 200
 
+# Passes through the stock the bundled Klondike allows. Re-exported from the
+# game class, which owns the number so `harness` can reach it too -- see
+# KlondikeSolitaire.BUNDLED_MAX_PASSES for why a finite value is needed at all:
+# under the unlimited default the draw/recycle action never stops being legal,
+# so a deal can never run out of moves, so LOSS_REWARD is unreachable and the
+# agent trains on a game it can neither win nor lose. See issue #18.
+#
+# Unlike `repeated_position_penalty` below this is not reward shaping: it
+# changes what the environment *is*, so it has to be identical in training, in
+# the trainer's periodic evaluation, in the final evaluation protocol, in the
+# baselines and in the solver that curates the solvable-deal pool. A game that
+# differs across those is not one experiment.
+KLONDIKE_MAX_PASSES = KlondikeSolitaire.BUNDLED_MAX_PASSES
+
 # Price of stepping into a position already seen this episode. Klondike's
 # tableau moves are reversible and, with the default `max_passes=None`, the
 # draw/recycle cycle is free -- so a *deterministic* greedy policy that ever
@@ -49,6 +63,15 @@ MACAO_REPEAT_PENALTY = 0.0
 # small budget keeps curation fast and lets undecided deals fail quickly (they
 # are excluded from the pool anyway). See harness/solve_benchmark.py.
 KLONDIKE_POOL_SOLVE_NODES = 10_000
+
+
+def _klondike() -> KlondikeSolitaire:
+    """The Klondike every bundled entry point plays.
+
+    One constructor for the whole experiment, so training, evaluation, the
+    baselines and the solvable-pool solver cannot end up on different rules.
+    """
+    return KlondikeSolitaire(max_passes=KLONDIKE_MAX_PASSES)
 
 
 def _train_env(game, max_steps, repeat_penalty=0.0):
@@ -88,7 +111,8 @@ def _klondike_extras(game, agent):
 
 
 def _evaluate_klondike(agent, episodes, seed):
-    return evaluate_klondike(agent, episodes, KLONDIKE_MAX_STEPS)
+    return evaluate_klondike(agent, episodes, KLONDIKE_MAX_STEPS,
+                             max_passes=KLONDIKE_MAX_PASSES)
 
 
 def _evaluate_macao(agent, episodes, seed):
@@ -107,9 +131,9 @@ def register_bundled_games() -> None:
     """Register Klondike and Macao. Idempotent; called on package import."""
     register_sweep_game(
         "klondike",
-        env_factory=lambda: _train_env(KlondikeSolitaire(), KLONDIKE_MAX_STEPS,
+        env_factory=lambda: _train_env(_klondike(), KLONDIKE_MAX_STEPS,
                                        KLONDIKE_REPEAT_PENALTY),
-        eval_env_factory=lambda: _eval_env(KlondikeSolitaire(), KLONDIKE_MAX_STEPS),
+        eval_env_factory=lambda: _eval_env(_klondike(), KLONDIKE_MAX_STEPS),
         max_steps=KLONDIKE_MAX_STEPS,
         evaluate=_evaluate_klondike,
         episode_extras=_klondike_extras,
