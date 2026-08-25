@@ -221,6 +221,25 @@ CURVE = {
 }
 
 
+def baseline_rows(baselines, game: str, arm: str) -> list:
+    """The baseline rows an arm should be judged against.
+
+    Klondike's `asis` arm plays `max_passes=None` while `fixed` and `noloop`
+    play the bundled three-pass limit, so they are not the same game: random
+    scores 11.59 cards under unlimited passes and 9.79 under three. Drawing one
+    reference line for both would score an arm against the other arm's
+    baseline. Falls back to the bundled rows when the unlimited-pass set has
+    not been measured, so an older JSON still renders.
+    """
+    if not baselines:
+        return []
+    if game == "klondike" and arm == "asis":
+        rows = baselines.get("klondike_unlimited_passes")
+        if rows:
+            return rows
+    return baselines.get(game, [])
+
+
 def fig_train_curves(runs: dict, game: str, arm: str, baselines) -> None:
     key, ylabel, title = CURVE[game]
     fig, ax = plt.subplots(figsize=(8.4, 4.6))
@@ -252,7 +271,7 @@ def fig_train_curves(runs: dict, game: str, arm: str, baselines) -> None:
         return
 
     if baselines:
-        for row in baselines.get(game, []):
+        for row in baseline_rows(baselines, game, arm):
             if row["agent"] != "Random":
                 continue
             value = (row["cards_up"] if game == "klondike"
@@ -302,7 +321,7 @@ TEST_SPEC = {
 def fig_test_comparison(runs: dict, game: str, arm: str, baselines) -> None:
     key, xlabel, title, places = TEST_SPEC[game]
     rows = []
-    for row in (baselines or {}).get(game, []):
+    for row in baseline_rows(baselines, game, arm):
         rows.append((row["agent"], row[key], None, BASELINE, "baseline"))
     rows.sort(key=lambda r: r[1])
     learners = []
@@ -549,14 +568,25 @@ def table_results(runs: dict, game: str, baselines, solvable) -> None:
     rows = []
     scale = 100.0 if percent else 1.0
 
-    for row in (baselines or {}).get(game, []):
-        secondary = (row["win_rate"] if game == "klondike"
-                     else row["win_rate_vs_random"])
-        value = row[key] * scale
-        rows.append([row["agent"], "baseline", "-", 1,
-                     "", "", round(value, 3), "", "",
-                     "", f"{value:.2f}",
-                     round(secondary, 4), "", "", ""])
+    # One table spans every arm, and on Klondike the arms do not share a rule
+    # set, so a baseline row has to say which rules it was measured under --
+    # otherwise `asis` rows sit next to a reference from a different game.
+    baseline_sets = [((baselines or {}).get(game, []),
+                      "fixed+noloop" if game == "klondike" else "-")]
+    if game == "klondike":
+        unlimited = (baselines or {}).get("klondike_unlimited_passes")
+        if unlimited:
+            baseline_sets.append((unlimited, "asis"))
+
+    for source, arm_label in baseline_sets:
+        for row in source:
+            secondary = (row["win_rate"] if game == "klondike"
+                         else row["win_rate_vs_random"])
+            value = row[key] * scale
+            rows.append([row["agent"], "baseline", arm_label, 1,
+                         "", "", round(value, 3), "", "",
+                         "", f"{value:.2f}",
+                         round(secondary, 4), "", "", ""])
 
     for arm in ("asis", "fixed", "noloop"):
         for agent in AGENT_ORDER:
@@ -749,6 +779,14 @@ def main() -> int:
     print(f"{sum(len(v) for v in runs.values())} run(s) in "
           f"{len(runs)} (game, agent, arm) group(s)")
     baselines = load_json("baselines_on_test.json")
+    # The unlimited-pass reference set lives in its own file so the two
+    # measurements can run concurrently; fold it in so `baseline_rows` can
+    # reach it by key.
+    unlimited = load_json("baselines_unlimited_passes.json")
+    if baselines is not None and unlimited:
+        rows = unlimited.get("klondike_unlimited_passes")
+        if rows:
+            baselines["klondike_unlimited_passes"] = rows
     solvable = load_json("klondike_test_solvable.json")
 
     os.makedirs(TABLES, exist_ok=True)

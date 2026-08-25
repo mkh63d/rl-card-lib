@@ -114,14 +114,66 @@ def solve_time_on_pool(agent, seeds: list[int]) -> dict:
     }
 
 
+def measure_unlimited(args) -> int:
+    """The same Klondike baselines, on the pre-#30 unlimited-pass rules.
+
+    The `asis` arm trains and is evaluated with `max_passes=None`, so scoring it
+    against baselines measured at the bundled three-pass limit compares it with
+    a reference from a different game. Measured on the identical 200 TEST deals
+    so the two sets differ in exactly one thing.
+    """
+    # Its own file, not a merge into baselines_on_test.json: the main run
+    # rewrites that file wholesale when it finishes, so merging into it would
+    # race and silently lose whichever finished first.
+    path = os.path.join(RAW, "baselines_unlimited_passes.json")
+    out: dict = {
+        "pool": {"test": [TEST_SEEDS[0], TEST_SEEDS[-1] + 1],
+                 "size": len(TEST_SEEDS)},
+        "max_passes": None,
+        "note": "Reference for the `asis` arm, which plays max_passes=None. "
+                "The bundled-rule baselines in baselines_on_test.json are the "
+                "reference for `fixed` and `noloop`. Same 200 TEST deals.",
+    }
+
+    print("== Klondike baselines on TEST (max_passes=None) ==", flush=True)
+    rows = []
+    for name, agent in klondike_agents(args.seed, args.skip_mcts):
+        started = time.time()
+        row = {"agent": name, **evaluate_klondike_on_pool(
+            agent, TEST_SEEDS, KLONDIKE_MAX_STEPS, max_passes=None)}
+        rows.append(row)
+        print(f"  {name:22s} cards_up={row['cards_up']:5.2f} "
+              f"win={row['win_rate']:5.1%}  ({time.time() - started:.0f}s)",
+              flush=True)
+    out["klondike_unlimited_passes"] = rows
+
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(out, handle, indent=2)
+    print(f"Wrote {os.path.abspath(path)}")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skip-mcts", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--unlimited-only", action="store_true",
+        help="Measure only the Klondike baselines at max_passes=None, into "
+             "raw/baselines_unlimited_passes.json. The "
+             "`asis` arm plays that rule set, so it needs its own reference: "
+             "under three passes random scores 9.79 cards and under unlimited "
+             "passes 11.59, and comparing an arm against the other arm's "
+             "baseline is what this avoids.",
+    )
     args = parser.parse_args(argv)
 
     torch.set_num_threads(1)
     os.makedirs(RAW, exist_ok=True)
+
+    if args.unlimited_only:
+        return measure_unlimited(args)
+
     out: dict = {"pool": {"test": [TEST_SEEDS[0], TEST_SEEDS[-1] + 1],
                           "size": len(TEST_SEEDS)},
                  "protocol": {"klondike_max_steps": KLONDIKE_MAX_STEPS,
