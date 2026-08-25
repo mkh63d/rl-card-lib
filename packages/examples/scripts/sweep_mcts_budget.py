@@ -20,12 +20,14 @@ rollout depth; only the simulation count moves.
 
 The defaults are plain MCTS (determinizations=1, rollout_depth=20, seed=0). The
 committed curve in results/mcts_budget_sweep/ was measured that way over 100
-games per budget (--episodes 100): 64% at 20 simulations, 73% at 40, 83% at 60
-and 88% at 120. At 100 games a point the standard error is roughly 4-5
-percentage points, so the dip at 80 (76%) is sampling noise, not a finding. The
-agent-comparison run's x4det variant (which splits the budget across 4
-hidden-card samples and so searches shallower) is available with
---determinizations 4.
+games per budget (--episodes 100): 59% at 20 simulations, 80% at 40, 81% at 60,
+85% at 80 and 80% at 120. At 100 games a point the standard error is roughly
+4-5 percentage points, so read the top of the curve as a plateau near 80-85%
+rather than as an ordering -- the dip at 120 is sampling noise, not a finding.
+What is a finding is the rise out of the bottom, which is far larger than the
+noise: 6% at 1 simulation, 29% at 5, 44% at 10. The agent-comparison run's
+x4det variant (which splits the budget across 4 hidden-card samples and so
+searches shallower) is available with --determinizations 4.
 
 Nothing here fabricates or interpolates: only budgets you actually run are
 written. The CSV is appended point-by-point and flushed, so a long sweep that
