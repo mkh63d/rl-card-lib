@@ -34,6 +34,11 @@ from split import TEST_SEEDS, klondike_test_solvable  # noqa: E402
 from rl_card_lib.agents import GreedyLookaheadAgent, MCTSAgent, RandomAgent  # noqa: E402
 from rl_card_lib.env import CardGameEnv  # noqa: E402
 from rl_card_lib.games import KlondikeSolitaire, Macao  # noqa: E402
+# The baselines have to play the same Klondike the learners train on: since #30
+# the bundled game caps passes through the stock, and a baseline measured under
+# the unlimited-pass default would be scored on a different game than the rows
+# it sits next to. See games/registration.py, which makes the same argument.
+from rl_card_lib.games.registration import KLONDIKE_MAX_PASSES  # noqa: E402
 from rl_card_lib.games.heuristics import (  # noqa: E402
     KlondikeHeuristicAgent, MacaoHeuristicAgent,
 )
@@ -73,7 +78,7 @@ def macao_agents(seed: int, skip_mcts: bool) -> list:
 
 def solve_time_on_pool(agent, seeds: list[int]) -> dict:
     """Solve rate, moves and wall clock over deals proven winnable."""
-    game = KlondikeSolitaire()
+    game = KlondikeSolitaire(max_passes=KLONDIKE_MAX_PASSES)
     env = CardGameEnv(game, max_steps=KLONDIKE_MAX_STEPS)
     if hasattr(agent, "bind"):
         agent.bind(env)
@@ -129,7 +134,8 @@ def main(argv=None) -> int:
     for name, agent in klondike_agents(args.seed, args.skip_mcts):
         started = time.time()
         row = {"agent": name, **evaluate_klondike_on_pool(
-            agent, TEST_SEEDS, KLONDIKE_MAX_STEPS)}
+            agent, TEST_SEEDS, KLONDIKE_MAX_STEPS,
+            max_passes=KLONDIKE_MAX_PASSES)}
         rows.append(row)
         print(f"  {name:22s} cards_up={row['cards_up']:5.2f} "
               f"win={row['win_rate']:5.1%}  ({time.time() - started:.0f}s)",
