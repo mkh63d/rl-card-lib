@@ -1,0 +1,28 @@
+{
+  "dqn": {
+    "-> foundation": 0.026,
+    "draw/recycle": 0.257,
+    "tableau<->tableau": 0.699,
+    "waste->tableau": 0.018,
+    "mean_legal_Q_spread": 0.3439
+  },
+  "double_dqn": {
+    "-> foundation": 0.022,
+    "draw/recycle": 0.17,
+    "tableau<->tableau": 0.776,
+    "waste->tableau": 0.031,
+    "mean_legal_Q_spread": 0.0583
+  },
+  "random": {
+    "-> foundation": 0.034,
+    "draw/recycle": 0.194,
+    "tableau<->tableau": 0.736,
+    "waste->tableau": 0.036
+  },
+  "heuristic": {
+    "-> foundation": 0.109,
+    "draw/recycle": 0.173,
+    "tableau<->tableau": 0.657,
+    "waste->tableau": 0.061
+  }
+}

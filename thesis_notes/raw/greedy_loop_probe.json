@@ -1,0 +1,17 @@
+{
+  "dqn": {
+    "repeated_position_frac": 0.7338,
+    "distinct_actions_per_episode": 10.2367,
+    "cards_up": 6.135
+  },
+  "double_dqn": {
+    "repeated_position_frac": 0.7788,
+    "distinct_actions_per_episode": 13.9167,
+    "cards_up": 6.4383
+  },
+  "random": {
+    "repeated_position_frac": 0.4198,
+    "distinct_actions_per_episode": 33.1,
+    "cards_up": 9.795
+  }
+}
