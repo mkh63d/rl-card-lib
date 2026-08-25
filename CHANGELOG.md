@@ -87,6 +87,48 @@
 
 ### Fixed
 
+- **One `target_update_freq` served two games with 6.5x different episode
+  lengths** ([#19](https://github.com/mkh63d/rl-card-lib/issues/19)).
+  `build_learner` hard-coded `target_update_freq=500` for the whole DQN family,
+  and `DQNAgent.learn()` takes one gradient step per environment step once the
+  buffer holds `batch_size` transitions -- so the number is effectively counted
+  in environment steps, and it bought each game a different cadence:
+
+  | Game | mean episode length | 500 gradient steps = | target refreshes in a 5000-episode run |
+  |---|---:|---|---:|
+  | Klondike | 300.0 (always the cap) | 1.67 episodes | 3 000 |
+  | Macao | 46.0 (measured) | 10.9 episodes | **460** |
+
+  Klondike's cadence is normal. Macao's was probably far too slow: its reward is
+  concentrated in a rare terminal `+10`, each refresh propagates value one step
+  further back, and 460 refreshes is not many for that. Nothing in the code
+  suggested the asymmetry was chosen -- it is what one constant serving two
+  games produces. `target_update_freq` is now declared per game in
+  `register_sweep_game(...)`, alongside `mcts_simulations` and
+  `mcts_rollout_depth` which were already per-game, and `build_learner` takes an
+  optional override (learners without a target network ignore it, so the sweep
+  can pass it for every kind). Klondike declares **500**, unchanged and now
+  stated explicitly next to the step cap it is calibrated to; Macao declares
+  **100** -- a refresh every ~2.2 episodes, the same order as Klondike's 1.7 and
+  inside the 100-200 band the measurement pass recommended -- which takes a
+  5000-episode run from 460 refreshes to about 2 300.
+
+  The cadence stays counted in gradient steps rather than becoming an
+  episode-based knob: that keeps `DQNAgent` matching how DQN is specified
+  everywhere else, and it leaves Klondike's recorded configuration untouched.
+  The trade is that a game author has to pick a number suited to their episode
+  length, so `SweepGame` documents the unit and the reason, and a custom game
+  that declares nothing inherits the 500 default.
+
+  **This changes a hyper-parameter Macao was trained under, so recorded Macao
+  numbers are not comparable across it.** Any previously recorded Macao run
+  needs re-training rather than reinterpreting; Klondike results are unaffected.
+  The reported hyper-parameter table now carries the value per game -- the
+  `thesis_notes` probe records it as a mapping and the rendered table reads
+  `klondike: 500; macao: 100` -- while the surrounding measurements
+  (`episode_shape`, `deal_stream`) are left as taken, since they do not depend
+  on this hyper-parameter.
+
 - **Klondike's `LOSS_REWARD` was unreachable, so a deal could never be lost**
   ([#18](https://github.com/mkh63d/rl-card-lib/issues/18)). `LOSS_REWARD` is
   paid when a position has no legal action, and it is documented as the thing

@@ -142,6 +142,10 @@ def register_bundled_games() -> None:
         solver=lambda game: solve_klondike(game, max_nodes=KLONDIKE_POOL_SOLVE_NODES),
         mcts_simulations=20,
         mcts_rollout_depth=15,
+        # Every Klondike episode runs to the 300-step cap, so 500 gradient
+        # steps is a target refresh every 1.7 episodes. Stated explicitly
+        # rather than inherited, so the pairing with the step cap is visible.
+        target_update_freq=500,
         # presentation
         label="Klondike Solitaire",
         headline_key="cards_up",
@@ -167,6 +171,12 @@ def register_bundled_games() -> None:
         heuristic_factory=lambda seed: MacaoHeuristicAgent(seed=seed),
         mcts_simulations=40,
         mcts_rollout_depth=20,
+        # A Macao episode averages 46 steps, so Klondike's 500 would refresh the
+        # target only every 10.9 episodes -- 460 refreshes in a 5000-episode
+        # run, for a game whose reward is a rare terminal +10. 100 gradient
+        # steps is a refresh every ~2.2 episodes, the same order as Klondike's
+        # 1.7, and lands in the 100-200 band the measurement pass recommended.
+        target_update_freq=100,
         # presentation
         label="Macao",
         headline_key="win_rate_vs_heuristic",

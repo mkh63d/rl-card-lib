@@ -240,6 +240,8 @@ def macao_opponents() -> dict:
 # ---------------------------------------------------------------------------
 
 def hyperparameters() -> dict:
+    from rl_card_lib.harness import registered_sweep_games, sweep_game
+
     out = {}
     for kind in ("q_learning", "dqn", "double_dqn", "ppo"):
         agent = build_learner(kind, 221, 68, 0)
@@ -253,6 +255,15 @@ def hyperparameters() -> dict:
             if hasattr(agent, field):
                 value = getattr(agent, field)
                 row[field] = list(value) if isinstance(value, list) else value
+        # Since #19 this one is declared per game, so the single number
+        # build_learner returns describes only the default. Record what each
+        # game actually trains with -- the table has one column per agent and
+        # cannot otherwise say that DQN on Macao refreshes 5x more often.
+        if "target_update_freq" in row:
+            row["target_update_freq"] = {
+                game: sweep_game(game).target_update_freq
+                for game in registered_sweep_games()
+            }
         buf = getattr(agent, "replay_buffer", None)
         if buf is not None:
             row["replay_buffer_class"] = type(buf).__name__
@@ -302,22 +313,33 @@ def epsilon_schedule() -> dict:
 
 
 def target_update_cadence() -> dict:
-    """500 gradient steps, expressed in episodes of each game."""
-    freq = 500
+    """Each game's declared cadence, expressed in episodes of that game.
+
+    The frequency is read from the registry rather than hard-coded: since the
+    fix for issue #19 it is a per-game value, so a single number here would
+    describe neither game.
+    """
+    from rl_card_lib.harness import sweep_game
+
     klondike_steps = 300.0     # every Klondike episode hits the cap
     macao_steps = 46.0         # measured mean, see episode_shape
+    klondike_freq = sweep_game("klondike").target_update_freq
+    macao_freq = sweep_game("macao").target_update_freq
     return {
-        "target_update_freq_gradient_steps": freq,
         "gradient_steps_per_env_step": 1,
         "note": "DQNAgent.learn() takes one gradient step per env step once the "
-                "buffer holds batch_size transitions, so train_steps ~ env steps",
+                "buffer holds batch_size transitions, so train_steps ~ env steps. "
+                "target_update_freq is declared per game in register_sweep_game.",
+        "klondike_target_update_freq_gradient_steps": klondike_freq,
         "klondike_mean_steps_per_episode": klondike_steps,
-        "klondike_target_updates_per_episode": klondike_steps / freq,
-        "klondike_episodes_per_target_update": freq / klondike_steps,
+        "klondike_target_updates_per_episode": klondike_steps / klondike_freq,
+        "klondike_episodes_per_target_update": klondike_freq / klondike_steps,
+        "macao_target_update_freq_gradient_steps": macao_freq,
         "macao_mean_steps_per_episode": macao_steps,
-        "macao_episodes_per_target_update": freq / macao_steps,
-        "klondike_total_updates_5000_ep": 5000 * klondike_steps / freq,
-        "macao_total_updates_5000_ep": 5000 * macao_steps / freq,
+        "macao_target_updates_per_episode": macao_steps / macao_freq,
+        "macao_episodes_per_target_update": macao_freq / macao_steps,
+        "klondike_total_updates_5000_ep": 5000 * klondike_steps / klondike_freq,
+        "macao_total_updates_5000_ep": 5000 * macao_steps / macao_freq,
     }
 
 

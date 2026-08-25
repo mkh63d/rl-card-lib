@@ -67,6 +67,7 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
     eval_env = spec.eval_env_factory() if spec.eval_env_factory else None
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, args.seed,
+        target_update_freq=spec.target_update_freq,
     )
 
     episodes = args.episodes_for(kind)

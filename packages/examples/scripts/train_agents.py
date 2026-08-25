@@ -46,6 +46,7 @@ from rl_card_lib.harness import (
     build_learner,
     evaluate_klondike,
     evaluate_macao,
+    sweep_game,
 )
 from rl_card_lib.trainer import SelfPlayTrainer, Trainer
 
@@ -57,7 +58,8 @@ def train_klondike(kind: str, episodes: int, seed: int, checkpoint_dir: str) -> 
                       deal_seeds=TRAIN_SEEDS,
                       repeated_position_penalty=KLONDIKE_REPEAT_PENALTY)
     agent = build_learner(
-        kind, env.observation_space.shape[0], env.action_space.n, seed
+        kind, env.observation_space.shape[0], env.action_space.n, seed,
+        target_update_freq=sweep_game("klondike").target_update_freq,
     )
 
     print(f"\n--- Klondike / {kind} / {episodes} episodes ---", flush=True)
@@ -101,7 +103,8 @@ def train_macao(
                       deal_seeds=TRAIN_SEEDS,
                       repeated_position_penalty=MACAO_REPEAT_PENALTY)
     agent = build_learner(
-        kind, env.observation_space.shape[0], env.action_space.n, seed
+        kind, env.observation_space.shape[0], env.action_space.n, seed,
+        target_update_freq=sweep_game("macao").target_update_freq,
     )
     opponent = None if self_play else MacaoHeuristicAgent(seed=seed)
     yardstick = MacaoHeuristicAgent(seed=seed)
