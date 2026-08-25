@@ -770,30 +770,39 @@ nic się nie nauczyli.
 
 ### Pomiar
 
-Wzięto **te same, już wytrenowane checkpointy** z `checkpoints/klondike_*` i
-odegrano nimi **te same 200 rozdań TEST**. Nic nie było uczone od nowa.
-Zmieniono **wyłącznie regułę zamiany wyjścia sieci na akcję**:
+Wzięto **te same, już wytrenowane checkpointy** z `checkpoints/klondike_*`
+(sweep biblioteki) i odegrano nimi **te same 200 rozdań TEST** na bundlowanych
+regułach. Nic nie było uczone od nowa. Zmieniono **wyłącznie regułę zamiany
+wyjścia sieci na akcję** — ε = 0 znaczy tu w pełni deterministycznie, więc dla
+PPO jest to `argmax`, a nie próbkowanie:
 
 | Agent | ε = 0 (zachłannie) | ε = 0,05 | ε = 0,20 | baseline losowy |
 |---|---:|---:|---:|---:|
-| PPO | 7,54 | 13,90 | **20,61** | 11,59 |
-| DQN | 5,84 | 8,13 | **13,55** | 11,59 |
-| Double DQN | 5,14 | 6,44 | **10,46** | 11,59 |
-| Q-learning | 11,24 | 12,07 | 11,91 | 11,59 |
-
-Udział wygranych rozdań w tych samych przebiegach:
-
-| Agent | ε = 0 | ε = 0,05 | ε = 0,20 |
-|---|---:|---:|---:|
-| PPO | **0,0 %** | 10,5 % | **24,0 %** |
-| DQN | 0,0 % | 0,5 % | 5,5 % |
-| Double DQN | 0,0 % | 0,0 % | 0,0 % |
-| Q-learning | 0,0 % | 0,0 % | 0,0 % |
+| PPO | 7,12 | 8,30 | **11,01** | 9,79 |
+| Double DQN | 6,29 | 7,43 | **9,59** | 9,79 |
+| DQN | 6,57 | 6,97 | 7,76 | 9,79 |
+| Q-learning | 9,79 | 9,36 | 9,49 | 9,79 |
 
 Udział kroków wracających do pozycji już widzianej spada monotonicznie wraz z ε
-(PPO: 78,0 % → 63,8 % → 46,8 %; DQN 80,8 % → 70,8 % → 55,3 %), a wynik rośnie
-monotonicznie. Q-learning jest płaski w obu tabelach, bo jest już polityką
-losową (22,9 % powtórzeń wobec 23,0 % dla agenta losowego) — patrz D8.
+tam, gdzie polityka jest deterministyczna (PPO 74,3 % → 70,1 % → 59,3 %;
+Double DQN 74,2 % → 70,5 % → 65,2 %), a wynik rośnie monotonicznie. Q-learning
+jest płaski w obu tabelach, bo jest już polityką losową — jego ε = 0 daje
+dokładnie 9,79 karty, czyli **co do drugiego miejsca tyle samo co agent
+losowy**, przy 41,2 % powtórzeń wobec 42,0 % dla losowego (D8).
+
+> **Dwa zastrzeżenia do tej tabeli.**
+> Po pierwsze, checkpointy pochodzą ze sweepu biblioteki
+> (`run_sweep.py`), którego domyślne środowisko treningowe Klondike **ma
+> włączoną karę za powtórzoną pozycję** (`KLONDIKE_REPEAT_PENALTY`, #29) — czyli
+> jest konfiguracją `noloop`. To dlatego liczby są niższe niż w ramieniu `fixed`
+> z [`results.md`](results.md) i dlaczego efekt ε jest tu słabszy niż w
+> poprzednim pomiarze. Po drugie, poprzednia wersja tej tabeli (PPO 7,54 →
+> 20,61 przy baselinie 11,59) była liczona na regułach bez limitu przejść przez
+> stos; **nie wolno cytować obu tabel obok siebie**.
+
+Kierunek wniosku jest w obu pomiarach ten sam i to on się liczy: **im mniej
+deterministyczna reguła odczytu, tym mniej zapętlenia i tym lepszy wynik**, przy
+niezmienionych wagach.
 
 Rysunek: [`figures/action_rule_klondike.png`](figures/action_rule_klondike.png),
 dane: [`tables/action_rule_klondike.csv`](tables/action_rule_klondike.csv),

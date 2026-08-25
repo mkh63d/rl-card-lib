@@ -193,13 +193,31 @@ sweeping a custom non-card game through the public API alone.
 
 The code-level blockers are gone; these are measurement work, not fixes.
 
-- [ ] **Re-run DQN vs Double DQN at 5k+ episodes.** The 400-episode comparison
-  (85% vs 40%) predates the epsilon-decay fix and the action-space shrink, so
-  it is doubly stale. Do not report it.
+- [x] **Re-run DQN vs Double DQN at 5k+ episodes** — done (2026-08-25), 3 seeds
+  per arm, 200 held-out deals, `thesis_notes/raw/runs/`. Neither is
+  competitive on Klondike: DQN 6.13 +/- 0.59 and Double DQN 6.44 +/- 0.08 cards
+  against a random baseline of 9.79. On Macao the per-game target-update
+  cadence (#31) separates them, Double DQN 12.7% +/- 0.6 against DQN
+  7.7% +/- 4.0 versus the heuristic. The 400-episode 85%/40% comparison is
+  superseded and should not be reported.
+
+- [ ] **Reconsider `KLONDIKE_REPEAT_PENALTY` (#29) — the measurement argues
+  against it.** `games/registration.py` puts `repeated_position_penalty =
+  -0.05` on the *default* Klondike training env, so `run_sweep.py` and
+  `results/index.html` train in that configuration. Measured over 3 seeds and
+  200 held-out deals it costs PPO roughly half its score (17.09 -> 9.73 cards,
+  below the 9.79 random baseline) and its solve rate on TEST_SOLVABLE
+  (27.5% -> 0.4%), while buying 0.3-0.8 pp of the looping it was meant to
+  remove for the DQN family. See `thesis_notes/diagnosis.md` D3. Options:
+  default it to 0.0 and keep the mechanism opt-in, or keep it and document that
+  the bundled Klondike is deliberately handicapped. Either is defensible; the
+  current state -- shipping it as the default while the repo's own measurement
+  refutes it -- is not.
 - [ ] **Re-check the heuristic rollout policy for MCTS on Klondike.** It
   measured *worse* than random rollouts (2.9 vs 10.2 cards up) when the
   objective was the farmable loop; with the loop gone and the backprop fix in,
-  the comparison starts from scratch.
+  the comparison starts from scratch. **Not answered by the 2026-08-25 re-run**,
+  which re-measured the simulation *budget* curve, not the rollout policy.
 - [ ] **Validate the MCTS exploration weight (1.4) on the fixed rewards.** The
   old sweep was measuring loop-farming. Note the win-reward magnitude
   stretches `_MinMaxStats` normalization, which compresses small Q
