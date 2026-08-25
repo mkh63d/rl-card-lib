@@ -1,9 +1,17 @@
 """Preliminary measurement of the `noloop` arm: does pricing a repeat help?
 
+> **Superseded -- do not re-run.** This existed because the `noloop` arm was
+> never actually swept: `tables/ablation_fixes.csv` held only `asis` and
+> `fixed`. The full sweep now runs `noloop` on protocol (Klondike, DQN and
+> Double DQN, 3 seeds, 5000 episodes, all 200 TEST deals), so the real rows are
+> in `raw/runs/klondike__*__noloop__*.json` and the ablation table. Re-running
+> this script would only add a weaker, off-protocol duplicate of a question the
+> sweep already answers. Kept for provenance of `raw/noloop_preliminary.json`,
+> which is what `diagnosis.md` D3 cited before the arm was swept.
+
 `diagnosis.md` D3 proposes `repeated_position_penalty = -0.05` as the remedy
-for greedy looping, and `run_one.py` implements the arm -- but the arm was
-never actually run: `tables/ablation_fixes.csv` holds only `asis` and `fixed`.
-This script produces the first numbers for it.
+for greedy looping, and `run_one.py` implements the arm. This script produced
+the first numbers for it.
 
 Deliberately *off protocol* and much cheaper than `run_one.py`: 1200 episodes
 against the protocol's 5000, 2 initialisation seeds against 3, 30 TEST deals
