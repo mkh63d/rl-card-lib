@@ -87,6 +87,36 @@
 
 ### Fixed
 
+- **The time-limit bootstrap tests measured deals nothing had seeded**
+  ([#27](https://github.com/mkh63d/rl-card-lib/issues/27)).
+  `test_selfplay_capped_episodes_report_no_terminal_transition` built its game as
+  `Macao(num_players=2)`, and `Macao.__init__` does `random.Random(seed)` -- so
+  with `seed=None` the deal came from OS entropy and was genuinely different on
+  every run, independent of test order and of any global RNG. The test then
+  asserted how those random episodes had ended, and failed about 15% of the
+  time, in two distinct ways: 9.3% of runs dealt a hand a player could empty
+  inside the 10-step cap, so a terminal transition was reported and
+  `assert not any(call["done"] ...)` failed; another 5.7% had no episode survive
+  to step 10, so nothing truncated and `assert any(call["truncated"] ...)` had
+  no cap to observe. The behaviour under test -- the truncation-bootstrap fix
+  from [#13](https://github.com/mkh63d/rl-card-lib/issues/13) -- was correct
+  throughout; the test simply could not set up the situation it wanted to watch.
+
+  The flake itself was already closed in passing by the epsilon-decay change
+  above, which seeded that one constructor while it was in the file. This moves
+  the test onto the deal-pool machinery that exists for exactly this
+  (`deal_seeds=[0, 1, 2, 3]`, `deal_order="cycle"`), so each of the four
+  episodes gets its own reproducible deal rather than four draws from one seeded
+  stream, and pins the count at `assert len(agent.calls) == 22`. That count was
+  the quieter half of the report: it drifted 18--25 across runs purely with the
+  deal, and nothing asserted on it, unlike the single-player siblings which have
+  always checked `len(agent.calls) == 60`. It is 22 rather than 40 because
+  `SelfPlayTrainer` records only the learning agent's transitions and the
+  opponent takes roughly half the turns. The five sibling tests in the class
+  now pass `KlondikeSolitaire(seed=0)` too -- they were stable at 300/300, but
+  on the merits of a `legal_actions[0]` policy that never finishes Klondike
+  inside 15 steps, rather than by construction. No asserted value changed.
+
 - **Evaluation took the argmax of PPO's policy, which discarded the policy it
   learned** ([#21](https://github.com/mkh63d/rl-card-lib/issues/21)).
   `PPOAgent.select_action` returned `logits.argmax()` whenever `self.training`
