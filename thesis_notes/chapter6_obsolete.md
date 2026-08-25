@@ -16,29 +16,37 @@
 Ten punkt trzeba przeczytać przed resztą listy, bo unieważnia nie pojedyncze
 liczby, tylko **wniosek**.
 
-Te same, już wytrenowane checkpointy, te same 200 rozdań TEST, zmieniona
-**wyłącznie reguła zamiany wyjścia sieci na akcję**:
+Te same, już wytrenowane checkpointy, te same 200 rozdań TEST, 3 seedy,
+zmieniona **wyłącznie reguła zamiany wyjścia sieci na akcję**. Reguły gry to
+bundlowana konfiguracja biblioteki (`max_passes = 3`, PR #30):
 
 | Reguła | karty na bazach | wygrane rozdania |
 |---|---:|---:|
-| `argmax` nad polityką PPO — protokół raportowany w pracy | **7,54** | **0,0 %** |
-| próbkowanie **tej samej** polityki PPO | **22,45** | **28,5 %** |
-| *baseline losowy na tej samej puli* | *11,59* | *0,0 %* |
-| *MCTS(20) na tej samej puli* | *26,80* | *37,0 %* |
-| *heurystyka na tej samej puli* | *28,74* | *45,5 %* |
+| `argmax` nad polityką PPO — protokół raportowany w pracy | **7,77** | **0,3 %** |
+| próbkowanie **tej samej** polityki PPO | **17,09** | **16,8 %** |
+| *baseline losowy na tej samej puli* | *9,79* | *0,0 %* |
+| *GreedyLookahead(1) na tej samej puli* | *9,22* | *1,0 %* |
+| *MCTS(20) na tej samej puli* | *20,34* | *23,5 %* |
+| *heurystyka na tej samej puli* | *25,84* | *38,5 %* |
+
+Na regułach sprzed PR #30 (bez limitu przejść przez stos — tych, które opisuje
+obecny tekst pracy) ta sama różnica wynosi 7,07 → **22,03** karty i 0,2 % →
+**27,8 %** wygranych, przy baselinie losowym 11,59. **Wniosek jest ten sam
+w obu zestawach reguł**, więc nie zależy od tego, którą wersję gry opisze praca.
 
 | # | Cytat | Status | Dlaczego |
 |---|---|---|---|
-| 0.1 | „On Klondike **no learner cleared the random baseline** of 12.2 cards to the foundation” | **✗ nieprawda** | PPO grający polityką, której się nauczył, osiąga **22,45** karty przy baseline **11,59** — prawie dwukrotnie powyżej. Wynik 7,4 karty z pracy pochodzi z `argmax` nad rozkładem, który PPO optymalizował jako rozkład. |
-| 0.2 | „**greedy win rates were zero across all three learners**” | **✗ nieprawda** | PPO wygrywa **28,5 %** rozdań. |
-| 0.3 | „the learned greedy policy is **weaker than the behaviour that produced it**” | **⚠ prawdziwe, ale opisane jako właściwość agenta** | To jest właściwość *reguły wyboru akcji*, nie agenta. W środowisku deterministycznym z ruchami odwracalnymi polityka deterministyczna, która wróci do znanego stanu, wchodzi w cykl; podczas treningu ε > 0 ten cykl przerywało. Zmierzone: udział kroków wracających do znanej pozycji spada z 78,0 % (ε = 0) do 46,8 % (ε = 0,20), a wynik rośnie z 7,5 do 20,6 karty. |
-| 0.4 | „the sparse, long-horizon single-player game **stayed hard for every learner**, as the literature on Klondike would predict” | **⚠ za mocne** | Przy poprawnym odczycie polityki PPO plasuje się między `GreedyLookahead(1)` (9,22) a MCTS(20) (26,80). Klondike pozostaje trudne, ale nie „dla każdego uczącego się agenta”. |
+| 0.1 | „On Klondike **no learner cleared the random baseline** of 12.2 cards to the foundation” | **✗ nieprawda** | PPO grający polityką, której się nauczył, osiąga **17,09** karty przy baseline **9,79** — 1,7× powyżej. Na regułach sprzed #30: 22,03 przy 11,59, czyli 1,9×. Wynik 7,4 karty z pracy pochodzi z `argmax` nad rozkładem, który PPO optymalizował jako rozkład. |
+| 0.2 | „**greedy win rates were zero across all three learners**” | **✗ nieprawda** | PPO wygrywa **16,8 %** rozdań (27,8 % na regułach sprzed #30). Dla rodziny DQN pozostaje prawdą: 0,0 %. |
+| 0.3 | „the learned greedy policy is **weaker than the behaviour that produced it**” | **⚠ prawdziwe, ale opisane jako właściwość agenta** | To jest właściwość *reguły wyboru akcji*, nie agenta. W środowisku deterministycznym z ruchami odwracalnymi polityka deterministyczna, która wróci do znanego stanu, wchodzi w cykl. Zmierzone na tych samych wagach: udział kroków wracających do znanej pozycji spada z 75,7 % (`argmax`) do 59,4 % (próbkowanie), a liczba różnych akcji na epizod rośnie z 17,2 do 30,5. |
+| 0.4 | „the sparse, long-horizon single-player game **stayed hard for every learner**, as the literature on Klondike would predict” | **⚠ za mocne** | Przy poprawnym odczycie polityki PPO plasuje się **między baselinem losowym (9,79) a MCTS(20) (20,34)**, bliżej MCTS, i wyprzedza `GreedyLookahead(1)` (9,22). Na puli TEST_SOLVABLE rozwiązuje 27,5 % rozdań wobec 38,5 % dla MCTS(20) i 4,4 % dla GreedyLookahead(1). Klondike pozostaje trudne, ale nie „dla każdego uczącego się agenta”. |
+| 0.5 | *(nowe)* teza, że agenci wartościowi są konkurencyjni | **✗ nieprawda i to się nie zmieniło** | DQN 6,13 i Double DQN 6,44 karty — **poniżej** baselinu losowego 9,79, przy 0,0 % wygranych. Poprawki z PR-ów #24–#34 podnoszą je o ~0,5 karty i nie zmieniają tego wniosku. |
 
 Dowody: [`diagnosis.md`](diagnosis.md) D11 · rysunek
 [`figures/action_rule_klondike.png`](figures/action_rule_klondike.png) ·
-dane [`tables/action_rule_klondike.csv`](tables/action_rule_klondike.csv).
-
----
+dane [`tables/action_rule_klondike.csv`](tables/action_rule_klondike.csv),
+[`raw/policy_diagnostics.json`](raw/policy_diagnostics.json),
+[`raw/baselines_on_test.json`](raw/baselines_on_test.json).
 
 ## A. Tabela 6.1 — hiperparametry
 
@@ -97,11 +105,11 @@ Osobno: część z nich była nieaktualna **jeszcze przed** tymi zmianami.
 | # | Cytat | Status | Dlaczego |
 |---|---|---|---|
 | E1 | „**No plain-DQN run is reported for Klondike**; the value-based slot is filled by Double DQN.” | **✗ nieprawda** | `results/models/klondike__dqn/run.json` istnieje (2,7 → 6,6 karty, commit `fae820f`), czyli lepiej niż Double DQN (5,3). |
-| E2 | „…the random baseline of **12.2 cards**” | **✗ nie do odtworzenia** | Artefakt `results/baselines/klondike.json` podaje 13,27. Nowy pomiar na 200 rozdaniach TEST: **11,59**. Trzy różne liczby dla tej samej wielkości — bo rozdania nie były ustalone. |
-| E3 | „none came close to MCTS at 20 simulations (**27.8 cards**)” | **✗ nie do odtworzenia** | Artefakt podaje 22,0. Nowa wartość na TEST w [`results.md`](results.md). |
-| E4 | „PPO improved most over training, from 2.2 to 7.4 cards, and Double DQN from 2.3 to 5.3, but both greedy figures fall well short of their own exploratory training averages (**about 19 and 11 cards** respectively)” | **⟳ zdezaktualizowane** | Do wymiany na 3-seedowe wartości; średnie treningowe też są przeliczone (Klondike PPO: bloki po 500 epizodów w zakresie 15,7–22,8; Double DQN 8,3–15,2). |
+| E2 | „…the random baseline of **12.2 cards**” | **✗ nie do odtworzenia** | Artefakt `results/baselines/klondike.json` podaje 13,27. Pomiar na 200 rozdaniach TEST: **9,79** na regułach bundlowanych (`max_passes = 3`) i **11,59** bez limitu przejść. Cztery różne liczby dla tej samej wielkości — bo rozdania nie były ustalone, a od #30 zmieniły się też reguły gry. Praca musi podać, którą wersję opisuje. |
+| E3 | „none came close to MCTS at 20 simulations (**27.8 cards**)” | **✗ nie do odtworzenia** | Artefakt podaje 22,0. Pomiar na 200 rozdaniach TEST: **20,34** karty i 23,5 % wygranych. Co ważniejsze, zdanie „none came close” jest dziś nieprawdziwe: PPO grający własną polityką osiąga 17,09 karty, czyli 84 % wyniku MCTS(20). |
+| E4 | „PPO improved most over training, from 2.2 to 7.4 cards, and Double DQN from 2.3 to 5.3, but both greedy figures fall well short of their own exploratory training averages (**about 19 and 11 cards** respectively)” | **⟳ zdezaktualizowane, a druga połowa **✗ nieprawdziwa** dla PPO** | Nowe wartości (3 seedy, ramię `fixed`, 200 rozdań TEST): PPO **9,07 → 17,09**, Double DQN **2,55 → 6,44**, DQN 3,36 → 6,13, Q-learning 9,33 → 9,37. Ale kluczowa jest druga połowa zdania: PPO oceniany własną polityką osiąga 17,09 przy średniej treningowej ostatniego tysiąca epizodów **16,7** — czyli **nie odstaje od niej wcale**. Luka istniała tylko dlatego, że ewaluacja czytała inną politykę niż trening. Dla Double DQN luka zostaje (6,44 wobec 9,1) i to jest prawdziwe znalezisko — ale nie „both”. |
 | E5 | „Tabular Q-learning ended at 11.4 cards, the best of the learners but still below random and, **unusually**, worse than before training.” | **⚠ mylące** | Nie ma tu nic nietypowego. Tablica Q rośnie o **0,836 wpisu na krok** (1 253 141 wpisów po 1 499 936 krokach) — praktycznie każdy stan jest nowy, więc wszystkie legalne akcje mają remis 0,0 i agent losuje. To jest polityka losowa, a jej „spadek” po treningu to szum próby n = 30. Potwierdzenie: w `results/solve_benchmark/klondike.json` wytrenowany Q-learning ma `cards_up = 14,56`, **dokładnie tyle samo co Random**. → [`diagnosis.md`](diagnosis.md) D8 |
-| E6 | „greedy win rates were zero across all three learners, so **the solvable-only win rate that solve_klondike() was built to certify adds nothing here and is omitted**.” | **✗ nieprawda** | Sprzeczne z własnym repozytorium: `results/solve_benchmark/klondike.json` **jest** taką ewaluacją (Heurystyka 68 %, MCTS(20) 62 %, PPO 2 %). W tej pracy dochodzi do tego benchmark na puli TEST_SOLVABLE (102 rozdania). Zdanie trzeba zastąpić — propozycja gotowa w `thesis_paste_ready.md`. → [`results.md`](results.md) |
+| E6 | „greedy win rates were zero across all three learners, so **the solvable-only win rate that solve_klondike() was built to certify adds nothing here and is omitted**.” | **✗ nieprawda i to jest teraz mocno widoczne** | Sprzeczne z własnym repozytorium: `results/solve_benchmark/klondike.json` **jest** taką ewaluacją. Benchmark na puli TEST_SOLVABLE (**91 rozdań** przy bundlowanym `max_passes = 3`) daje: heurystyka 71,4 %, MCTS(20) 38,5 %, **PPO 27,5 %**, GreedyLookahead(1) 4,4 %, losowy 0,0 %. Pula, którą zdanie proponuje pominąć, jest właśnie tą, na której widać, że PPO się czegoś nauczył. → [`results.md`](results.md) |
 | E7 | „**all three learners**” (Klondike) | **✗ nieprawda** | Uczących się agentów jest **czterech** (Q-learning, DQN, Double DQN, PPO) i wszystkie cztery mają zapisany przebieg na Klondike. |
 
 ---
@@ -110,9 +118,9 @@ Osobno: część z nich była nieaktualna **jeszcze przed** tymi zmianami.
 
 | # | Cytat | Status | Dlaczego |
 |---|---|---|---|
-| F1 | „…rose from about 3 %, which is below random play, to **about 87 % at 60 simulations per move**” (§6.4, powtórzone w streszczeniu i we wstępie) | **✗ nie zgadza się z artefaktem** | Zapisany sweep `results/mcts_budget_sweep/macao_mcts_budget_sweep.csv` (100 partii na punkt, `determinizations=1`, `rollout_depth=20`, seed 0) podaje przy 60 symulacjach **83 %**, a 88 % dopiero przy **120**. Poprawne sformułowanie: „ok. 83 % przy 60 symulacjach na ruch i 88 % przy 120”. → [`tables/mcts_budget_sweep.csv`](tables/mcts_budget_sweep.csv), [`figures/mcts_budget_sweep.png`](figures/mcts_budget_sweep.png) |
+| F1 | „…rose from about 3 %, which is below random play, to **about 87 % at 60 simulations per move**” (§6.4, powtórzone w streszczeniu i we wstępie) | **✗ nie zgadza się z artefaktem** | Przemierzony sweep (100 partii na punkt, `determinizations=1`, `rollout_depth=20`, seed 0) podaje przy 60 symulacjach **81 %**, a szczyt 85 % przy 80. Przy 100 partiach na punkt błąd standardowy to 4–5 pp, więc góry krzywej **nie wolno czytać jako uporządkowania** — 81 %, 85 % i 80 % (przy 120) są nierozróżnialne. Poprawne sformułowanie: „rośnie z 6 % przy 1 symulacji do plateau ok. 80–85 % powyżej 40 symulacji na ruch”. → [`tables/mcts_budget_sweep.csv`](tables/mcts_budget_sweep.csv) |
 | F2 | „TODO: embed the sweep plot; the two anchors are about 3 % at the buggy backup and about 87 % at 60 simulations per move.” | *do uzupełnienia + korekta* | Rysunek jest gotowy: [`figures/mcts_budget_sweep.png`](figures/mcts_budget_sweep.png) / `.svg`, 300 dpi. Kotwice do poprawienia jak w F1. Uwaga: **3 % dla zbugowanego backupu nie jest punktem tego sweepu** — sweep mierzy wyłącznie kod po naprawie; 3 % to osobny, historyczny pomiar i tak trzeba je opisać w podpisie. |
-| F3 | (docstring `sweep_mcts_budget.py`) „reproduces the headline anchors: ~77 % win rate at 40 simulations and ~90 % at 60” | **✗ nieprawda** | Ten sam plik CSV podaje 73 % i 83 %. Do poprawy w kodzie, nie w pracy. |
+| F3 | (docstring `sweep_mcts_budget.py`) „reproduces the headline anchors: ~77 % win rate at 40 simulations and ~90 % at 60” | **✓ poprawione w kodzie** | Naprawione dwukrotnie: #32 zsynchronizował docstring z ówczesnym CSV, a po przemierzeniu na scalonej bibliotece kotwice to 80 % przy 40 i 81 % przy 60. Nie dotyczy tekstu pracy. |
 
 ---
 
