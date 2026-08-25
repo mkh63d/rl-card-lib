@@ -79,8 +79,8 @@ see `_backpropagate` and `_edge_reward`):
 - [x] **Losses were invisible to the search**: step() can only pay the acting
   player, so "opponent wins" cost nothing. Terminal edges now credit every
   non-actor's `get_reward()`. After both fixes: Macao vs random went from ~3%
-  to ~87% wins at 60 simulations, and strength scales with the budget
-  (`test_more_simulations_beat_fewer`, formerly an xfail).
+  to 83% wins at 60 simulations and 88% at 120, and strength scales with the
+  budget (`test_more_simulations_beat_fewer`, formerly an xfail).
 
 ## Action space / environment modelling (resolved 2026-07-17)
 
