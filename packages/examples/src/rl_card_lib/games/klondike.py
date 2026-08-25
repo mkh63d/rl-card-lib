@@ -61,7 +61,28 @@ class KlondikeSolitaire(CardGame):
 
     #: Reward paid on the terminal step of a lost deal, in both reward modes.
     #: Without it a stuck deal is indistinguishable from running out of time.
+    #: Only reachable when `max_passes` is finite -- see BUNDLED_MAX_PASSES.
     LOSS_REWARD = -1.0
+
+    #: Passes through the stock the bundled experiments play with, and the
+    #: reason LOSS_REWARD is reachable at all. Three is the common draw-1 house
+    #: rule.
+    #:
+    #: The class default stays `max_passes=None` so that a library user who
+    #: constructs KlondikeSolitaire() gets ordinary unlimited-pass Klondike.
+    #: But under that default the draw/recycle action is legal forever, so a
+    #: deal can never run out of legal moves, so the loss branch below can
+    #: never fire: over 200 TEST deals a random policy terminated 0.0 % of the
+    #: time and died 0.0 % of the time, and LOSS_REWARD was paid to nobody,
+    #: ever. The agent learned from a game it could neither win nor lose.
+    #:
+    #: This constant is what every bundled entry point -- the sweep envs, the
+    #: evaluation protocols, the baselines and the Gymnasium ids -- passes
+    #: instead. It lives here rather than in `games.registration` because
+    #: `harness` cannot import that module (registration imports harness), and
+    #: a second copy of the number in `harness` is exactly how the two halves
+    #: of an experiment drift into playing different games. See issue #18.
+    BUNDLED_MAX_PASSES = 3
 
     def __init__(
         self,
@@ -77,7 +98,10 @@ class KlondikeSolitaire(CardGame):
             draw_count: Number of cards to draw from stock (1 or 3)
             max_passes: Maximum passes through the deck (None for unlimited).
                 Note that with unlimited passes a dead deal never runs out of
-                legal moves, so it can only end by truncation, never as a loss.
+                legal moves, so it can only end by truncation, never as a loss
+                -- LOSS_REWARD is then unreachable and the agent gets no
+                terminal signal at all. The bundled experiments therefore pass
+                BUNDLED_MAX_PASSES rather than taking this default.
             reward_mode: "shaped" pays per-move progress rewards (foundations,
                 reveals) plus a small step cost; "sparse" pays only +1 for a won
                 deal and LOSS_REWARD for a dead one. Sparse cannot be farmed and
@@ -359,7 +383,8 @@ class KlondikeSolitaire(CardGame):
             # only ever truncating) gives the agent an actual loss signal and
             # keeps hundreds of pointless post-mortem moves out of the replay
             # buffer. Reachable only with a finite max_passes, since otherwise
-            # draw/recycle stays legal forever.
+            # draw/recycle stays legal forever -- which is why every bundled
+            # entry point passes BUNDLED_MAX_PASSES.
             self.done = True
             reward += self.LOSS_REWARD
 

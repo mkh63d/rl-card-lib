@@ -33,6 +33,7 @@ def _deals(
 def evaluate_klondike(
     agent: Agent, episodes: Optional[int] = None, max_steps: int = 300, *,
     seeds: Optional[Sequence[int]] = None,
+    max_passes: Optional[int] = KlondikeSolitaire.BUNDLED_MAX_PASSES,
 ) -> dict:
     """
     Play fixed deals and report reward, foundation progress and wins.
@@ -42,6 +43,12 @@ def evaluate_klondike(
         episodes: Deals to play, taken from the front of the TEST pool
         max_steps: Move cap per deal
         seeds: Explicit deal seeds, overriding `episodes`
+        max_passes: Passes through the stock. Defaults to the same finite value
+            the bundled training env uses, not to the game's unlimited default:
+            an agent has to be measured on the rules it was trained on, and
+            under unlimited passes a deal can never die, so `win_rate` would be
+            the only terminal outcome that exists. Pass None for the unlimited
+            game.
 
     Returns:
         Dict of averaged metrics
@@ -54,7 +61,7 @@ def evaluate_klondike(
     # One game and one env for the whole evaluation: the deal is chosen by the
     # seed handed to reset(), not by building a fresh KlondikeSolitaire (whose
     # RNG nothing seeded) each time round.
-    game = KlondikeSolitaire()
+    game = KlondikeSolitaire(max_passes=max_passes)
     env = CardGameEnv(game, max_steps=max_steps)
     if hasattr(agent, "bind"):
         agent.bind(env)
