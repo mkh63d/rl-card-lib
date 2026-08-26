@@ -37,6 +37,12 @@ class KlondikeSolitaire(CardGame):
     LOSS_REWARD when the deal dies. Non-revealing tableau moves pay nothing on
     purpose: they are reversible, so any positive payment is farmable. Sparse
     mode pays only the win/loss terminals.
+
+    Note that `KlondikeSolitaire()` is *not* the game this library's bundled
+    experiments play: the class default is unlimited passes through the stock,
+    while every bundled entry point plays BUNDLED_MAX_PASSES of them. Call
+    `bundled_klondike()` for that game and this constructor for a deliberately
+    customised one. See issues #18 and #38.
     """
 
     # Action encoding:
@@ -78,7 +84,8 @@ class KlondikeSolitaire(CardGame):
     #:
     #: This constant is what every bundled entry point -- the sweep envs, the
     #: evaluation protocols, the baselines and the Gymnasium ids -- passes
-    #: instead. It lives here rather than in `games.registration` because
+    #: instead, and `bundled_klondike()` below is the one place that passes it.
+    #: It lives here rather than in `games.registration` because
     #: `harness` cannot import that module (registration imports harness), and
     #: a second copy of the number in `harness` is exactly how the two halves
     #: of an experiment drift into playing different games. See issue #18.
@@ -101,7 +108,9 @@ class KlondikeSolitaire(CardGame):
                 legal moves, so it can only end by truncation, never as a loss
                 -- LOSS_REWARD is then unreachable and the agent gets no
                 terminal signal at all. The bundled experiments therefore pass
-                BUNDLED_MAX_PASSES rather than taking this default.
+                BUNDLED_MAX_PASSES rather than taking this default; call
+                `bundled_klondike()` to get that game without repeating the
+                argument.
             reward_mode: "shaped" pays per-move progress rewards (foundations,
                 reveals) plus a small step cost; "sparse" pays only +1 for a won
                 deal and LOSS_REWARD for a dead one. Sparse cannot be farmed and
@@ -663,3 +672,53 @@ class KlondikeSolitaire(CardGame):
             from_pile = relative_action // 7 + 1
             to_pile = relative_action % 7 + 1
             return f"Move from tableau {from_pile} to tableau {to_pile}"
+
+
+def bundled_klondike(
+    *,
+    draw_count: int = 1,
+    max_passes: Optional[int] = KlondikeSolitaire.BUNDLED_MAX_PASSES,
+    reward_mode: str = "shaped",
+    seed: Optional[int] = None,
+) -> KlondikeSolitaire:
+    """The Klondike the bundled experiments play. Prefer this over the class.
+
+    One named constructor for the whole experiment, so training, evaluation,
+    the baselines and the solvable-pool solver cannot end up on different
+    rules. Every bundled entry point builds its game here: the sweep's training
+    and evaluation envs, `harness.evaluate_klondike`,
+    `harness.run_klondike_baselines`, the Gymnasium `Klondike-v0` /
+    `KlondikeMasked-v0` ids, and the solver that curates the solvable-deal pool.
+
+    The signature mirrors `KlondikeSolitaire.__init__` with exactly one default
+    changed: `max_passes` is BUNDLED_MAX_PASSES rather than None. That one
+    difference is the whole point of the function. Under the class default the
+    draw/recycle action is legal forever, so a deal can never run out of moves,
+    so LOSS_REWARD is unreachable and an agent trains on a game it can neither
+    win nor lose (issue #18).
+
+    `KlondikeSolitaire(...)` remains the constructor for deliberate
+    customisation -- a library user who wants ordinary unlimited-pass Klondike
+    should reach for it and gets exactly that. But it is also the *obvious* way
+    to write it, and five separate evaluation paths once took it by accident and
+    scored agents on rules they were never trained on: on the same 200 held-out
+    deals the heuristic reads 25.84 cards under the bundled rules and 28.74
+    under unlimited passes, MCTS(20) 20.34 against 26.80 (issue #38). Pass
+    `max_passes=None` here to ask for the unlimited game on purpose.
+
+    Args:
+        draw_count: Number of cards to draw from stock (1 or 3)
+        max_passes: Maximum passes through the deck. Defaults to the bundled
+            finite value; None for unlimited.
+        reward_mode: "shaped" or "sparse" -- see `KlondikeSolitaire`
+        seed: Seed for the game's private RNG
+
+    Returns:
+        A `KlondikeSolitaire` playing the bundled rules
+    """
+    return KlondikeSolitaire(
+        draw_count=draw_count,
+        max_passes=max_passes,
+        reward_mode=reward_mode,
+        seed=seed,
+    )

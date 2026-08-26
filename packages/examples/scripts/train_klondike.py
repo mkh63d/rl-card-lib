@@ -8,13 +8,10 @@ This script demonstrates the basic workflow:
 4. Evaluate performance
 """
 
-from rl_card_lib.games import KlondikeSolitaire
+from rl_card_lib.games import bundled_klondike
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import DQNAgent
-from rl_card_lib.games.registration import (
-    KLONDIKE_MAX_PASSES,
-    KLONDIKE_REPEAT_PENALTY,
-)
+from rl_card_lib.games.registration import KLONDIKE_REPEAT_PENALTY
 from rl_card_lib.harness import TRAIN_SEEDS
 from rl_card_lib.trainer import Trainer
 
@@ -27,10 +24,11 @@ def main():
     # but the bundled constant is 0.0: measured over the full protocol the
     # shaping cost more than it bought (issue #36). Passed anyway so this
     # script trains the game the sweep trains, whatever that constant says.
-    # max_passes is finite so the deal can actually die: with unlimited
+    # bundled_klondike() rather than KlondikeSolitaire(): its finite
+    # max_passes is what lets the deal actually die, since with unlimited
     # passes draw/recycle stays legal forever and LOSS_REWARD is
-    # unreachable, leaving no terminal signal at all (issue #18).
-    game = KlondikeSolitaire(draw_count=1, max_passes=KLONDIKE_MAX_PASSES)
+    # unreachable, leaving no terminal signal at all (issues #18, #38).
+    game = bundled_klondike(draw_count=1)
     env = CardGameEnv(game, max_steps=500, deal_seeds=TRAIN_SEEDS,
                       repeated_position_penalty=KLONDIKE_REPEAT_PENALTY)
 
