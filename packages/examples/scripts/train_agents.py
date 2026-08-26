@@ -87,7 +87,7 @@ def train_klondike(kind: str, episodes: int, seed: int, checkpoint_dir: str) -> 
 
     agent.save(os.path.join(
         checkpoint_dir, f"klondike_{kind}",
-        "final.pkl" if kind == "q_learning" else "final.pt",
+        f"final{agent.checkpoint_suffix}",
     ))
     metrics.save(os.path.join(checkpoint_dir, f"klondike_{kind}", "metrics.json"))
 
@@ -137,7 +137,7 @@ def train_macao(
 
     agent.save(os.path.join(
         checkpoint_dir, f"macao_{kind}",
-        "final.pkl" if kind == "q_learning" else "final.pt",
+        f"final{agent.checkpoint_suffix}",
     ))
     metrics.save(os.path.join(checkpoint_dir, f"macao_{kind}", "metrics.json"))
 

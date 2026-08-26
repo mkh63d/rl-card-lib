@@ -26,6 +26,15 @@ class Agent(ABC):
     #: passes it to those that opt in.
     accepts_truncated: bool = False
 
+    #: File extension `save()` writes, for callers that name the file rather
+    #: than being handed one -- Trainer's periodic checkpoints, the sweep's
+    #: `final` artifact. It has to travel with the agent because only the
+    #: agent knows which serializer its `save()` uses, and a `.pt` written by
+    #: `pickle.dump` fails `torch.load` with a corruption error rather than
+    #: anything that points at the real mismatch. Defaults to torch's `.pt`;
+    #: agents that pickle override it.
+    checkpoint_suffix: str = ".pt"
+
     def __init__(self, name: str = "Agent"):
         """
         Initialize the agent.

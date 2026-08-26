@@ -22,6 +22,15 @@ from rl_card_lib.agents import (
 
 LEARNERS = ("q_learning", "dqn", "double_dqn", "ppo")
 
+#: Class behind each name in LEARNERS, for the metadata callers want without
+#: constructing an agent (which needs sizes and a seed they may not have).
+_LEARNER_CLASSES: dict[str, type[Agent]] = {
+    "q_learning": QLearningAgent,
+    "dqn": DQNAgent,
+    "double_dqn": DoubleDQNAgent,
+    "ppo": PPOAgent,
+}
+
 # Gradient steps between target-network refreshes. `DQNAgent.learn()` takes one
 # gradient step per environment step once the buffer holds `batch_size`
 # transitions, so this is effectively counted in environment steps -- which is
@@ -115,8 +124,14 @@ def agent_class_name(kind: str) -> str:
 
 
 def checkpoint_suffix(kind: str) -> str:
-    """Q-learning pickles its table; everything else uses torch.save."""
-    return ".pkl" if kind == "q_learning" else ".pt"
+    """The extension the agent of this kind writes, by name rather than instance.
+
+    Q-learning pickles its table and everything else uses torch.save, but the
+    agents themselves declare that through `Agent.checkpoint_suffix`; asking
+    the class keeps this from becoming a second, drifting copy of the answer.
+    An unknown kind falls back to the base default.
+    """
+    return _LEARNER_CLASSES.get(kind, Agent).checkpoint_suffix
 
 
 def _checkpoint_candidates(
