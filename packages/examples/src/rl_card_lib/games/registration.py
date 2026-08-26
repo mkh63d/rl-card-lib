@@ -35,27 +35,35 @@ MACAO_MAX_STEPS = 200
 # differs across those is not one experiment.
 KLONDIKE_MAX_PASSES = KlondikeSolitaire.BUNDLED_MAX_PASSES
 
-# Price of stepping into a position already seen this episode. Klondike's
-# tableau moves are reversible and, with the default `max_passes=None`, the
+# Price of stepping into a position already seen this episode: 0.0, so the
+# bundled Klondike trains on the game's own reward and nothing else.
+#
+# The diagnosis the penalty was written for still holds. Klondike's tableau
+# moves are reversible and, with the default `max_passes=None`, the
 # draw/recycle cycle is free -- so a *deterministic* greedy policy that ever
 # revisits a position repeats its whole future from there and cycles until the
-# step cap. Measured on trained checkpoints, that is what happens: 80-83 % of
-# greedy steps landed in an already-seen position against 23 % for random,
-# which is why the greedy policies scored below random. During training eps > 0
-# hides it by breaking the cycle roughly every 20 steps; the same weights
-# evaluated greedily loop.
+# step cap. Measured on trained checkpoints that is what happens: 73-78 % of
+# greedy steps land in an already-seen position against 42 % for random. That
+# is why `CardGameEnv` implements the penalty and documents it as the remedy,
+# and why issue #17 switched it on here.
 #
-# CardGameEnv has implemented this penalty (and documented it as the remedy for
-# exactly this) since the env was written, but it defaults to 0.0 and nothing
-# here ever passed a value -- so the safeguard was inert in every run. These
-# constants are what switch it on. See issue #17.
-KLONDIKE_REPEAT_PENALTY = -0.05
+# It was then measured, and it does not work. Over 3 seeds, 5000 episodes and
+# 200 held-out deals it buys 0.3-0.8 pp of that revisit fraction for the DQN
+# family and moves it the *wrong* way for PPO, while costing PPO 17.09 -> 9.73
+# cards to foundation -- from well above the 9.79 random baseline to below it --
+# and 27.5 % -> 0.4 % of its solve rate on the proven-winnable pool. The
+# penalty falls on roughly two-thirds of steps for the whole run and never
+# trains away. So the bundled game ships unshaped and the mechanism stays
+# opt-in: a caller who wants the cycle priced passes
+# `repeated_position_penalty` to their own env. See issue #36, and
+# `thesis_notes/diagnosis.md` D3 for the measurement.
+KLONDIKE_REPEAT_PENALTY = 0.0
 
-# Macao gets 0.0 on purpose, not by the same oversight: its positions are
-# monotone -- every action moves a card out of a hand or the deck and the
-# observation carries the counts -- so a repeat cannot occur. Measured over
-# 5 826 random steps the repeat count is exactly 0, leaving nothing for a
-# penalty to price.
+# Macao's 0.0 is a different zero from Klondike's above: not a shaping term
+# that was measured and withdrawn, but one that never had anything to price.
+# Its positions are monotone -- every action moves a card out of a hand or the
+# deck and the observation carries the counts -- so a repeat cannot occur.
+# Measured over 5 826 random steps the repeat count is exactly 0.
 MACAO_REPEAT_PENALTY = 0.0
 
 # Node budget for curating the solvable-deal pool. Deliberately far below the
@@ -77,9 +85,11 @@ def _klondike() -> KlondikeSolitaire:
 def _train_env(game, max_steps, repeat_penalty=0.0):
     """Env for a training run: one deal per episode out of the TRAIN pool.
 
-    This is the env that carries the repeated-position penalty. The penalty is
-    reward *shaping* -- a training signal that prices the cycle -- so it belongs
-    to the env the agent learns from and to no other.
+    The only env that takes a repeated-position penalty. Both bundled games
+    pass 0.0 today, for the separate reasons given on their constants, but the
+    parameter belongs here and nowhere else: the penalty is reward *shaping* --
+    a training signal that prices the cycle -- so a game that wants it applies
+    it to the env its agent learns from and to no other.
     """
     return CardGameEnv(game, max_steps=max_steps, deal_seeds=TRAIN_SEEDS,
                        repeated_position_penalty=repeat_penalty)
@@ -92,11 +102,12 @@ def _eval_env(game, max_steps):
     same TEST deals, so the evaluation curve tracks the agent rather than which
     deals it happened to draw.
 
-    Deliberately *unshaped*: no repeated-position penalty, unlike `_train_env`.
-    The curve then reports the game's own return, so a rise means the agent got
-    better rather than merely that it stopped paying the penalty -- and the
-    number stays comparable with `harness.baselines`, which measures the random
-    and heuristic policies on plain envs.
+    Deliberately *unshaped*, whatever `_train_env` was handed: no
+    repeated-position penalty ever reaches this env. The curve then reports the
+    game's own return, so a rise means the agent got better rather than merely
+    that it stopped paying a shaping term -- and the number stays comparable
+    with `harness.baselines`, which measures the random and heuristic policies
+    on plain envs.
     """
     return CardGameEnv(game, max_steps=max_steps, deal_seeds=TEST_SEEDS,
                        deal_order="cycle")

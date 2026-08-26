@@ -679,24 +679,29 @@ class TestRepeatedPositionHandling:
         assert len(env._seen_positions) == 1
 
 
-class TestRepeatedPositionPenaltyIsEnabled:
-    """The penalty must stay switched *on* wherever an agent trains.
+class TestRepeatedPositionPenaltyIsOffByDefault:
+    """The bundled Klondike must train *unshaped*.
 
     `TestRepeatedPositionHandling` above covers the mechanism; these cover the
-    switch. `CardGameEnv` has implemented the penalty, documented it as the
-    remedy for reversible-move loops and unit-tested it since the env was
-    written -- but it defaults to 0.0 and no registration ever passed a value,
-    so it was inert in every run ever made. Trained greedy policies then spent
-    80-83 % of their steps re-entering a position they had already visited,
-    against 23 % for random, and scored below random as a result.
+    switch. It was on for a while: the penalty had been implemented,
+    documented as the remedy for reversible-move loops and unit-tested since
+    the env was written, but no registration ever passed a value, so #17
+    switched it on here.
 
-    A safeguard that is silently off is worse than none, so the fact that it is
-    on is itself a regression test.
+    Measuring it refuted it. Over 3 seeds, 5000 episodes and 200 held-out
+    deals, -0.05 buys 0.3-0.8 pp of the revisit fraction for the DQN family and
+    moves it the wrong way for PPO, while costing PPO 17.09 -> 9.73 cards to
+    foundation (the random baseline is 9.79) and 27.5 % -> 0.4 % of its solve
+    rate on the proven-winnable pool. A default the repo's own measurement
+    refutes is worse than none, so the fact that it is off is itself a
+    regression test -- and so is the fact that the mechanism still works when
+    a caller asks for it.
     """
 
-    def test_klondike_trains_with_the_penalty_on(self):
+    def test_klondike_trains_unshaped(self):
         env = sweep_game("klondike").env_factory()
-        assert env.repeated_position_penalty < 0
+        assert env.repeated_position_penalty == 0.0
+        assert KLONDIKE_REPEAT_PENALTY == 0.0
 
     def test_klondike_evaluation_stays_unshaped(self):
         """Shaping is a training signal and must not reach the eval curve.
@@ -710,12 +715,14 @@ class TestRepeatedPositionPenaltyIsEnabled:
             ).repeated_position_penalty == 0.0
 
     def test_macao_is_left_at_zero_because_it_cannot_loop(self):
-        """Macao's 0.0 is a finding, not the same oversight.
+        """Macao's 0.0 is a different zero from Klondike's.
 
-        Its positions are monotone -- every action moves a card out of a hand
-        or the deck, and the observation carries the counts -- so no repeat can
-        occur for a penalty to price. Asserting the measurement keeps a later
-        reader from "fixing" a zero that is already correct.
+        Klondike's is a shaping term that was measured and withdrawn, so a
+        later reader could reasonably revisit it. Macao's never had anything to
+        price: its positions are monotone -- every action moves a card out of a
+        hand or the deck, and the observation carries the counts -- so no
+        repeat can occur. Asserting the measurement keeps the two from being
+        read as one decision.
         """
         assert sweep_game("macao").env_factory().repeated_position_penalty == 0.0
 
@@ -732,13 +739,15 @@ class TestRepeatedPositionPenaltyIsEnabled:
                 if terminated or truncated:
                     break
 
-    def test_the_draw_loop_costs_more_than_it_used_to(self):
-        """The closed loop the trained agents actually fell into.
+    def test_the_draw_loop_is_priced_when_a_caller_asks_for_it(self):
+        """The mechanism still works, whatever the bundled default is.
 
         "Draw from stock" is action 0, and with the default `max_passes=None`
         the stock recycles forever, so pressing it is a cycle that only the
-        step cap ends. It has to cost strictly more with the penalty on than it
-        did with it inert, or nothing about the trained policies changes.
+        step cap ends. A caller who passes a penalty has to see that cycle cost
+        strictly more, or the opt-in the bundled zero leaves them is empty.
+        Deliberately a literal rather than `KLONDIKE_REPEAT_PENALTY`: this
+        pins the mechanism, not the configuration.
         """
         def always_draw(penalty):
             env = CardGameEnv(KlondikeSolitaire(), max_steps=300,
@@ -755,15 +764,16 @@ class TestRepeatedPositionPenaltyIsEnabled:
                     break
             return total, repeats
 
+        penalty = -0.05
         inert_return, inert_repeats = always_draw(0.0)
-        priced_return, priced_repeats = always_draw(KLONDIKE_REPEAT_PENALTY)
+        priced_return, priced_repeats = always_draw(penalty)
 
         # Same trajectory either way -- the penalty prices the loop, it does
         # not change where a fixed action sequence goes.
         assert priced_repeats == inert_repeats
         assert inert_repeats > 200
 
-        expected = inert_return + KLONDIKE_REPEAT_PENALTY * inert_repeats
+        expected = inert_return + penalty * inert_repeats
         assert priced_return == pytest.approx(expected)
         assert priced_return < inert_return
 

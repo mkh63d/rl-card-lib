@@ -15,7 +15,7 @@
 | **D0** | Pojemność bufora **64** z Tabeli 6.1 **nie istnieje w kodzie** — kod ma 50 000 | błąd w tekście pracy, nie w kodzie | n/d — sprawdzone w kodzie i w historii git | n/d — poprawka dotyczy tekstu pracy |
 | **D1** | Truncation traktowany jak stan terminalny: bootstrap zerowany w **100 %** epizodów Klondike | **wysoka** | tak — osobne ramię `fixed` | **scalone w #24** |
 | **D2** | Jak mocno Q różnicuje legalne akcje: rozstęp 57,0 % średniej dla Klondike DQN, ale 5,4 % dla Double DQN (głowica duelling centruje przewagi) — obaj zapętlają się tak samo, więc **płaskość Q nie tłumaczy zapętlenia** | średnia (hipoteza odrzucona) | tak — pomiar | n/d — hipoteza, nie usterka |
-| **D3** | Zachłanna polityka **zapętla się**: 73–78 % kroków wraca do pozycji już widzianej (losowa: 42 %), przy 10–14 różnych akcjach na epizod zamiast 33; na bazę trafia 2,2–2,6 % ruchów wobec 10,9 % u heurystyki | **wysoka — główna przyczyna**; ale włączenie kary **nie pomaga** (0,3–0,8 pp dla rodziny DQN) i **szkodzi PPO** (17,09 → 9,73 karty; solve rate 27,5 % → 0,4 %) | diagnoza tak; lekarstwo **obalone** — ramię `noloop` policzone w pełnym protokole (Klondike, 4 agenty × 3 seedy) | kara **scalona w #29**; pomiar mówi, że nie pomaga |
+| **D3** | Zachłanna polityka **zapętla się**: 73–78 % kroków wraca do pozycji już widzianej (losowa: 42 %), przy 10–14 różnych akcjach na epizod zamiast 33; na bazę trafia 2,2–2,6 % ruchów wobec 10,9 % u heurystyki | **wysoka — główna przyczyna**; ale włączenie kary **nie pomaga** (0,3–0,8 pp dla rodziny DQN) i **szkodzi PPO** (17,09 → 9,73 karty; solve rate 27,5 % → 0,4 %) | diagnoza tak; lekarstwo **obalone** — ramię `noloop` policzone w pełnym protokole (Klondike, 4 agenty × 3 seedy) | kara **scalona w #29**, po pomiarze **domyślna wartość cofnięta do 0,0 w #36** — domyślny Klondike znowu uczy się bez shapingu, mechanizm zostaje opcjonalny |
 | **D4** | Klondike nie ma sygnału terminalnego: `LOSS_REWARD` jest kodem nieosiągalnym przy `max_passes=None` | **wysoka** | częściowo — pomiar + ramię `fixed` | **scalone w #30** (`BUNDLED_MAX_PASSES = 3`) i #24 |
 | **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar | **scalone w #31** — kadencja per gra (klondike 500, macao 100) |
 | **D6** | Harmonogram ε schodzi do 0,05 po **599 epizodach** — 88 % treningu jest prawie zachłanne | średnia | pomiar analityczny | bez zmian — świadomy wybór harmonogramu |
@@ -792,11 +792,13 @@ losowy**, przy 41,2 % powtórzeń wobec 42,0 % dla losowego (D8).
 
 > **Dwa zastrzeżenia do tej tabeli.**
 > Po pierwsze, checkpointy pochodzą ze sweepu biblioteki
-> (`run_sweep.py`), którego domyślne środowisko treningowe Klondike **ma
-> włączoną karę za powtórzoną pozycję** (`KLONDIKE_REPEAT_PENALTY`, #29) — czyli
-> jest konfiguracją `noloop`. To dlatego liczby są niższe niż w ramieniu `fixed`
-> z [`results.md`](results.md) i dlaczego efekt ε jest tu słabszy niż w
-> poprzednim pomiarze. Po drugie, poprzednia wersja tej tabeli (PPO 7,54 →
+> (`run_sweep.py`), którego domyślne środowisko treningowe Klondike **miało
+> wówczas włączoną karę za powtórzoną pozycję** (`KLONDIKE_REPEAT_PENALTY`,
+> #29) — czyli było konfiguracją `noloop`. To dlatego liczby są niższe niż w
+> ramieniu `fixed` z [`results.md`](results.md) i dlaczego efekt ε jest tu
+> słabszy niż w poprzednim pomiarze. Ta kara została później cofnięta do 0,0
+> (#36), więc **kolejny sweep da checkpointy w konfiguracji `fixed`** — tej
+> tabeli nie wolno z nimi zestawiać bez ponownego pomiaru. Po drugie, poprzednia wersja tej tabeli (PPO 7,54 →
 > 20,61 przy baselinie 11,59) była liczona na regułach bez limitu przejść przez
 > stos; **nie wolno cytować obu tabel obok siebie**.
 
@@ -866,7 +868,11 @@ Trzy niezależne, każda działa osobno:
 2. **Włączyć karę za powtórzoną pozycję** (D3), żeby polityka zachłanna
    przestała cyklować — poprawka po stronie środowiska. **Scalone w PR
    [#29](https://github.com/mkh63d/rl-card-lib/pull/29)** (ramię `noloop`), ale
-   pomiar mówi, że **to lekarstwo nie działa** — patrz D3.
+   pomiar mówi, że **to lekarstwo nie działa** — patrz D3. Dlatego
+   **domyślna wartość została cofnięta do 0,0**
+   ([#36](https://github.com/mkh63d/rl-card-lib/issues/36)): `KLONDIKE_REPEAT_PENALTY`
+   wynosi teraz 0,0, a sam mechanizm zostaje w `CardGameEnv` do włączenia per
+   środowisko. Ta rekomendacja jest **wycofana**, nie zrealizowana.
 3. **Raportować obie liczby.** Zachłanna i stochastyczna to dwie różne
    polityki; dla gry z ruchami odwracalnymi obie warto podać. Zrealizowane:
    `tables/solve_time_benchmark.csv` ma osobne wiersze `ppo (fixed)`

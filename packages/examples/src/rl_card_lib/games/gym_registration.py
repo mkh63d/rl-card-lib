@@ -46,12 +46,14 @@ def make_klondike(
 ) -> CardGameEnv:
     """Klondike in a plain `CardGameEnv`.
 
-    Carries the repeated-position penalty by default, for the reason given on
-    `KLONDIKE_REPEAT_PENALTY`: an outside trainer reaching for this id is doing
-    the very thing the penalty exists for, and a greedy policy learned without
-    it cycles. Pass `repeated_position_penalty=0.0` for the unshaped game.
+    Unshaped by default, tracking `KLONDIKE_REPEAT_PENALTY`, which is 0.0: the
+    id gives the game's own reward, so what an outside trainer measures here is
+    comparable with the baselines and with anyone else's run. Pass a negative
+    `repeated_position_penalty` to price stepping into a position already seen
+    this episode -- but read the constant first, because measured over the full
+    protocol that shaping cost more than it bought (issue #36).
 
-    `max_passes` likewise defaults to the finite bundled value: with unlimited
+    `max_passes` by contrast defaults to the finite bundled value: with unlimited
     passes the deal can never run out of legal moves, so the episode has no
     losing terminal and an outside agent sees only wins and truncations. Pass
     `max_passes=None` for the unlimited game.
@@ -77,7 +79,7 @@ def make_klondike_masked(
 ) -> MaskedCardGameEnv:
     """Klondike with the action mask in the observation.
 
-    Same default penalty and pass limit as `make_klondike`.
+    Same unshaped default and pass limit as `make_klondike`.
     """
     return MaskedCardGameEnv(KlondikeSolitaire(max_passes=max_passes),
                              max_steps=max_steps,

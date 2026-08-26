@@ -201,18 +201,19 @@ The code-level blockers are gone; these are measurement work, not fixes.
   7.7% +/- 4.0 versus the heuristic. The 400-episode 85%/40% comparison is
   superseded and should not be reported.
 
-- [ ] **Reconsider `KLONDIKE_REPEAT_PENALTY` (#29) — the measurement argues
-  against it.** `games/registration.py` puts `repeated_position_penalty =
-  -0.05` on the *default* Klondike training env, so `run_sweep.py` and
-  `results/index.html` train in that configuration. Measured over 3 seeds and
-  200 held-out deals it costs PPO roughly half its score (17.09 -> 9.73 cards,
-  below the 9.79 random baseline) and its solve rate on TEST_SOLVABLE
+- [x] **Reconsider `KLONDIKE_REPEAT_PENALTY` (#29)** — done (2026-08-26, #36).
+  The measurement argued against it: over 3 seeds and 200 held-out deals the
+  `-0.05` default cost PPO roughly half its score (17.09 -> 9.73 cards, below
+  the 9.79 random baseline) and its solve rate on TEST_SOLVABLE
   (27.5% -> 0.4%), while buying 0.3-0.8 pp of the looping it was meant to
-  remove for the DQN family. See `thesis_notes/diagnosis.md` D3. Options:
-  default it to 0.0 and keep the mechanism opt-in, or keep it and document that
-  the bundled Klondike is deliberately handicapped. Either is defensible; the
-  current state -- shipping it as the default while the repo's own measurement
-  refutes it -- is not.
+  remove for the DQN family. Of the two options -- default it to 0.0 and keep
+  the mechanism opt-in, or keep it and document the bundled Klondike as
+  deliberately handicapped -- the first was taken: `games/registration.py` now
+  declares `KLONDIKE_REPEAT_PENALTY = 0.0`, so `run_sweep.py`, the training
+  scripts and the Gymnasium ids all train unshaped, and
+  `CardGameEnv(..., repeated_position_penalty=...)` remains available per env.
+  See `thesis_notes/diagnosis.md` D3. **Klondike numbers recorded before this
+  came from the shaped configuration and are not comparable with ones after.**
 - [ ] **Re-check the heuristic rollout policy for MCTS on Klondike.** It
   measured *worse* than random rollouts (2.9 vs 10.2 cards up) when the
   objective was the farmable loop; with the loop gone and the backprop fix in,
