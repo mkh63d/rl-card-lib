@@ -87,6 +87,31 @@
 
 ### Fixed
 
+- **The bundled Klondike no longer trains with the repeated-position penalty**
+  ([#36](https://github.com/mkh63d/rl-card-lib/issues/36)). This reverses a
+  default introduced earlier in this same cycle: the entry below switched
+  `KLONDIKE_REPEAT_PENALTY` on at `-0.05` (issue #17) because the safeguard had
+  been inert in every run ever made. Measured properly afterwards -- 3 seeds,
+  5000 episodes, 200 held-out deals, identical deal stream, the penalty the only
+  difference -- it does not do what it was switched on to do. The revisit
+  fraction it targets barely moves (DQN 73.4% -> 73.1%, Double DQN
+  77.9% -> 77.1%) and for PPO it moves the *wrong* way (59.4% -> 66.8% sampled),
+  while PPO's headline falls from **17.09 +/- 2.12 to 9.73 +/- 0.98 cards** --
+  from well above the 9.79-card random baseline to below it -- and its solve
+  rate over the 91 proven-winnable `TEST_SOLVABLE` deals collapses from
+  **27.5% to 0.4%**. The cost is structural rather than transient: on Klondike
+  DQN from identical initial weights the mean episode reward goes +7.07 to
+  -2.63, with 4999 of 5000 episodes differing, because the penalty falls on
+  roughly two-thirds of steps for the whole run and never trains away.
+  `KLONDIKE_REPEAT_PENALTY` is therefore `0.0`, so `run_sweep.py`, the
+  standalone training scripts and the Gymnasium `Klondike-v0` /
+  `KlondikeMasked-v0` ids all give the game's own reward. The mechanism is
+  untouched and stays opt-in -- `CardGameEnv(..., repeated_position_penalty=...)`
+  prices position repeats for any game that wants it, and a test pins that it
+  still does. Macao's `0.0` is unrelated and unchanged: its positions are
+  monotone, so no repeat ever occurs for a penalty to price. Numbers and
+  discussion in `thesis_notes/diagnosis.md` D3.
+
 - **The time-limit bootstrap tests measured deals nothing had seeded**
   ([#27](https://github.com/mkh63d/rl-card-lib/issues/27)).
   `test_selfplay_capped_episodes_report_no_terminal_transition` built its game as

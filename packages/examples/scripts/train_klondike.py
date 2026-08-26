@@ -23,8 +23,10 @@ def main():
     # Create the game and environment. deal_seeds makes every episode's deal
     # come from the declared training pool, so the run is reproducible and the
     # agent never trains on a deal it will later be evaluated on.
-    # repeated_position_penalty prices Klondike's reversible-move cycle; without
-    # it the greedy policy this trains loops instead of playing (issue #17).
+    # repeated_position_penalty would price Klondike's reversible-move cycle,
+    # but the bundled constant is 0.0: measured over the full protocol the
+    # shaping cost more than it bought (issue #36). Passed anyway so this
+    # script trains the game the sweep trains, whatever that constant says.
     # max_passes is finite so the deal can actually die: with unlimited
     # passes draw/recycle stays legal forever and LOSS_REWARD is
     # unreachable, leaving no terminal signal at all (issue #18).
