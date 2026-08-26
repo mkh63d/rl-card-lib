@@ -5,93 +5,93 @@
     "dqn": [
       {
         "epsilon": 0.0,
-        "cards_up": 5.845,
-        "cards_up_sd": 3.663,
+        "cards_up": 6.57,
+        "cards_up_sd": 3.88,
         "win_rate": 0.0,
-        "repeated_position_frac": 0.8076
+        "repeated_position_frac": 0.5787
       },
       {
         "epsilon": 0.05,
-        "cards_up": 8.13,
-        "cards_up_sd": 5.833,
-        "win_rate": 0.005,
-        "repeated_position_frac": 0.7083
+        "cards_up": 6.97,
+        "cards_up_sd": 4.027,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.5624
       },
       {
         "epsilon": 0.2,
-        "cards_up": 13.55,
-        "cards_up_sd": 12.267,
-        "win_rate": 0.055,
-        "repeated_position_frac": 0.5533
+        "cards_up": 7.765,
+        "cards_up_sd": 5.109,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.5604
       }
     ],
     "double_dqn": [
       {
         "epsilon": 0.0,
-        "cards_up": 5.14,
-        "cards_up_sd": 3.521,
+        "cards_up": 6.295,
+        "cards_up_sd": 3.787,
         "win_rate": 0.0,
-        "repeated_position_frac": 0.8396
+        "repeated_position_frac": 0.7415
       },
       {
         "epsilon": 0.05,
-        "cards_up": 6.44,
-        "cards_up_sd": 4.179,
+        "cards_up": 7.43,
+        "cards_up_sd": 4.407,
         "win_rate": 0.0,
-        "repeated_position_frac": 0.7693
+        "repeated_position_frac": 0.7046
       },
       {
         "epsilon": 0.2,
-        "cards_up": 10.465,
-        "cards_up_sd": 8.084,
-        "win_rate": 0.0,
-        "repeated_position_frac": 0.6166
+        "cards_up": 9.59,
+        "cards_up_sd": 8.25,
+        "win_rate": 0.02,
+        "repeated_position_frac": 0.6522
       }
     ],
     "ppo": [
       {
         "epsilon": 0.0,
-        "cards_up": 7.535,
-        "cards_up_sd": 5.533,
+        "cards_up": 7.125,
+        "cards_up_sd": 3.951,
         "win_rate": 0.0,
-        "repeated_position_frac": 0.7804
+        "repeated_position_frac": 0.7432
       },
       {
         "epsilon": 0.05,
-        "cards_up": 13.9,
-        "cards_up_sd": 14.517,
-        "win_rate": 0.105,
-        "repeated_position_frac": 0.6384
+        "cards_up": 8.3,
+        "cards_up_sd": 4.553,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.7014
       },
       {
         "epsilon": 0.2,
-        "cards_up": 20.605,
-        "cards_up_sd": 18.948,
-        "win_rate": 0.24,
-        "repeated_position_frac": 0.468
+        "cards_up": 11.01,
+        "cards_up_sd": 7.683,
+        "win_rate": 0.0,
+        "repeated_position_frac": 0.5927
       }
     ],
     "q_learning": [
       {
         "epsilon": 0.0,
-        "cards_up": 11.245,
-        "cards_up_sd": 6.767,
+        "cards_up": 9.795,
+        "cards_up_sd": 7.092,
         "win_rate": 0.0,
-        "repeated_position_frac": 0.2295
+        "repeated_position_frac": 0.4124
       },
       {
         "epsilon": 0.05,
-        "cards_up": 12.075,
-        "cards_up_sd": 7.683,
+        "cards_up": 9.36,
+        "cards_up_sd": 6.448,
         "win_rate": 0.0,
-        "repeated_position_frac": 0.2293
+        "repeated_position_frac": 0.4191
       },
       {
         "epsilon": 0.2,
-        "cards_up": 11.91,
-        "cards_up_sd": 7.221,
+        "cards_up": 9.495,
+        "cards_up_sd": 6.933,
         "win_rate": 0.0,
-        "repeated_position_frac": 0.2392
+        "repeated_position_frac": 0.4116
       }
     ]
   }

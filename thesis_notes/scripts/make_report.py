@@ -57,9 +57,16 @@ LABEL = {
     "dqn": "DQN",
     "q_learning": "Q-learning",
 }
+# What each arm configures. `fixed` is the library itself since PRs #24-#34, so
+# it bundles four changes rather than isolating the bootstrap fix it once meant;
+# `asis` is reconstructed on the same commit by switching those four back. Only
+# `fixed` -> `noloop` is still a single-factor comparison. See results.md.
+# Kept short and comma-free: these strings land in a CSV column, a figure
+# legend and the injected diagnosis.md table. The four levers each arm actually
+# sets are spelled out in results.md and recorded per run in `arm_config`.
 ARM_LABEL = {
-    "asis": "as published",
-    "fixed": "+ time-limit bootstrap fix",
+    "asis": "before the fixes (pre-#24)",
+    "fixed": "library as shipped",
     "noloop": "+ repeated-position penalty",
 }
 AGENT_ORDER = ["ppo", "double_dqn", "dqn", "q_learning"]
@@ -214,6 +221,25 @@ CURVE = {
 }
 
 
+def baseline_rows(baselines, game: str, arm: str) -> list:
+    """The baseline rows an arm should be judged against.
+
+    Klondike's `asis` arm plays `max_passes=None` while `fixed` and `noloop`
+    play the bundled three-pass limit, so they are not the same game: random
+    scores 11.59 cards under unlimited passes and 9.79 under three. Drawing one
+    reference line for both would score an arm against the other arm's
+    baseline. Falls back to the bundled rows when the unlimited-pass set has
+    not been measured, so an older JSON still renders.
+    """
+    if not baselines:
+        return []
+    if game == "klondike" and arm == "asis":
+        rows = baselines.get("klondike_unlimited_passes")
+        if rows:
+            return rows
+    return baselines.get(game, [])
+
+
 def fig_train_curves(runs: dict, game: str, arm: str, baselines) -> None:
     key, ylabel, title = CURVE[game]
     fig, ax = plt.subplots(figsize=(8.4, 4.6))
@@ -245,7 +271,7 @@ def fig_train_curves(runs: dict, game: str, arm: str, baselines) -> None:
         return
 
     if baselines:
-        for row in baselines.get(game, []):
+        for row in baseline_rows(baselines, game, arm):
             if row["agent"] != "Random":
                 continue
             value = (row["cards_up"] if game == "klondike"
@@ -295,7 +321,7 @@ TEST_SPEC = {
 def fig_test_comparison(runs: dict, game: str, arm: str, baselines) -> None:
     key, xlabel, title, places = TEST_SPEC[game]
     rows = []
-    for row in (baselines or {}).get(game, []):
+    for row in baseline_rows(baselines, game, arm):
         rows.append((row["agent"], row[key], None, BASELINE, "baseline"))
     rows.sort(key=lambda r: r[1])
     learners = []
@@ -542,14 +568,25 @@ def table_results(runs: dict, game: str, baselines, solvable) -> None:
     rows = []
     scale = 100.0 if percent else 1.0
 
-    for row in (baselines or {}).get(game, []):
-        secondary = (row["win_rate"] if game == "klondike"
-                     else row["win_rate_vs_random"])
-        value = row[key] * scale
-        rows.append([row["agent"], "baseline", "-", 1,
-                     "", "", round(value, 3), "", "",
-                     "", f"{value:.2f}",
-                     round(secondary, 4), "", "", ""])
+    # One table spans every arm, and on Klondike the arms do not share a rule
+    # set, so a baseline row has to say which rules it was measured under --
+    # otherwise `asis` rows sit next to a reference from a different game.
+    baseline_sets = [((baselines or {}).get(game, []),
+                      "fixed+noloop" if game == "klondike" else "-")]
+    if game == "klondike":
+        unlimited = (baselines or {}).get("klondike_unlimited_passes")
+        if unlimited:
+            baseline_sets.append((unlimited, "asis"))
+
+    for source, arm_label in baseline_sets:
+        for row in source:
+            secondary = (row["win_rate"] if game == "klondike"
+                         else row["win_rate_vs_random"])
+            value = row[key] * scale
+            rows.append([row["agent"], "baseline", arm_label, 1,
+                         "", "", round(value, 3), "", "",
+                         "", f"{value:.2f}",
+                         round(secondary, 4), "", "", ""])
 
     for arm in ("asis", "fixed", "noloop"):
         for agent in AGENT_ORDER:
@@ -579,19 +616,44 @@ def table_results(runs: dict, game: str, baselines, solvable) -> None:
 
 
 def table_solve_time(baselines, solvable) -> None:
-    if not baselines or "klondike_solve_time" not in baselines:
-        return
+    """Both halves of the solve-rate table: baselines and trained learners.
+
+    `baselines_on_test.py` measures the non-learning agents and
+    `solve_time_learners.py` the trained checkpoints, over the same
+    TEST_SOLVABLE pool, so the two sets of rows are one table rather than two.
+    A learner row carries a spread because it is three seeds; a baseline is a
+    single deterministic measurement, so its sd columns stay empty.
+    """
     rows = []
-    for row in baselines["klondike_solve_time"]:
-        rows.append([
-            row["agent"], row["pool_size"], round(row["solve_rate"], 4),
-            round(row["cards_up"], 2),
-            "" if row["solve_moves"] is None else round(row["solve_moves"], 1),
-            "" if row["solve_seconds"] is None else round(row["solve_seconds"], 4),
-        ])
+    if baselines and "klondike_solve_time" in baselines:
+        for row in baselines["klondike_solve_time"]:
+            rows.append([
+                row["agent"], row["pool_size"], 1,
+                round(row["solve_rate"], 4), "",
+                round(row["cards_up"], 2), "",
+                "" if row["solve_moves"] is None else round(row["solve_moves"], 1),
+                "" if row["solve_seconds"] is None
+                else round(row["solve_seconds"], 4),
+            ])
+
+    learners = load_json("solve_time_learners.json")
+    if learners:
+        for row in learners.get("rows", []):
+            rows.append([
+                row["label"], learners.get("pool_size", ""), row["seeds"],
+                round(row["solve_rate_mean"], 4), round(row["solve_rate_sd"], 4),
+                round(row["cards_up_mean"], 2), round(row["cards_up_sd"], 2),
+                "" if row.get("solve_moves_mean") is None
+                else round(row["solve_moves_mean"], 1),
+                "",
+            ])
+
+    if not rows:
+        return
     write_csv("solve_time_benchmark.csv",
-              ["agent", "pool_size", "solve_rate", "cards_up",
-               "mean_moves_to_solve", "mean_seconds_to_solve"], rows)
+              ["agent", "pool_size", "seeds", "solve_rate", "solve_rate_sd",
+               "cards_up", "cards_up_sd", "mean_moves_to_solve",
+               "mean_seconds_to_solve"], rows)
 
 
 def table_hyperparameters() -> None:
@@ -619,6 +681,7 @@ def table_hyperparameters() -> None:
         ("value_coef", "Value coefficient"),
         ("max_grad_norm", "Max gradient norm"),
         ("dueling", "Duelling head"),
+        ("eval_greedy", "Greedy evaluation (argmax of the policy)"),
         ("precision", "State rounding (decimals)"),
         ("optimistic_init", "Optimistic init"),
     ]
@@ -716,6 +779,14 @@ def main() -> int:
     print(f"{sum(len(v) for v in runs.values())} run(s) in "
           f"{len(runs)} (game, agent, arm) group(s)")
     baselines = load_json("baselines_on_test.json")
+    # The unlimited-pass reference set lives in its own file so the two
+    # measurements can run concurrently; fold it in so `baseline_rows` can
+    # reach it by key.
+    unlimited = load_json("baselines_unlimited_passes.json")
+    if baselines is not None and unlimited:
+        rows = unlimited.get("klondike_unlimited_passes")
+        if rows:
+            baselines["klondike_unlimited_passes"] = rows
     solvable = load_json("klondike_test_solvable.json")
 
     os.makedirs(TABLES, exist_ok=True)

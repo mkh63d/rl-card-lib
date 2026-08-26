@@ -1,22 +1,17 @@
 {
   "dqn": {
-    "repeated_position_frac": 0.8033,
-    "distinct_actions_per_episode": 12.47,
-    "cards_up": 6.43
+    "repeated_position_frac": 0.7338,
+    "distinct_actions_per_episode": 10.2367,
+    "cards_up": 6.135
   },
   "double_dqn": {
-    "repeated_position_frac": 0.8321,
-    "distinct_actions_per_episode": 14.03,
-    "cards_up": 6.73
-  },
-  "ppo": {
-    "repeated_position_frac": 0.7894,
-    "distinct_actions_per_episode": 16.93,
-    "cards_up": 8.77
+    "repeated_position_frac": 0.7788,
+    "distinct_actions_per_episode": 13.9167,
+    "cards_up": 6.4383
   },
   "random": {
-    "repeated_position_frac": 0.2304,
-    "distinct_actions_per_episode": 39.97,
-    "cards_up": 11.17
+    "repeated_position_frac": 0.4198,
+    "distinct_actions_per_episode": 33.1,
+    "cards_up": 9.795
   }
 }

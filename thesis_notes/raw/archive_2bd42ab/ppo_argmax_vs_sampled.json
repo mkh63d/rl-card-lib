@@ -1,0 +1,20 @@
+{
+  "klondike_ppo_argmax": {
+    "win_rate": 0.0,
+    "repeated_position_frac": 0.7804,
+    "cards_up": 7.535
+  },
+  "klondike_ppo_sampled": {
+    "win_rate": 0.285,
+    "repeated_position_frac": 0.4483,
+    "cards_up": 22.45
+  },
+  "macao_ppo_argmax": {
+    "win_rate": 0.35,
+    "repeated_position_frac": 0.0
+  },
+  "macao_ppo_sampled": {
+    "win_rate": 0.395,
+    "repeated_position_frac": 0.0
+  }
+}

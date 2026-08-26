@@ -103,13 +103,23 @@ Jeden epizod = jedno rozdanie pasjansa, od rozdania kart do zakończenia.
 | `truncated` z gry | **nigdy** — `klondike.py:367` ustawia na stałe `truncated = False` | [klondike.py:367](../packages/examples/src/rl_card_lib/games/klondike.py#L367) |
 | `truncated` z środowiska | gdy `_step_count >= 300` | [card_game_env.py:135-136](../packages/core/src/rl_card_lib/env/card_game_env.py#L135-L136) |
 
-**Kluczowy fakt:** domyślne `max_passes = None`
-([klondike.py:68](../packages/examples/src/rl_card_lib/games/klondike.py#L68)),
-a przy nieograniczonych przejściach przez talię akcja 0 (dobierz / przełóż
-odkrytą kupkę z powrotem) jest **zawsze legalna**
-([klondike.py:226](../packages/examples/src/rl_card_lib/games/klondike.py#L226)).
-Rozdanie nie może więc „umrzeć”: gałąź `LOSS_REWARD = -1.0` jest kodem
-nieosiągalnym dla domyślnej konfiguracji.
+**Kluczowy fakt — i to się zmieniło.** Domyślne `max_passes = None` *klasy*
+`KlondikeSolitaire` nadal obowiązuje, a przy nieograniczonych przejściach przez
+talię akcja 0 (dobierz / przełóż odkrytą kupkę z powrotem) jest **zawsze
+legalna**. Rozdanie nie może wtedy „umrzeć”: gałąź `LOSS_REWARD = -1.0` jest
+kodem nieosiągalnym.
+
+Ale **gra dołączona do biblioteki nie używa już tej konfiguracji**. PR
+[#30](https://github.com/mkh63d/rl-card-lib/pull/30) wprowadził
+`KlondikeSolitaire.BUNDLED_MAX_PASSES = 3`, którego używa każdy bundlowany punkt
+wejścia (trening, ewaluacja, baseliny, solver curating puli). Domyślna wartość
+klasy została na `None`, żeby użytkownik biblioteki mógł grać bez limitu —
+rozróżnienie „domyślne dla klasy” vs „reguła gry w repo” jest tu istotne.
+
+Skutek: w ramieniu `fixed` **2–11 % epizodów Klondike kończy się terminacją**,
+więc `LOSS_REWARD` przestał być kodem nieosiągalnym. Wiersze `max_passes=3`
+w tabeli poniżej opisują więc dziś **konfigurację domyślną eksperymentów**, a nie
+wariant.
 
 Zmierzone na 200 rozdaniach (`seed` 100000–100199):
 
@@ -366,17 +376,24 @@ ta sama wielkość i to samo okno, ale bez porównania między agentami.
 Obie są opisane szczegółowo w [`diagnosis.md`](diagnosis.md), ale należą też
 do opisu protokołu:
 
-* **Ewaluacja zużywa harmonogram eksploracji.** `Trainer.evaluate()` woła
-  `agent.reset()` na każdy epizod ewaluacyjny ([trainer.py:196](../packages/core/src/rl_card_lib/trainer/trainer.py#L196)),
-  a `reset()` jest właśnie miejscem, w którym maleje ε
-  ([dqn_agent.py:403-414](../packages/core/src/rl_card_lib/agents/dqn_agent.py#L403-L414)).
-  Dowód liczbowy: `run.json` zapisuje ε *przed* treningiem jako 0,8647 dla
-  Klondike i 0,7440 dla Macao, zamiast 1,0. To dokładnie `0,995^29` i
-  `0,995^59` — czyli 30 epizodów ewaluacji przed treningiem dla Klondike oraz
-  2 × 30 dla Macao (dwóch przeciwników).
+**Obie zostały naprawione w bibliotece** — opis zostaje, bo tłumaczy, skąd
+wzięły się liczby w zapisanych przebiegach sprzed poprawek.
 
-* **Epizod złożony z samych nielegalnych akcji nigdy się nie kończy.**
-  `CardGameEnv.step()` wraca przed inkrementacją licznika kroków, więc
-  `max_steps` nie działa. Zmierzone: 5000 nielegalnych akcji, `_step_count = 0`.
-  Nie dotyczy agentów biblioteki (dostają `legal_actions`), dotyczy każdego
-  agenta zewnętrznego — patrz [`gymnasium.md`](gymnasium.md) §5c.
+* **Ewaluacja zużywała harmonogram eksploracji.** `Trainer.evaluate()` wołał
+  `agent.reset()` na każdy epizod ewaluacyjny, a `reset()` był właśnie miejscem,
+  w którym malało ε. Dowód liczbowy: stare `run.json` zapisuje ε *przed*
+  treningiem jako 0,8647 dla Klondike i 0,7440 dla Macao, zamiast 1,0 — dokładnie
+  `0,995^29` i `0,995^59`, czyli 30 epizodów ewaluacji przed treningiem dla
+  Klondike oraz 2 × 30 dla Macao (dwóch przeciwników).
+  **Naprawione w PR [#28](https://github.com/mkh63d/rl-card-lib/pull/28)**: zanik
+  ε przeniesiono do `agent.on_episode_end()`, wołanego tylko dla epizodów
+  treningowych. W nowych przebiegach ε przed treningiem wynosi dokładnie 1,0.
+
+* **Epizod złożony z samych nielegalnych akcji nigdy się nie kończył.**
+  `CardGameEnv.step()` wracał przed inkrementacją licznika kroków, więc
+  `max_steps` nie działało. Zmierzone wtedy: 5000 nielegalnych akcji,
+  `_step_count = 0`. Nie dotyczyło agentów biblioteki (dostają `legal_actions`),
+  dotyczyło każdego agenta zewnętrznego.
+  **Naprawione w PR [#25](https://github.com/mkh63d/rl-card-lib/pull/25)**: ta
+  sama próba kończy się dziś truncation po 200 krokach — patrz
+  [`gymnasium.md`](gymnasium.md) §5c.

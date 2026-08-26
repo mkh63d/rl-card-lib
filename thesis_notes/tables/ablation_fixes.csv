@@ -1,13 +1,21 @@
 game,agent,arm,arm_description,seeds,TEST_before_mean,TEST_before_sd,TEST_after_mean,TEST_after_sd,delta,TRAIN_mean_reward,train_seconds_mean
-klondike,PPO,asis,as published,3,2.2383,0.4319,7.0683,0.2483,4.83,21.232,2242.8
-klondike,Double DQN,asis,as published,3,1.9017,1.5325,5.8833,0.2979,3.9817,8.254,12226.0
-klondike,Double DQN,fixed,+ time-limit bootstrap fix,3,1.9017,1.5325,5.3817,0.44,3.48,8.354,12197.6
-klondike,DQN,asis,as published,3,3.28,0.9306,5.67,0.4073,2.39,7.603,8883.9
-klondike,DQN,fixed,+ time-limit bootstrap fix,3,3.28,0.9306,5.7717,0.0701,2.4917,7.264,8882.9
-klondike,Q-learning,asis,as published,3,11.3133,0.2559,11.33,0.1997,0.0167,12.303,877.7
-macao,PPO,asis,as published,3,0.0317,0.0293,0.355,0.0173,0.3233,3.429,266.4
-macao,Double DQN,asis,as published,3,0.0,0.0,0.075,0.01,0.075,0.455,703.1
-macao,Double DQN,fixed,+ time-limit bootstrap fix,3,0.0,0.0,0.0867,0.0058,0.0867,0.349,691.5
-macao,DQN,asis,as published,3,0.0433,0.0751,0.0783,0.0058,0.035,0.101,491.2
-macao,DQN,fixed,+ time-limit bootstrap fix,3,0.0433,0.0751,0.0783,0.0104,0.035,0.213,476.7
-macao,Q-learning,asis,as published,3,0.0217,0.0029,0.0217,0.0144,0.0,-0.25,57.9
+klondike,PPO,asis,before the fixes (pre-#24),3,2.2383,0.4319,7.0683,0.2483,4.83,21.232,1859.7
+klondike,PPO,fixed,library as shipped,3,9.0717,0.0231,17.0917,2.1169,8.02,15.513,1459.4
+klondike,PPO,noloop,+ repeated-position penalty,3,9.0717,0.0231,9.7283,0.9835,0.6567,0.825,1417.3
+klondike,Double DQN,asis,before the fixes (pre-#24),3,1.9017,1.5325,5.8833,0.2979,3.9817,8.254,15354.1
+klondike,Double DQN,fixed,library as shipped,3,2.555,1.2231,6.4383,0.0794,3.8833,8.447,14923.4
+klondike,Double DQN,noloop,+ repeated-position penalty,3,2.555,1.2231,6.2167,0.103,3.6617,-2.61,14743.5
+klondike,DQN,asis,before the fixes (pre-#24),3,3.28,0.9306,5.67,0.4073,2.39,7.603,10712.3
+klondike,DQN,fixed,library as shipped,3,3.3633,1.0664,6.135,0.5926,2.7717,6.906,9736.5
+klondike,DQN,noloop,+ repeated-position penalty,3,3.3633,1.0664,6.4083,0.1735,3.045,-3.028,9435.8
+klondike,Q-learning,asis,before the fixes (pre-#24),3,11.3133,0.2559,11.33,0.1997,0.0167,12.303,715.9
+klondike,Q-learning,fixed,library as shipped,3,9.3333,0.4055,9.3717,0.2429,0.0383,9.504,508.9
+klondike,Q-learning,noloop,+ repeated-position penalty,3,9.3333,0.4055,9.4767,0.2297,0.1433,3.415,523.6
+macao,PPO,asis,before the fixes (pre-#24),3,0.0317,0.0293,0.355,0.0173,0.3233,3.429,132.8
+macao,PPO,fixed,library as shipped,3,0.0167,0.0029,0.3767,0.0153,0.36,3.504,104.1
+macao,Double DQN,asis,before the fixes (pre-#24),3,0.0,0.0,0.075,0.01,0.075,0.455,883.2
+macao,Double DQN,fixed,library as shipped,3,0.0,0.0,0.1267,0.0058,0.1267,0.417,842.7
+macao,DQN,asis,before the fixes (pre-#24),3,0.0433,0.0751,0.0783,0.0058,0.035,0.101,585.6
+macao,DQN,fixed,library as shipped,3,0.0433,0.0751,0.0767,0.0401,0.0333,0.159,588.5
+macao,Q-learning,asis,before the fixes (pre-#24),3,0.0217,0.0029,0.0217,0.0144,0.0,-0.25,36.0
+macao,Q-learning,fixed,library as shipped,3,0.0217,0.0029,0.0217,0.0144,0.0,-0.25,29.9

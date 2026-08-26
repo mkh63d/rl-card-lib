@@ -10,20 +10,20 @@
 
 ## Spis znalezisk
 
-| # | Znalezisko | Waga | Czy zweryfikowane eksperymentem? |
-|---|---|---|---|
-| **D0** | Pojemność bufora **64** z Tabeli 6.1 **nie istnieje w kodzie** — kod ma 50 000 | błąd w tekście pracy, nie w kodzie | n/d — sprawdzone w kodzie i w historii git |
-| **D1** | Truncation traktowany jak stan terminalny: bootstrap zerowany w **100 %** epizodów Klondike | **wysoka** | tak — osobne ramię `fixed` |
-| **D2** | Jak mocno Q różnicuje legalne akcje: rozstęp 8,8 % średniej dla Klondike DQN, ale 33 % dla Double DQN — **płaskość Q nie tłumaczy zapętlenia** | średnia (hipoteza odrzucona) | tak — pomiar |
-| **D3** | Zachłanna polityka **zapętla się**: 80–83 % kroków wraca do pozycji już widzianej (losowa: 23 %); dla DQN 70 % ruchów to „dobierz”. Mechanizm kary za powtórzenie istnieje w kodzie i nigdy nie został włączony | **wysoka — główna przyczyna**; ale samo włączenie kary **nie pomaga** — zapętlenie zostaje (86,7 % vs 85,4 %) | diagnoza tak; lekarstwo **obalone** pomiarem wstępnym — ramię `noloop` nadal nie policzone w pełnym protokole |
-| **D4** | Klondike nie ma sygnału terminalnego: `LOSS_REWARD` jest kodem nieosiągalnym przy `max_passes=None` | **wysoka** | częściowo — pomiar + ramię `fixed` |
-| **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar |
-| **D6** | Harmonogram ε schodzi do 0,05 po **599 epizodach** — 88 % treningu jest prawie zachłanne | średnia | pomiar analityczny |
-| **D7** | Ewaluacja **zużywa** harmonogram ε (`agent.reset()` obniża ε) | niska, ale psuje reprodukowalność | pomiar |
-| **D8** | Tablica Q-learningu rośnie o **0,84 wpisu na krok** — czysta memoryzacja | wysoka dla Q-learningu | pomiar |
-| **D9** | γ = 0,95 przy epizodzie 300-krokowym: horyzont efektywny ~20 kroków | średnia | analiza |
-| **D10** | Epizod z samych nielegalnych akcji nigdy się nie kończy | poza zakresem wyników, ważne dla §Gymnasium | pomiar |
-| **D11** | **Zachłanna ewaluacja niszczy wyuczoną politykę.** Te same wagi PPO: `argmax` → 7,5 karty i 0,0 % wygranych; próbkowanie własnego rozkładu → **22,5 karty i 28,5 % wygranych** | **najwyższa — zmienia główny wniosek rozdz. 6** | tak — pomiar na tych samych 200 rozdaniach TEST |
+| # | Znalezisko | Waga | Czy zweryfikowane eksperymentem? | Stan w kodzie |
+|---|---|---|---|---|
+| **D0** | Pojemność bufora **64** z Tabeli 6.1 **nie istnieje w kodzie** — kod ma 50 000 | błąd w tekście pracy, nie w kodzie | n/d — sprawdzone w kodzie i w historii git | n/d — poprawka dotyczy tekstu pracy |
+| **D1** | Truncation traktowany jak stan terminalny: bootstrap zerowany w **100 %** epizodów Klondike | **wysoka** | tak — osobne ramię `fixed` | **scalone w #24** |
+| **D2** | Jak mocno Q różnicuje legalne akcje: rozstęp 57,0 % średniej dla Klondike DQN, ale 5,4 % dla Double DQN (głowica duelling centruje przewagi) — obaj zapętlają się tak samo, więc **płaskość Q nie tłumaczy zapętlenia** | średnia (hipoteza odrzucona) | tak — pomiar | n/d — hipoteza, nie usterka |
+| **D3** | Zachłanna polityka **zapętla się**: 73–78 % kroków wraca do pozycji już widzianej (losowa: 42 %), przy 10–14 różnych akcjach na epizod zamiast 33; na bazę trafia 2,2–2,6 % ruchów wobec 10,9 % u heurystyki | **wysoka — główna przyczyna**; ale włączenie kary **nie pomaga** (0,3–0,8 pp dla rodziny DQN) i **szkodzi PPO** (17,09 → 9,73 karty; solve rate 27,5 % → 0,4 %) | diagnoza tak; lekarstwo **obalone** — ramię `noloop` policzone w pełnym protokole (Klondike, 4 agenty × 3 seedy) | kara **scalona w #29**; pomiar mówi, że nie pomaga |
+| **D4** | Klondike nie ma sygnału terminalnego: `LOSS_REWARD` jest kodem nieosiągalnym przy `max_passes=None` | **wysoka** | częściowo — pomiar + ramię `fixed` | **scalone w #30** (`BUNDLED_MAX_PASSES = 3`) i #24 |
+| **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar | **scalone w #31** — kadencja per gra (klondike 500, macao 100) |
+| **D6** | Harmonogram ε schodzi do 0,05 po **599 epizodach** — 88 % treningu jest prawie zachłanne | średnia | pomiar analityczny | bez zmian — świadomy wybór harmonogramu |
+| **D7** | Ewaluacja **zużywa** harmonogram ε (`agent.reset()` obniża ε) | niska, ale psuje reprodukowalność | pomiar | **scalone w #28** |
+| **D8** | Tablica Q-learningu rośnie o **0,84 wpisu na krok** — czysta memoryzacja | wysoka dla Q-learningu | pomiar | bez zmian — właściwość metody tabelarycznej |
+| **D9** | γ = 0,95 przy epizodzie 300-krokowym: horyzont efektywny ~20 kroków | średnia | analiza | bez zmian — świadomy wybór γ |
+| **D10** | Epizod z samych nielegalnych akcji nigdy się nie kończył (dziś: truncation po `max_steps`) | poza zakresem wyników, ważne dla §Gymnasium | pomiar | **scalone w #25** |
+| **D11** | **Zachłanna ewaluacja niszczy wyuczoną politykę.** Te same wagi PPO, bundlowane reguły: `argmax` → 7,8 karty i 0,3 % wygranych; próbkowanie własnego rozkładu → **17,1 karty i 16,8 % wygranych** przy baselinie losowym 9,8. Na regułach sprzed #30 ta sama różnica to 7,1 → **22,0** karty i 0,2 → **27,8 %** | **najwyższa — zmienia główny wniosek rozdz. 6** | tak — pomiar na tych samych 200 rozdaniach TEST | **scalone w #33** (zgłoszenie #21) |
 
 ---
 
@@ -165,10 +165,12 @@ learn_result = self._learn(self.agent, observation, action, reward,
                            next_observation, terminated, info)
 ```
 
-W eksperymentach zrealizowane bez modyfikacji `packages/` — jako
-`TimeLimitBootstrapMixin` w
-[`scripts/harness.py`](scripts/harness.py), który podmienia flagę w `_learn`
-na podstawie `info["_terminated"]`. Ramię eksperymentu: **`fixed`**.
+**Scalone w PR [#24](https://github.com/mkh63d/rl-card-lib/pull/24).**
+`Trainer._run_episode` przekazuje dziś `terminated`, a `truncated` osobnym
+argumentem, więc to jest zachowanie biblioteki — ramię **`fixed`**. Odwrotność
+mieszka teraz w [`scripts/harness.py`](scripts/harness.py) jako
+`ConflatedTruncationMixin`, który skleja obie flagi z powrotem, żeby dało się
+zmierzyć stan sprzed poprawki: ramię **`asis`**.
 
 ### Wynik po poprawce
 
@@ -200,23 +202,37 @@ próbkowanie własnej polityki.
 
 ### Pomiar
 
-Dla każdej pozycji odwiedzonej podczas zachłannej gry na 30 rozdaniach TEST
-policzono średnią i rozstęp wartości Q **ograniczonych do legalnych akcji**
-(`thesis_notes/raw/q_spread_probe.json`):
+Dla każdej pozycji odwiedzonej podczas zachłannej gry na **pełnej puli 200
+rozdań TEST**, 3 seedy, ramię `fixed`, policzono średnią i rozstęp
+(max − min) wartości Q **ograniczonych do legalnych akcji**
+([`raw/q_spread_probe.json`](raw/q_spread_probe.json)):
 
 | Agent | pozycji | średnie Q (legalne) | średni rozstęp Q | rozstęp jako % średniej |
 |---|---:|---:|---:|---:|
-| Klondike, DQN | 9 000 | 0,751 | **0,066** | **8,8 %** |
-| Klondike, Double DQN | 9 000 | 1,015 | 0,337 | 33,3 % |
-| Macao, DQN | 2 593 | 6,436 | 1,380 | 21,4 % |
-| Macao, Double DQN | 2 782 | 5,254 | 0,877 | 16,7 % |
+| Klondike, DQN | 48 260 | 0,659 | 0,344 | **57,0 %** |
+| Klondike, Double DQN | 57 696 | 1,076 | **0,058** | **5,4 %** |
+| Macao, DQN | 4 598 | 5,711 | 1,188 | 20,8 % |
+| Macao, Double DQN | 4 632 | 5,576 | 1,133 | 20,3 % |
+
+> **Role się odwróciły względem poprzedniego pomiaru**, który dawał 8,8 % dla
+> DQN i 33,3 % dla Double DQN. Tamten liczył jeden checkpoint z sweepu
+> biblioteki, ten — trzy seedy protokołu na 5× większej próbce pozycji.
+> Sprawdzone bezpośrednio na wagach (`klondike__*__fixed__s0`, rozdanie
+> 100000): DQN rozstęp 0,243 przy średniej 0,405 (60,0 %), Double DQN 0,059
+> przy 2,196 (2,7 %). Mechanizm jest architektoniczny: Double DQN ma
+> **głowicę duelling**, czyli `Q = V + (A − mean A)`, więc część zależna od
+> akcji to wycentrowana przewaga. Gdy `V` zdominuje (średnie Q 1,08–2,20),
+> różnice między akcjami są z definicji ściśnięte. Plain DQN nie ma takiego
+> ograniczenia.
 
 ### Co z tego wynika — i czego z tego **nie** wynika
 
-Plaska funkcja Q jest realnym zjawiskiem tylko dla **jednego** przypadku:
-Klondike + plain DQN (rozstęp 8,8 % średniej wartości). Dla Double DQN na
-Klondike rozstęp to 33 % — funkcja nie jest płaska, a mimo to ten agent
-zapętla się **bardziej** niż DQN (83,2 % vs 80,3 % powtórzonych pozycji, D3).
+Hipoteza „Q jest zbyt płaskie, żeby wybrać dobry ruch” **upada jeszcze
+wyraźniej niż poprzednio**. Obaj agenci wartościowi na Klondike siedzą dziś na
+przeciwnych krańcach różnicowania Q — DQN 57,0 % średniej, Double DQN 5,4 % —
+i **zapętlają się tak samo**: 73,4 % i 77,9 % powtórzonych pozycji (D3), przy
+wynikach 6,14 i 6,44 karty. Agent, którego Q różnicuje akcje dziesięciokrotnie
+mocniej, nie gra ani trochę lepiej.
 
 **Płaskość Q nie jest więc przyczyną zapętlenia.** Przyczyna jest strukturalna
 i nie zależy od wartości Q wcale:
@@ -225,11 +241,12 @@ i nie zależy od wartości Q wcale:
 > stanu już odwiedzonego, powtórzy od tego miejsca całą swoją dotychczasową
 > przyszłość — czyli wejdzie w cykl.
 
-Klondike spełnia obie przesłanki: ruchy tableau↔tableau są odwracalne, a przy
-`max_passes=None` pętla „dobierz / przełóż talię” jest deterministyczna przy
-ustalonym porządku talii. Polityka zachłanna jest deterministyczna z definicji.
-Nie ma nic, co by ten cykl przerywało — kara za powtórzoną pozycję istnieje w
-`CardGameEnv` i jest wyłączona (D3).
+Klondike spełnia obie przesłanki: ruchy tableau↔tableau są odwracalne i to
+one, nie dobieranie, stanowią 70–78 % ruchów wyuczonej polityki (D3). Polityka
+zachłanna jest deterministyczna z definicji. Potwierdza to najmocniej sam PPO:
+te same wagi czytane przez `argmax` dają 75,7 % powtórzeń i 7,77 karty,
+a czytane przez próbkowanie — 59,4 % i **17,09** karty. Zmieniła się wyłącznie
+determinizm reguły wyboru, nie żadna wartość w sieci.
 
 To wyjaśnia też, dlaczego krzywe treningowe wyglądają lepiej niż ewaluacja
 zachłanna: podczas treningu ε > 0 przerywa cykl losowym ruchem średnio co
@@ -247,30 +264,54 @@ patrz §Wyniki ablacji.
 
 ### Objaw / pomiar
 
-30 rozdań TEST, polityka zachłanna, licznik pozycji już widzianych w epizodzie
-(hash wektora obserwacji — dokładnie ta sama definicja, której używa
-`CardGameEnv`):
+Pełna pula 200 rozdań TEST, polityka zachłanna, 3 seedy, licznik pozycji już
+widzianych w epizodzie (hash wektora obserwacji — dokładnie ta sama definicja,
+której używa `CardGameEnv`). Ramię `fixed`, czyli bundlowane reguły gry
+([`raw/policy_diagnostics.json`](raw/policy_diagnostics.json)):
 
 | Polityka | udział kroków wracających do znanej pozycji | różnych akcji na epizod (z 68) | karty na bazach |
 |---|---:|---:|---:|
-| DQN (wytrenowany, zachłanny) | **80,3 %** | 12,5 | 6,43 |
-| Double DQN (wytrenowany, zachłanny) | **83,2 %** | 14,0 | 6,73 |
-| PPO (wytrenowany, zachłanny) | 78,9 % | 16,9 | 8,77 |
-| **losowa** | **23,0 %** | 40,0 | **11,17** |
+| DQN (zachłanny) | **73,4 %** | 10,2 | 6,14 |
+| Double DQN (zachłanny) | **77,9 %** | 13,9 | 6,44 |
+| PPO, `argmax` | **75,7 %** | 17,2 | 7,77 |
+| PPO, próbkowanie własnej polityki | 59,4 % | 30,5 | **17,09** |
+| Q-learning | 42,7 % | 32,5 | 9,34 |
+| **losowa** | **42,0 %** | 33,1 | 9,80 |
+| heurystyka | 54,3 % | 33,2 | **25,84** |
 
-Rozkład typów ruchu w tych samych epizodach:
+Dwie rzeczy czyta się z tej tabeli naraz. Po pierwsze, agenci wartościowi
+odwiedzają ponownie ~73–78 % pozycji przeciw 42 % polityki losowej i używają
+10–14 różnych akcji na epizod zamiast 33 — polityka zwinęła się do wąskiego
+cyklu. Po drugie, **liczba powtórzeń sama w sobie nie jest miarą jakości**:
+heurystyka powtarza więcej niż losowa (54,3 % vs 42,0 %) i mimo to zdobywa
+25,84 karty zamiast 9,80. Liczy się, czy cykl **robi postęp**.
+
+> **Uwaga o porównywalności.** Wcześniejsza wersja tej tabeli podawała 80–83 %
+> dla agentów i **23 %** dla polityki losowej, mierzone na 30 rozdaniach przy
+> `max_passes=None`. Bundlowana gra ma dziś skończone `max_passes = 3` (#30),
+> co samo w sobie podnosi udział powtórzeń każdej polityki — losowa idzie
+> z 23 % na 42 % — bo mniej przejść przez stos to mniej różnych pozycji.
+> Wniosek się nie zmienia, ale **luki nie wolno cytować z obu pomiarów naraz**.
+
+Rozkład typów ruchu w tych samych epizodach (ramię `fixed`):
 
 | Polityka | dobierz / przełóż talię | tableau ↔ tableau | na bazę | z odkrytej na tableau |
 |---|---:|---:|---:|---:|
-| DQN | **70,2 %** | 24,7 % | **2,1 %** | 3,0 % |
-| Double DQN | 43,7 % | 51,6 % | 2,2 % | 2,4 % |
-| PPO | 52,9 % | 40,6 % | 2,9 % | 3,6 % |
-| losowa | 29,4 % | 62,3 % | 3,7 % | 4,5 % |
-| heurystyka | 33,0 % | 47,9 % | **12,7 %** | 6,4 % |
+| DQN | 25,7 % | **69,9 %** | 2,6 % | 1,8 % |
+| Double DQN | 17,0 % | 77,6 % | 2,2 % | 3,1 % |
+| PPO, `argmax` | 17,1 % | 76,4 % | 2,7 % | 3,8 % |
+| PPO, próbkowanie | 17,4 % | 71,2 % | **6,3 %** | 5,0 % |
+| losowa | 19,4 % | 73,6 % | 3,4 % | 3,6 % |
+| heurystyka | 17,3 % | 65,7 % | **10,9 %** | 6,1 % |
 
-Wyuczona polityka DQN to w 70 % „dobierz kartę”. Przy `max_passes=None` talię
-można przekładać w nieskończoność, więc jest to pętla zamknięta, która kończy
-się dopiero na limicie 300 ruchów.
+Rozstrzygający jest ostatni wiersz kolumny „na bazę”. Agenci wartościowi kładą
+kartę na bazę w 2,2–2,6 % ruchów, heurystyka w 10,9 % — czyli **cztery do
+pięciu razy częściej**. PPO grający własną polityką (6,3 %) plasuje się między
+nimi, i dokładnie w tej samej proporcji wypada jego wynik. Zapętlenie nie
+polega więc na tym, że agent „za dużo dobiera” — przy skończonych trzech
+przejściach dobieranie jest ograniczone i wszystkie polityki robią go podobnie
+często (17–26 %). Polega na tym, że agent przekłada karty **między kolumnami**
+i prawie nigdy nie zamienia tego na postęp.
 
 ### Przyczyna w kodzie
 
@@ -330,38 +371,50 @@ spadku wyniku heurystyki z 28,7 do 25,8 karty.
 
 ### Wynik po poprawce — kara **nie** usuwa zapętlenia
 
-> **Pomiar wstępny, poza protokołem.** Ramię `noloop` nigdy nie zostało
-> policzone w pełnym protokole (5000 epizodów, 3 seedy, pula TEST 200 rozdań),
-> więc w [`tables/ablation_fixes.csv`](tables/ablation_fixes.csv) do dziś go
-> nie ma — są tylko `asis` i `fixed`. Liczby poniżej pochodzą z krótszego
-> przebiegu: DQN, 1200 epizodów, 2 seedy inicjalizacji, ewaluacja zachłanna na
-> 30 rozdaniach TEST (100000–100029). **Nie są porównywalne** z wierszami
-> `asis` / `fixed` w tabeli ablacji i nie zastępują tamtego przebiegu. Podaję
-> je, bo prowadzą do wniosku, który zmienia status samej poprawki.
-> Źródło: [`raw/noloop_preliminary.json`](raw/noloop_preliminary.json).
+Ramię `noloop` jest teraz policzone w pełnym protokole: Klondike, wszystkie
+cztery agenty, 3 seedy, 5000 epizodów, ewaluacja na pełnej puli 200 rozdań
+TEST. Wcześniejszy wniosek pochodził z 1200-epizodowego pomiaru wstępnego na
+dwóch seedach; pełny przebieg go **potwierdza i wzmacnia**.
 
-| ramię | udział kroków wracających do znanej pozycji | udział „dobierz” | karty na bazach |
+Udział kroków wracających do pozycji już widzianej w tym epizodzie
+([`raw/policy_diagnostics.json`](raw/policy_diagnostics.json), 200 rozdań, 3 seedy):
+
+| agent | `fixed` (kara 0,0) | `noloop` (kara −0,05) | różnica |
 |---|---:|---:|---:|
-| `asis` (kara 0,0) | 85,4 % | 22,3 % | 5,25 |
-| `noloop` (kara −0,05) | **86,7 %** | 15,0 % | 4,75 |
+| DQN | 73,4 % | 73,1 % | −0,3 pp |
+| Double DQN | 77,9 % | 77,1 % | −0,8 pp |
+| PPO (`argmax`) | 75,7 % | **76,4 %** | +0,7 pp |
+| PPO (próbkowanie) | 59,4 % | **66,8 %** | +7,4 pp |
 
-Kara **nie zmniejsza zapętlenia**. Różnica 1,3 pp idzie w złą stronę i jest
-mniejsza niż rozrzut między seedami wewnątrz każdego ramienia (`asis`
-83,9–86,9 %, `noloop` 85,6–87,8 %), a karty na bazach nie rosną.
+Dla porównania na tej samej puli: polityka losowa 42,0 %, heurystyka 54,3 %.
 
-Najmocniejsza przesłanka jest w krzywej treningowej — nagroda na końcu
-przebiegu:
+Kara kosztuje bardzo dużo i nie kupuje prawie nic. Ile kosztuje, widać
+w nagrodzie treningowej — te same wagi początkowe, ten sam strumień rozdań,
+Klondike DQN, seed 0: średnia nagroda za epizod **+7,07** w `fixed` i **−2,63**
+w `noloop`, przy czym 4999 z 5000 epizodów różni się. Kara jest więc płacona
+przez cały trening. Efekt na zapętlenie to **0,3–0,8 pp** dla rodziny DQN,
+a dla PPO idzie w złą stronę.
 
-| ramię | seed 0 | seed 1 |
+Na metryce nagłówkowej to samo:
+
+| agent | `fixed` | `noloop` |
 |---|---:|---:|
-| `asis` | +6,47 | +5,57 |
-| `noloop` | −4,47 | −4,30 |
+| PPO | **17,09 ± 2,12** | 9,73 ± 0,98 |
+| Double DQN | 6,44 ± 0,08 | 6,22 ± 0,10 |
+| DQN | 6,13 ± 0,59 | 6,41 ± 0,17 |
+| Q-learning | 9,37 ± 0,24 | 9,48 ± 0,23 |
 
-Ponieważ zachowanie zachłanne jest w obu ramionach niemal identyczne, różnica
-~10,4 to po prostu **kara faktycznie zapłacona**: ~208 ukaranych kroków na
-epizod przy limicie 300, czyli agent płaci na około dwóch trzecich kroków —
-i przez 1200 epizodów tego nie zmniejsza. Gdyby sygnał był wyuczalny, ta luka
-zamykałaby się w stronę zera.
+Dla rodziny DQN i Q-learningu różnice mieszczą się w rozrzucie między seedami.
+**Dla PPO kara jest wyraźnie szkodliwa** — wynik spada z 17,09 do 9,73 karty,
+czyli poniżej baselinu losowego (9,79). Na puli TEST_SOLVABLE to samo jeszcze
+ostrzej: solve rate PPO spada z **27,5 % do 0,4 %**
+([`raw/solve_time_learners.json`](raw/solve_time_learners.json)).
+
+Wniosek jest więc mocniejszy niż „kara nie pomaga”: **kara aktywnie psuje
+najlepszego agenta w zestawie**, a agentom wartościowym nie pomaga w granicach
+błędu. To jedyna z poprawek z tego pliku, której pomiar **nie uzasadnia**
+włączenia — mimo że jest scalona w PR
+[#29](https://github.com/mkh63d/rl-card-lib/pull/29).
 
 ### Dlaczego kara nie działa
 
@@ -441,9 +494,21 @@ Dwa niezależne warianty, oba jednoliniowe:
    terminalne (mierzone: 4,5 % rozdań przy grze losowej);
 2. potraktowanie truncation jako truncation, a nie terminacji — czyli **D1**.
 
-W eksperymentach wybrano wariant 2 (ramię `fixed`), bo nie zmienia reguł gry
-i pozostaje porównywalny z liczbami z pracy. Wariant 1 zmienia definicję gry
-i jego wpływ na wyniki nie był mierzony pod treningiem.
+**Oba zostały scalone**: wariant 2 w PR
+[#24](https://github.com/mkh63d/rl-card-lib/pull/24), wariant 1 w PR
+[#30](https://github.com/mkh63d/rl-card-lib/pull/30), gdzie
+`KlondikeSolitaire.BUNDLED_MAX_PASSES = 3` stało się regułą gry dołączonej do
+biblioteki (klasa nadal domyślnie ma `max_passes=None`, żeby użytkownik mógł
+grać bez limitu). Ramię `fixed` zawiera więc dziś **oba** warianty naraz, co jest
+też powodem, dla którego `asis → fixed` nie jest ablacją jednego czynnika —
+patrz [`results.md`](results.md).
+
+Wpływ wariantu 1 na trening jest teraz zmierzony: w ramieniu `fixed` **2–11 %
+epizodów Klondike kończy się terminacją** zamiast 0 % w `asis`, czyli przegrana
+przestała być kodem nieosiągalnym. Skutkiem ubocznym jest to, że baseliny na
+Klondike spadły (losowa 11,59 → 9,79 karty, heurystyka 28,74 → 25,84), bo trzy
+przejścia przez stos dają mniej okazji niż nieskończenie wiele — porównania
+„agent vs losowy” trzeba czytać na nowej wartości odniesienia.
 
 ### Wynik po poprawce
 
@@ -577,12 +642,18 @@ i `eval_episodes = 20` dochodzi **200 dodatkowych zaników ε** na przebieg
 
 ### Poprawka
 
-Ewaluacja nie powinna mieć efektów ubocznych. W eksperymentach zrealizowane
-jako kontekst `frozen_exploration()` w
-[`scripts/harness.py`](scripts/harness.py), zapisujący i przywracający
-`epsilon`, `episodes` oraz tryb `train`/`eval`. W bibliotece równoważną
-poprawką jest przeniesienie zaniku ε z `Agent.reset()` do jawnego
-`agent.on_episode_end()` wołanego tylko przez pętlę treningową.
+Ewaluacja nie powinna mieć efektów ubocznych.
+
+**Scalone w PR [#28](https://github.com/mkh63d/rl-card-lib/pull/28)** dokładnie
+tą drogą, którą ta sekcja proponowała: zanik ε przeniesiono z `Agent.reset()` do
+jawnego `agent.on_episode_end()`, wołanego przez pętlę treningową **tylko dla
+epizodów treningowych**. Ewaluacja woła `reset()` jak każdy epizod, ale `reset()`
+już niczego nie zanika.
+
+Kontekst `frozen_exploration()` w [`scripts/harness.py`](scripts/harness.py)
+został zachowany, bo nadal ma co robić — funkcje pomiarowe przełączają na
+agencie tryb `train`/`eval` oraz `eval_greedy` (PPO, D11) i muszą oddać obiekt
+w stanie, w jakim go dostały. Samego ε nie musi już pilnować.
 
 ### Wynik po poprawce
 
@@ -661,17 +732,28 @@ skrócenie epizodu przez `max_passes`. Nie było to zmieniane w eksperymentach,
 
 ---
 
-## D10. Epizod z samych nielegalnych akcji nigdy się nie kończy
+## D10. Epizod z samych nielegalnych akcji nigdy się nie kończył
 
-Opisane w [`gymnasium.md`](gymnasium.md) §5c. W skrócie: w
-[card_game_env.py:121-130](../packages/core/src/rl_card_lib/env/card_game_env.py#L121-L130)
-nielegalna akcja wraca **przed** `self._step_count += 1`, więc `max_steps` nigdy
-nie zadziała. Zmierzone: 5000 nielegalnych akcji, `_step_count = 0`,
-`terminated = truncated = False`.
+Opisane w [`gymnasium.md`](gymnasium.md) §5c. W skrócie: `CardGameEnv.step()`
+zwracała wynik **przed** `self._step_count += 1`, gdy akcja była nielegalna, więc
+`max_steps` nigdy nie zadziałało. Zmierzone wtedy: 5000 nielegalnych akcji,
+`_step_count = 0`, `terminated = truncated = False`.
 
-Nie dotyczy wyników z pracy (agenci biblioteki zawsze dostają `legal_actions`),
-ale jest realnym błędem środowiska. Poprawka: przenieść inkrementację przed
-gałąź nielegalnej akcji, albo sprawdzać limit również w tej gałęzi.
+### Poprawka i wynik
+
+**Scalone w PR [#25](https://github.com/mkh63d/rl-card-lib/pull/25)** —
+gałąź nielegalnej akcji zlicza krok i stosuje limit. Ten sam pomiar dziś:
+
+| 5000 nielegalnych akcji, `max_steps=200` | `2bd42ab` | dziś |
+|---|---|---|
+| epizod się zakończył | nie | **tak, po 200 krokach** |
+| `env._step_count` | 0 | **200** |
+
+Nie dotyczy żadnej liczby w wynikach uczenia — agenci biblioteki zawsze dostają
+`legal_actions` i nie proponują nielegalnego ruchu — ale było realnym błędem
+środowiska dla każdego konsumenta z zewnątrz. Widać to w teście
+interoperacyjności ze Stable-Baselines3: demo na Macao trwało 300 kroków
+i płaciło −300,0, a dziś kończy się limitem po 200 krokach z −198,9.
 
 ---
 
@@ -688,30 +770,39 @@ nic się nie nauczyli.
 
 ### Pomiar
 
-Wzięto **te same, już wytrenowane checkpointy** z `checkpoints/klondike_*` i
-odegrano nimi **te same 200 rozdań TEST**. Nic nie było uczone od nowa.
-Zmieniono **wyłącznie regułę zamiany wyjścia sieci na akcję**:
+Wzięto **te same, już wytrenowane checkpointy** z `checkpoints/klondike_*`
+(sweep biblioteki) i odegrano nimi **te same 200 rozdań TEST** na bundlowanych
+regułach. Nic nie było uczone od nowa. Zmieniono **wyłącznie regułę zamiany
+wyjścia sieci na akcję** — ε = 0 znaczy tu w pełni deterministycznie, więc dla
+PPO jest to `argmax`, a nie próbkowanie:
 
 | Agent | ε = 0 (zachłannie) | ε = 0,05 | ε = 0,20 | baseline losowy |
 |---|---:|---:|---:|---:|
-| PPO | 7,54 | 13,90 | **20,61** | 11,59 |
-| DQN | 5,84 | 8,13 | **13,55** | 11,59 |
-| Double DQN | 5,14 | 6,44 | **10,46** | 11,59 |
-| Q-learning | 11,24 | 12,07 | 11,91 | 11,59 |
-
-Udział wygranych rozdań w tych samych przebiegach:
-
-| Agent | ε = 0 | ε = 0,05 | ε = 0,20 |
-|---|---:|---:|---:|
-| PPO | **0,0 %** | 10,5 % | **24,0 %** |
-| DQN | 0,0 % | 0,5 % | 5,5 % |
-| Double DQN | 0,0 % | 0,0 % | 0,0 % |
-| Q-learning | 0,0 % | 0,0 % | 0,0 % |
+| PPO | 7,12 | 8,30 | **11,01** | 9,79 |
+| Double DQN | 6,29 | 7,43 | **9,59** | 9,79 |
+| DQN | 6,57 | 6,97 | 7,76 | 9,79 |
+| Q-learning | 9,79 | 9,36 | 9,49 | 9,79 |
 
 Udział kroków wracających do pozycji już widzianej spada monotonicznie wraz z ε
-(PPO: 78,0 % → 63,8 % → 46,8 %; DQN 80,8 % → 70,8 % → 55,3 %), a wynik rośnie
-monotonicznie. Q-learning jest płaski w obu tabelach, bo jest już polityką
-losową (22,9 % powtórzeń wobec 23,0 % dla agenta losowego) — patrz D8.
+tam, gdzie polityka jest deterministyczna (PPO 74,3 % → 70,1 % → 59,3 %;
+Double DQN 74,2 % → 70,5 % → 65,2 %), a wynik rośnie monotonicznie. Q-learning
+jest płaski w obu tabelach, bo jest już polityką losową — jego ε = 0 daje
+dokładnie 9,79 karty, czyli **co do drugiego miejsca tyle samo co agent
+losowy**, przy 41,2 % powtórzeń wobec 42,0 % dla losowego (D8).
+
+> **Dwa zastrzeżenia do tej tabeli.**
+> Po pierwsze, checkpointy pochodzą ze sweepu biblioteki
+> (`run_sweep.py`), którego domyślne środowisko treningowe Klondike **ma
+> włączoną karę za powtórzoną pozycję** (`KLONDIKE_REPEAT_PENALTY`, #29) — czyli
+> jest konfiguracją `noloop`. To dlatego liczby są niższe niż w ramieniu `fixed`
+> z [`results.md`](results.md) i dlaczego efekt ε jest tu słabszy niż w
+> poprzednim pomiarze. Po drugie, poprzednia wersja tej tabeli (PPO 7,54 →
+> 20,61 przy baselinie 11,59) była liczona na regułach bez limitu przejść przez
+> stos; **nie wolno cytować obu tabel obok siebie**.
+
+Kierunek wniosku jest w obu pomiarach ten sam i to on się liczy: **im mniej
+deterministyczna reguła odczytu, tym mniej zapętlenia i tym lepszy wynik**, przy
+niezmienionych wagach.
 
 Rysunek: [`figures/action_rule_klondike.png`](figures/action_rule_klondike.png),
 dane: [`tables/action_rule_klondike.csv`](tables/action_rule_klondike.csv),
@@ -768,18 +859,37 @@ Trzy niezależne, każda działa osobno:
 
 1. **Ewaluować politykę, której agent się nauczył.** Dla PPO to znaczy
    próbkować, a nie brać `argmax` — jedna linia w `PPOAgent.select_action`.
+   **Scalone w PR [#33](https://github.com/mkh63d/rl-card-lib/pull/33)**
+   (zgłoszenie #21): `PPOAgent` próbkuje w trybie ewaluacji, a `eval_greedy=True`
+   pozwala jawnie poprosić o `argmax`. Ramię `fixed` używa próbkowania, ramię
+   `asis` — `argmax`, więc obie liczby są w tabelach obok siebie.
 2. **Włączyć karę za powtórzoną pozycję** (D3), żeby polityka zachłanna
-   przestała cyklować — poprawka po stronie środowiska.
+   przestała cyklować — poprawka po stronie środowiska. **Scalone w PR
+   [#29](https://github.com/mkh63d/rl-card-lib/pull/29)** (ramię `noloop`), ale
+   pomiar mówi, że **to lekarstwo nie działa** — patrz D3.
 3. **Raportować obie liczby.** Zachłanna i stochastyczna to dwie różne
-   polityki; dla gry z ruchami odwracalnymi obie warto podać.
+   polityki; dla gry z ruchami odwracalnymi obie warto podać. Zrealizowane:
+   `tables/solve_time_benchmark.csv` ma osobne wiersze `ppo (fixed)`
+   i `ppo (fixed, sampled)`, a `hyperparameters.csv` podaje `eval_greedy`
+   jako jawny hiperparametr.
 
 ### Konsekwencja dla tekstu pracy
 
 Zdanie „On Klondike **no learner cleared the random baseline** of 12.2 cards”
-przestaje być prawdziwe przy dowolnej z powyższych poprawek. Przy polityce,
-której PPO faktycznie się nauczył, wynik to 22,45 karty przy baseline 11,59 —
-prawie dwukrotnie powyżej. Podobnie „greedy win rates were zero across all
-three learners” — PPO wygrywa 28,5 % rozdań.
+przestaje być prawdziwe, i to w **obu** zestawach reguł — zmierzone na tych
+samych 200 rozdaniach TEST, 3 seedy:
+
+| Reguły gry | PPO `argmax` | PPO próbkowanie | baseline losowy |
+|---|---:|---:|---:|
+| bundlowane, `max_passes = 3` (biblioteka dziś) | 7,77 | **17,09** | 9,80 |
+| bez limitu przejść (stan sprzed #30) | 7,07 | **22,03** | 11,59 |
+
+Przy polityce, której PPO faktycznie się nauczył, wynik jest **1,7–1,9× powyżej
+baselinu losowego**, a nie poniżej. Podobnie „greedy win rates were zero across
+all three learners”: PPO wygrywa **16,8 %** rozdań na regułach bundlowanych
+i 27,8 % na regułach sprzed #30. Wersja bez limitu przejść odtwarza wcześniejszy
+pomiar (22,45 karty i 28,5 %) z dokładnością do trzeciego miejsca — to ta sama
+liczba, nie nowa.
 
 ---
 
@@ -797,15 +907,23 @@ Metryka: Klondike — karty na bazach (0–52); Macao — win rate przeciwko heu
 
 | gra | agent | ramię | seedy | TEST przed | TEST po | Δ |
 |---|---|---|---|---|---|---|
-| klondike | PPO | `asis` — as published | 3 | 2.24 ± 0.43 | 7.07 ± 0.25 | +4.83 |
-| klondike | Double DQN | `asis` — as published | 3 | 1.90 ± 1.53 | 5.88 ± 0.30 | +3.98 |
-| klondike | Double DQN | `fixed` — + time-limit bootstrap fix | 3 | 1.90 ± 1.53 | 5.38 ± 0.44 | +3.48 |
-| klondike | DQN | `asis` — as published | 3 | 3.28 ± 0.93 | 5.67 ± 0.41 | +2.39 |
-| klondike | DQN | `fixed` — + time-limit bootstrap fix | 3 | 3.28 ± 0.93 | 5.77 ± 0.07 | +2.49 |
-| klondike | Q-learning | `asis` — as published | 3 | 11.31 ± 0.26 | 11.33 ± 0.20 | +0.02 |
-| macao | PPO | `asis` — as published | 3 | 3.2 ± 2.9 % | 35.5 ± 1.7 % | +32.3 pp |
-| macao | Double DQN | `asis` — as published | 3 | 0.0 ± 0.0 % | 7.5 ± 1.0 % | +7.5 pp |
-| macao | Double DQN | `fixed` — + time-limit bootstrap fix | 3 | 0.0 ± 0.0 % | 8.7 ± 0.6 % | +8.7 pp |
-| macao | DQN | `asis` — as published | 3 | 4.3 ± 7.5 % | 7.8 ± 0.6 % | +3.5 pp |
-| macao | DQN | `fixed` — + time-limit bootstrap fix | 3 | 4.3 ± 7.5 % | 7.8 ± 1.0 % | +3.5 pp |
-| macao | Q-learning | `asis` — as published | 3 | 2.2 ± 0.3 % | 2.2 ± 1.4 % | +0.0 pp |
+| klondike | PPO | `asis` — before the fixes (pre-#24) | 3 | 2.24 ± 0.43 | 7.07 ± 0.25 | +4.83 |
+| klondike | PPO | `fixed` — library as shipped | 3 | 9.07 ± 0.02 | 17.09 ± 2.12 | +8.02 |
+| klondike | PPO | `noloop` — + repeated-position penalty | 3 | 9.07 ± 0.02 | 9.73 ± 0.98 | +0.66 |
+| klondike | Double DQN | `asis` — before the fixes (pre-#24) | 3 | 1.90 ± 1.53 | 5.88 ± 0.30 | +3.98 |
+| klondike | Double DQN | `fixed` — library as shipped | 3 | 2.56 ± 1.22 | 6.44 ± 0.08 | +3.88 |
+| klondike | Double DQN | `noloop` — + repeated-position penalty | 3 | 2.56 ± 1.22 | 6.22 ± 0.10 | +3.66 |
+| klondike | DQN | `asis` — before the fixes (pre-#24) | 3 | 3.28 ± 0.93 | 5.67 ± 0.41 | +2.39 |
+| klondike | DQN | `fixed` — library as shipped | 3 | 3.36 ± 1.07 | 6.13 ± 0.59 | +2.77 |
+| klondike | DQN | `noloop` — + repeated-position penalty | 3 | 3.36 ± 1.07 | 6.41 ± 0.17 | +3.04 |
+| klondike | Q-learning | `asis` — before the fixes (pre-#24) | 3 | 11.31 ± 0.26 | 11.33 ± 0.20 | +0.02 |
+| klondike | Q-learning | `fixed` — library as shipped | 3 | 9.33 ± 0.41 | 9.37 ± 0.24 | +0.04 |
+| klondike | Q-learning | `noloop` — + repeated-position penalty | 3 | 9.33 ± 0.41 | 9.48 ± 0.23 | +0.14 |
+| macao | PPO | `asis` — before the fixes (pre-#24) | 3 | 3.2 ± 2.9 % | 35.5 ± 1.7 % | +32.3 pp |
+| macao | PPO | `fixed` — library as shipped | 3 | 1.7 ± 0.3 % | 37.7 ± 1.5 % | +36.0 pp |
+| macao | Double DQN | `asis` — before the fixes (pre-#24) | 3 | 0.0 ± 0.0 % | 7.5 ± 1.0 % | +7.5 pp |
+| macao | Double DQN | `fixed` — library as shipped | 3 | 0.0 ± 0.0 % | 12.7 ± 0.6 % | +12.7 pp |
+| macao | DQN | `asis` — before the fixes (pre-#24) | 3 | 4.3 ± 7.5 % | 7.8 ± 0.6 % | +3.5 pp |
+| macao | DQN | `fixed` — library as shipped | 3 | 4.3 ± 7.5 % | 7.7 ± 4.0 % | +3.3 pp |
+| macao | Q-learning | `asis` — before the fixes (pre-#24) | 3 | 2.2 ± 0.3 % | 2.2 ± 1.4 % | +0.0 pp |
+| macao | Q-learning | `fixed` — library as shipped | 3 | 2.2 ± 0.3 % | 2.2 ± 1.4 % | +0.0 pp |

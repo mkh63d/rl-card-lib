@@ -1,5 +1,20 @@
-agent,pool_size,solve_rate,cards_up,mean_moves_to_solve,mean_seconds_to_solve
-Random,102,0.0,14.25,,
-Heuristic,102,0.7451,41.17,156.2,0.0511
-GreedyLookahead(1),102,0.0588,12.61,169.8,0.3097
-MCTS(20),102,0.5294,34.64,216.8,16.7318
+agent,pool_size,seeds,solve_rate,solve_rate_sd,cards_up,cards_up_sd,mean_moves_to_solve,mean_seconds_to_solve
+Random,91,1,0.0,,11.18,,,
+Heuristic,91,1,0.7143,,39.93,,146.4,0.0527
+GreedyLookahead(1),91,1,0.044,,12.24,,169.2,0.3175
+MCTS(20),91,1,0.3846,,29.38,,198.0,12.0308
+ppo (asis),91,3,0.0037,0.0063,8.07,0.26,116.0,
+ppo (asis / sampled),91,3,0.4652,0.0458,30.62,2.45,178.3,
+double_dqn (asis),91,3,0.0,0.0,6.52,0.45,,
+dqn (asis),91,3,0.0,0.0,6.0,0.6,,
+q_learning (asis),91,3,0.0,0.0,13.8,0.34,,
+ppo (fixed),91,3,0.2747,0.0291,23.05,1.48,160.1,
+ppo (fixed / argmax),91,3,0.0073,0.0063,8.77,0.23,123.5,
+double_dqn (fixed),91,3,0.0,0.0,6.75,0.06,,
+dqn (fixed),91,3,0.0,0.0,6.18,0.76,,
+q_learning (fixed),91,3,0.0,0.0,11.87,1.14,,
+ppo (noloop),91,3,0.0037,0.0063,11.72,2.05,172.0,
+ppo (noloop / argmax),91,3,0.0,0.0,7.46,0.16,,
+double_dqn (noloop),91,3,0.0,0.0,6.41,0.17,,
+dqn (noloop),91,3,0.0,0.0,6.58,0.28,,
+q_learning (noloop),91,3,0.0,0.0,11.87,1.14,,

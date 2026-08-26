@@ -29,11 +29,21 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 RUNS_DIR = os.path.join(HERE, "..", "raw", "runs")
 
 SEEDS = (0, 1, 2)
-ASIS_AGENTS = ("double_dqn", "dqn", "ppo", "q_learning")
-FIXED_AGENTS = ("double_dqn", "dqn")
+AGENTS = ("double_dqn", "dqn", "ppo", "q_learning")
+
+ASIS_AGENTS = AGENTS
+# Every agent, not just the DQN family. When `fixed` meant "+ the time-limit
+# bootstrap fix" it only made sense for the value-based learners, because that
+# fix changes a TD target and PPO and Q-learning were unaffected. Since the
+# corrections merged, `fixed` means "the library as shipped" -- so leaving PPO
+# and Q-learning out would report them *only* in the pre-fix configuration, and
+# for PPO that is the whole result (diagnosis.md D11: argmax vs sampling).
+FIXED_AGENTS = AGENTS
 # The repeated-position penalty only matters where the greedy policy was
 # measured looping, which is Klondike; Macao episodes are too short for it.
-NOLOOP_AGENTS = {"klondike": ("double_dqn", "dqn"), "macao": ()}
+# All four agents there: PPO loops hardest of any of them under argmax, so
+# whether the penalty helps it is exactly the question D3 asks.
+NOLOOP_AGENTS = {"klondike": AGENTS, "macao": ()}
 
 EPISODES = {"klondike": 5000, "macao": 5000}
 

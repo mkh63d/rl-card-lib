@@ -29,6 +29,7 @@ from split import TEST_SEEDS  # noqa: E402
 
 from rl_card_lib.env import CardGameEnv  # noqa: E402
 from rl_card_lib.games import KlondikeSolitaire  # noqa: E402
+from rl_card_lib.games.registration import KLONDIKE_MAX_PASSES  # noqa: E402
 from rl_card_lib.harness import build_learner  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -44,12 +45,27 @@ def klondike_with_epsilon(agent, epsilon: float, seeds) -> dict:
     `agent.eval()` is what turns exploration off in this library, so an
     epsilon-greedy evaluation cannot be expressed through the public API; the
     epsilon-greedy branch is reproduced here instead of mutating the agent.
+
+    Two things this has to pin down, or the sweep measures the wrong thing:
+
+    `max_passes` is the bundled limit, not the class default. The checkpoints
+    being replayed were trained on the bundled game since #30, and scoring them
+    on the unlimited-pass rules would be a different game.
+
+    `eval_greedy=True` makes epsilon = 0 genuinely deterministic. The claim
+    under test is that a *deterministic* policy in a reversible environment
+    cycles, so the x-axis has to start from determinism. Since #33 PPO's own
+    eval mode samples, so without this the PPO row would start already
+    stochastic and the sweep would compare two different kinds of randomness.
+    PPO's sampled-policy result is reported separately, in D11.
     """
     rng = np.random.RandomState(0)
-    game = KlondikeSolitaire()
+    game = KlondikeSolitaire(max_passes=KLONDIKE_MAX_PASSES)
     env = CardGameEnv(game, max_steps=KLONDIKE_MAX_STEPS)
     if hasattr(agent, "bind"):
         agent.bind(env)
+    if hasattr(agent, "eval_greedy"):
+        agent.eval_greedy = True
     agent.eval()
 
     cards, repeats, wins = [], [], 0

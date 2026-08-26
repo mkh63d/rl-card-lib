@@ -3,11 +3,14 @@
 `baselines_on_test.py` measures the non-learning agents over the pool of TEST
 deals a perfect-information solver proved winnable. This adds the learners
 trained under the corrected protocol, from `thesis_notes/checkpoints/`, so the
-solve-rate table has both halves and every row is the same 102 deals.
+solve-rate table has both halves and every row covers the identical pool --
+whatever size `split.klondike_test_solvable` currently classifies it at.
 
-PPO is measured twice: once by sampling its policy (what `agent.eval()` does
-since #21) and once by argmax over that same policy, because on Klondike the two
-are very different policies -- see diagnosis.md D11.
+PPO is measured twice per arm, because on Klondike sampling its policy and
+taking that policy's argmax are very different policies (diagnosis.md D11). The
+row named plainly `ppo (<arm>)` is always the rule that arm actually uses --
+argmax for `asis`, sampling for `fixed` and `noloop` since #33 -- and the second
+row is the counterfactual, named for the rule it applies.
 
 Writes thesis_notes/raw/solve_time_learners.json.
 """
@@ -29,6 +32,7 @@ from split import klondike_test_solvable  # noqa: E402
 
 from rl_card_lib.env import CardGameEnv  # noqa: E402
 from rl_card_lib.games import KlondikeSolitaire  # noqa: E402
+from rl_card_lib.games.registration import KLONDIKE_MAX_PASSES  # noqa: E402
 from rl_card_lib.harness import build_learner  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -36,12 +40,29 @@ RAW = os.path.join(HERE, "..", "raw")
 CHECKPOINTS = os.path.join(HERE, "..", "checkpoints")
 MAX_STEPS = 300
 SEEDS = (0, 1, 2)
-ARMS = ("asis", "fixed", "noloop")
 AGENTS = ("ppo", "double_dqn", "dqn", "q_learning")
 
+#: Passes through the stock each arm plays, matching what its checkpoints were
+#: trained under (run_one.ARMS). The TEST_SOLVABLE pool is curated at the
+#: bundled limit, which stays a valid -- merely conservative -- pool for `asis`
+#: too: a deal winnable within a finite number of passes is still winnable when
+#: passes are unlimited.
+ARM_MAX_PASSES = {
+    "asis": None,
+    "fixed": KLONDIKE_MAX_PASSES,
+    "noloop": KLONDIKE_MAX_PASSES,
+}
 
-def measure(agent, seeds: list[int], sample: bool = False) -> dict:
-    game = KlondikeSolitaire()
+#: How each arm reads a move out of PPO's policy, mirroring run_one.ARMS.
+#: Only PPO has the choice; for the DQN family the greedy policy is what it
+#: learned, and `measure` leaves agents without the attribute alone.
+ARM_EVAL_GREEDY = {"asis": True, "fixed": False, "noloop": False}
+ARMS = tuple(ARM_MAX_PASSES)
+
+
+def measure(agent, seeds: list[int], sample: bool = False,
+            max_passes: int | None = None) -> dict:
+    game = KlondikeSolitaire(max_passes=max_passes)
     env = CardGameEnv(game, max_steps=MAX_STEPS)
     if hasattr(agent, "bind"):
         agent.bind(env)
@@ -98,9 +119,17 @@ def main() -> int:
     out: dict = {"pool_size": len(pool), "seeds": SEEDS, "rows": []}
     for arm in ARMS:
         for agent in AGENTS:
-            variants = [(False, f"{agent} ({arm})")]
+            # The unlabelled row must be the arm's *own* evaluation rule, not
+            # a fixed choice: `asis` reads PPO by argmax and `fixed`/`noloop`
+            # by sampling (#33). Labelling the argmax measurement as
+            # "ppo (fixed)" would name a configuration that arm never uses.
+            arm_samples = not ARM_EVAL_GREEDY[arm]
+            variants = [(arm_samples, f"{agent} ({arm})")]
             if agent == "ppo":
-                variants.append((True, f"{agent} ({arm}, sampled)"))
+                # " / " rather than ", ": the label is a CSV cell, and a
+                # comma would force quoting and split it under naive parsing.
+                other = "sampled" if not arm_samples else "argmax"
+                variants.append((not arm_samples, f"{agent} ({arm} / {other})"))
             for sample, label in variants:
                 per_seed = []
                 for seed in SEEDS:
@@ -109,12 +138,16 @@ def main() -> int:
                         continue
                     learner = build_learner(agent, 221, 68, seed)
                     learner.load(path)
-                    per_seed.append(measure(learner, pool, sample=sample))
+                    per_seed.append(measure(
+                        learner, pool, sample=sample,
+                        max_passes=ARM_MAX_PASSES[arm],
+                    ))
                     del learner
                 if not per_seed:
                     continue
                 row = {
                     "agent": agent, "arm": arm, "sampled": sample,
+                    "max_passes": ARM_MAX_PASSES[arm],
                     "label": label, "seeds": len(per_seed),
                     "solve_rate_mean": float(np.mean(
                         [r["solve_rate"] for r in per_seed])),

@@ -1,0 +1,65 @@
+{
+  "pool": {
+    "test": [
+      100000,
+      100200
+    ],
+    "size": 200
+  },
+  "max_passes": null,
+  "note": "Reference for the `asis` arm, which plays max_passes=None. The bundled-rule baselines in baselines_on_test.json are the reference for `fixed` and `noloop`. Same 200 TEST deals.",
+  "klondike_unlimited_passes": [
+    {
+      "agent": "Random",
+      "episodes": 200,
+      "reward": 11.692000000000013,
+      "reward_std": 7.988644190349144,
+      "cards_up": 11.59,
+      "cards_up_std": 7.225780234687463,
+      "steps": 300.0,
+      "win_rate": 0.0,
+      "terminated_rate": 0.0,
+      "truncated_rate": 1.0,
+      "seconds": 19.612036899998202
+    },
+    {
+      "agent": "Heuristic",
+      "episodes": 200,
+      "reward": 30.069750000000013,
+      "reward_std": 23.918767786771532,
+      "cards_up": 28.74,
+      "cards_up_std": 21.647226150248443,
+      "steps": 230.675,
+      "win_rate": 0.455,
+      "terminated_rate": 0.455,
+      "truncated_rate": 0.545,
+      "seconds": 17.265375500006485
+    },
+    {
+      "agent": "GreedyLookahead(1)",
+      "episodes": 200,
+      "reward": 8.974550000000015,
+      "reward_std": 8.791180512166683,
+      "cards_up": 9.22,
+      "cards_up_std": 8.05677354776712,
+      "steps": 298.895,
+      "win_rate": 0.01,
+      "terminated_rate": 0.01,
+      "truncated_rate": 0.99,
+      "seconds": 68.97345720000158
+    },
+    {
+      "agent": "MCTS(20)",
+      "episodes": 200,
+      "reward": 27.682050000000018,
+      "reward_std": 21.769949914905645,
+      "cards_up": 26.795,
+      "cards_up_std": 20.386588115719608,
+      "steps": 270.495,
+      "win_rate": 0.37,
+      "terminated_rate": 0.37,
+      "truncated_rate": 0.63,
+      "seconds": 3573.9232661999995
+    }
+  ]
+}

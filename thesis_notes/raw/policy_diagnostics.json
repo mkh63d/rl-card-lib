@@ -1,0 +1,359 @@
+{
+  "deals": 200,
+  "init_seeds": [
+    0,
+    1,
+    2
+  ],
+  "klondike": {
+    "dqn__asis": {
+      "seeds": 3,
+      "repeated_position_frac": 0.8138,
+      "distinct_actions_per_episode": 12.59,
+      "cards_up": 5.67,
+      "win_rate": 0.0,
+      "mean_legal_Q": 1.2103,
+      "mean_legal_Q_spread": 0.1134,
+      "spread_as_pct_of_mean_Q": 9.8333,
+      "positions": 60000.0,
+      "action_mix": {
+        "-> foundation": 0.019,
+        "draw/recycle": 0.552,
+        "tableau<->tableau": 0.401,
+        "waste->tableau": 0.028
+      }
+    },
+    "double_dqn__asis": {
+      "seeds": 3,
+      "repeated_position_frac": 0.8139,
+      "distinct_actions_per_episode": 13.5533,
+      "cards_up": 5.8833,
+      "win_rate": 0.0,
+      "mean_legal_Q": 1.178,
+      "mean_legal_Q_spread": 0.0924,
+      "spread_as_pct_of_mean_Q": 7.9333,
+      "positions": 60000.0,
+      "action_mix": {
+        "-> foundation": 0.02,
+        "draw/recycle": 0.539,
+        "tableau<->tableau": 0.412,
+        "waste->tableau": 0.03
+      }
+    },
+    "ppo__asis__argmax": {
+      "seeds": 3,
+      "repeated_position_frac": 0.7738,
+      "distinct_actions_per_episode": 13.9433,
+      "cards_up": 7.0683,
+      "win_rate": 0.0017,
+      "action_mix": {
+        "-> foundation": 0.023,
+        "draw/recycle": 0.864,
+        "tableau<->tableau": 0.075,
+        "waste->tableau": 0.037
+      }
+    },
+    "ppo__asis__sampled": {
+      "seeds": 3,
+      "repeated_position_frac": 0.5029,
+      "distinct_actions_per_episode": 31.05,
+      "cards_up": 22.0333,
+      "win_rate": 0.2783,
+      "action_mix": {
+        "-> foundation": 0.083,
+        "draw/recycle": 0.506,
+        "tableau<->tableau": 0.357,
+        "waste->tableau": 0.055
+      }
+    },
+    "q_learning__asis": {
+      "seeds": 3,
+      "repeated_position_frac": 0.2378,
+      "distinct_actions_per_episode": 37.6533,
+      "cards_up": 11.3117,
+      "win_rate": 0.0,
+      "mean_legal_Q": 0.0,
+      "mean_legal_Q_spread": 0.0,
+      "spread_as_pct_of_mean_Q": 1415.85,
+      "positions": 60000.0,
+      "action_mix": {
+        "-> foundation": 0.038,
+        "draw/recycle": 0.299,
+        "tableau<->tableau": 0.62,
+        "waste->tableau": 0.043
+      }
+    },
+    "dqn__fixed": {
+      "seeds": 3,
+      "repeated_position_frac": 0.7338,
+      "distinct_actions_per_episode": 10.2367,
+      "cards_up": 6.135,
+      "win_rate": 0.0,
+      "mean_legal_Q": 0.659,
+      "mean_legal_Q_spread": 0.3439,
+      "spread_as_pct_of_mean_Q": 56.9667,
+      "positions": 48259.6667,
+      "action_mix": {
+        "-> foundation": 0.026,
+        "draw/recycle": 0.257,
+        "tableau<->tableau": 0.699,
+        "waste->tableau": 0.018
+      }
+    },
+    "double_dqn__fixed": {
+      "seeds": 3,
+      "repeated_position_frac": 0.7788,
+      "distinct_actions_per_episode": 13.9167,
+      "cards_up": 6.4383,
+      "win_rate": 0.0,
+      "mean_legal_Q": 1.0757,
+      "mean_legal_Q_spread": 0.0583,
+      "spread_as_pct_of_mean_Q": 5.4333,
+      "positions": 57696.3333,
+      "action_mix": {
+        "-> foundation": 0.022,
+        "draw/recycle": 0.17,
+        "tableau<->tableau": 0.776,
+        "waste->tableau": 0.031
+      }
+    },
+    "ppo__fixed__argmax": {
+      "seeds": 3,
+      "repeated_position_frac": 0.757,
+      "distinct_actions_per_episode": 17.2433,
+      "cards_up": 7.7733,
+      "win_rate": 0.0033,
+      "action_mix": {
+        "-> foundation": 0.027,
+        "draw/recycle": 0.171,
+        "tableau<->tableau": 0.764,
+        "waste->tableau": 0.038
+      }
+    },
+    "ppo__fixed__sampled": {
+      "seeds": 3,
+      "repeated_position_frac": 0.5943,
+      "distinct_actions_per_episode": 30.4967,
+      "cards_up": 17.0917,
+      "win_rate": 0.1683,
+      "action_mix": {
+        "-> foundation": 0.063,
+        "draw/recycle": 0.174,
+        "tableau<->tableau": 0.712,
+        "waste->tableau": 0.05
+      }
+    },
+    "q_learning__fixed": {
+      "seeds": 3,
+      "repeated_position_frac": 0.4269,
+      "distinct_actions_per_episode": 32.5067,
+      "cards_up": 9.34,
+      "win_rate": 0.0,
+      "mean_legal_Q": 0.0,
+      "mean_legal_Q_spread": 0.0,
+      "spread_as_pct_of_mean_Q": 1620.5,
+      "positions": 58397.0,
+      "action_mix": {
+        "-> foundation": 0.032,
+        "draw/recycle": 0.194,
+        "tableau<->tableau": 0.739,
+        "waste->tableau": 0.035
+      }
+    },
+    "dqn__noloop": {
+      "seeds": 3,
+      "repeated_position_frac": 0.7306,
+      "distinct_actions_per_episode": 10.22,
+      "cards_up": 6.4083,
+      "win_rate": 0.0,
+      "mean_legal_Q": -0.162,
+      "mean_legal_Q_spread": 0.4822,
+      "spread_as_pct_of_mean_Q": 691.6667,
+      "positions": 48094.3333,
+      "action_mix": {
+        "-> foundation": 0.027,
+        "draw/recycle": 0.261,
+        "tableau<->tableau": 0.697,
+        "waste->tableau": 0.015
+      }
+    },
+    "double_dqn__noloop": {
+      "seeds": 3,
+      "repeated_position_frac": 0.7709,
+      "distinct_actions_per_episode": 13.3867,
+      "cards_up": 6.2167,
+      "win_rate": 0.0,
+      "mean_legal_Q": 0.3777,
+      "mean_legal_Q_spread": 0.0768,
+      "spread_as_pct_of_mean_Q": 22.0333,
+      "positions": 57075.0,
+      "action_mix": {
+        "-> foundation": 0.022,
+        "draw/recycle": 0.182,
+        "tableau<->tableau": 0.763,
+        "waste->tableau": 0.032
+      }
+    },
+    "ppo__noloop__argmax": {
+      "seeds": 3,
+      "repeated_position_frac": 0.7639,
+      "distinct_actions_per_episode": 15.5767,
+      "cards_up": 6.94,
+      "win_rate": 0.0,
+      "action_mix": {
+        "-> foundation": 0.024,
+        "draw/recycle": 0.175,
+        "tableau<->tableau": 0.765,
+        "waste->tableau": 0.036
+      }
+    },
+    "ppo__noloop__sampled": {
+      "seeds": 3,
+      "repeated_position_frac": 0.6681,
+      "distinct_actions_per_episode": 26.24,
+      "cards_up": 9.7283,
+      "win_rate": 0.01,
+      "action_mix": {
+        "-> foundation": 0.033,
+        "draw/recycle": 0.168,
+        "tableau<->tableau": 0.756,
+        "waste->tableau": 0.042
+      }
+    },
+    "q_learning__noloop": {
+      "seeds": 3,
+      "repeated_position_frac": 0.4269,
+      "distinct_actions_per_episode": 32.51,
+      "cards_up": 9.3333,
+      "win_rate": 0.0,
+      "mean_legal_Q": 0.0,
+      "mean_legal_Q_spread": 0.0,
+      "positions": 58397.0,
+      "action_mix": {
+        "-> foundation": 0.032,
+        "draw/recycle": 0.194,
+        "tableau<->tableau": 0.739,
+        "waste->tableau": 0.035
+      }
+    },
+    "random__fixed": {
+      "episodes": 200,
+      "steps": 58114,
+      "repeated_position_frac": 0.4198,
+      "distinct_actions_per_episode": 33.1,
+      "cards_up": 9.795,
+      "win_rate": 0.0,
+      "action_mix": {
+        "-> foundation": 0.034,
+        "draw/recycle": 0.194,
+        "tableau<->tableau": 0.736,
+        "waste->tableau": 0.036
+      },
+      "seeds": 1
+    },
+    "heuristic__fixed": {
+      "episodes": 200,
+      "steps": 47502,
+      "repeated_position_frac": 0.5434,
+      "distinct_actions_per_episode": 33.2,
+      "cards_up": 25.835,
+      "win_rate": 0.385,
+      "action_mix": {
+        "-> foundation": 0.109,
+        "draw/recycle": 0.173,
+        "tableau<->tableau": 0.657,
+        "waste->tableau": 0.061
+      },
+      "seeds": 1
+    }
+  },
+  "macao": {
+    "dqn__asis": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.0667,
+      "mean_legal_Q": 5.8793,
+      "mean_legal_Q_spread": 1.2609,
+      "spread_as_pct_of_mean_Q": 21.4333,
+      "positions": 4843.3333
+    },
+    "double_dqn__asis": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.0983,
+      "mean_legal_Q": 5.456,
+      "mean_legal_Q_spread": 1.1247,
+      "spread_as_pct_of_mean_Q": 20.7,
+      "positions": 4485.6667
+    },
+    "ppo__asis__argmax": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.3517
+    },
+    "ppo__asis__sampled": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.3917
+    },
+    "q_learning__asis": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.0167,
+      "mean_legal_Q": 0.0,
+      "mean_legal_Q_spread": 0.0,
+      "positions": 6785.6667
+    },
+    "dqn__fixed": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.075,
+      "mean_legal_Q": 5.7113,
+      "mean_legal_Q_spread": 1.1879,
+      "spread_as_pct_of_mean_Q": 20.8333,
+      "positions": 4598.3333
+    },
+    "double_dqn__fixed": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.105,
+      "mean_legal_Q": 5.576,
+      "mean_legal_Q_spread": 1.1325,
+      "spread_as_pct_of_mean_Q": 20.3333,
+      "positions": 4632.3333
+    },
+    "ppo__fixed__argmax": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.385
+    },
+    "ppo__fixed__sampled": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.37
+    },
+    "q_learning__fixed": {
+      "seeds": 3,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.0167,
+      "mean_legal_Q": 0.0,
+      "mean_legal_Q_spread": 0.0,
+      "positions": 6785.6667
+    },
+    "random__fixed": {
+      "episodes": 200,
+      "steps": 6994,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.015,
+      "seeds": 1
+    },
+    "heuristic__fixed": {
+      "episodes": 200,
+      "steps": 4049,
+      "repeated_position_frac": 0.0,
+      "win_rate": 0.54,
+      "seeds": 1
+    }
+  },
+  "seconds": 1613.7
+}

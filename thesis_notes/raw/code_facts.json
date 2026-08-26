@@ -1,8 +1,8 @@
 {
   "klondike.py": {
     "path": "packages/examples/src/rl_card_lib/games/klondike.py",
-    "total_lines": 640,
-    "code_lines": 436,
+    "total_lines": 665,
+    "code_lines": 440,
     "classes": [
       [
         "KlondikeSolitaire",
@@ -99,8 +99,7 @@
     "code_lines": 103,
     "classes": [],
     "methods_in_classes": 0,
-    "module_level_functions": 3,
-    "method_names": {}
+    "module_level_functions": 3
   },
   "heuristics.py": {
     "path": "packages/examples/src/rl_card_lib/games/heuristics.py",
@@ -170,6 +169,17 @@
         "copy",
         "determinize"
       ]
+    },
+    "abstract_methods": {
+      "Game": [
+        "get_action_space_size",
+        "get_legal_actions",
+        "get_observation",
+        "get_observation_shape",
+        "is_game_over",
+        "reset",
+        "step"
+      ]
     }
   },
   "card_game.py": {
@@ -200,6 +210,30 @@
         "get_winner",
         "copy"
       ]
+    },
+    "abstract_methods": {
+      "CardGame": [
+        "get_action_space_size",
+        "get_legal_actions",
+        "get_observation",
+        "get_observation_shape",
+        "is_game_over",
+        "reset",
+        "step"
+      ]
     }
+  },
+  "_contract": {
+    "methods": [
+      "get_action_space_size",
+      "get_legal_actions",
+      "get_observation",
+      "get_observation_shape",
+      "is_game_over",
+      "reset",
+      "step"
+    ],
+    "count": 7,
+    "bases_agree": true
   }
 }

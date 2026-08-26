@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-24T12:52:25",
+  "generated_at": "2026-08-25T20:41:27",
   "deal_stream": {
     "klondike_consecutive_resets_distinct": 10,
     "klondike_consecutive_resets_n": 10,
@@ -8,15 +8,15 @@
     "macao_consecutive_resets_distinct": 10,
     "macao_consecutive_resets_n": 10,
     "evaluate_klondike_deal_0_distinct_over_5_calls": 5,
-    "evaluate_klondike_repeat_identical": false,
+    "evaluate_klondike_repeat_identical": true,
     "evaluate_klondike_repeat_a": {
-      "reward": 12.730000000000002,
-      "cards_up": 12.566666666666666,
+      "reward": 8.79100000000003,
+      "cards_up": 9.033333333333333,
       "win_rate": 0.0
     },
     "evaluate_klondike_repeat_b": {
-      "reward": 13.026666666666676,
-      "cards_up": 12.833333333333334,
+      "reward": 8.79100000000003,
+      "cards_up": 9.033333333333333,
       "win_rate": 0.0
     }
   },
@@ -190,7 +190,8 @@
       "rollout_steps": 1024,
       "entropy_coef": 0.01,
       "value_coef": 0.5,
-      "max_grad_norm": 0.5
+      "max_grad_norm": 0.5,
+      "eval_greedy": false
     }
   },
   "epsilon_schedule": {
@@ -234,29 +235,53 @@
     "macao_total_updates_5000_ep": 2300.0
   },
   "truncation_and_terminal_reward": {
-    "klondike_default_max_passes": null,
+    "klondike_class_default_max_passes": null,
+    "klondike_bundled_max_passes": 3,
     "klondike_loss_reward_constant": -1.0,
     "klondike_draw_always_legal_with_unlimited_passes": true,
-    "transitions_seen": 1500,
-    "transitions_with_done_true": 5,
-    "of_those_actually_terminated": 0,
-    "of_those_only_truncated": 5,
-    "terminal_rewards_at_done": [
-      -0.01,
-      -0.01,
-      -0.01,
-      0.99,
-      -0.01
-    ],
     "macao_pays_terminal_on_truncation": true,
-    "macao_truncation_reward_rule": "0.1 * (mean opponent hand size - actor hand size), Macao._finish_step"
+    "macao_truncation_reward_rule": "0.1 * (mean opponent hand size - actor hand size), Macao._finish_step",
+    "by_max_passes": {
+      "unlimited": {
+        "max_passes": null,
+        "transitions_seen": 1500,
+        "transitions_ending_an_episode": 5,
+        "terminated": 0,
+        "truncated_only": 5,
+        "terminated_flag_matches_game_over": true,
+        "rewards_at_episode_end": [
+          -0.01,
+          -0.01,
+          -0.01,
+          -0.01,
+          -0.01
+        ]
+      },
+      "bundled": {
+        "max_passes": 3,
+        "transitions_seen": 1500,
+        "transitions_ending_an_episode": 5,
+        "terminated": 0,
+        "truncated_only": 5,
+        "terminated_flag_matches_game_over": true,
+        "rewards_at_episode_end": [
+          -0.01,
+          -0.01,
+          -0.01,
+          -0.01,
+          -0.01
+        ]
+      }
+    }
   },
   "invalid_action_livelock": {
-    "illegal_steps_taken": 5000,
-    "episode_ended": false,
-    "env_internal_step_count": 0,
+    "illegal_steps_taken": 200,
+    "episode_ended": true,
+    "env_internal_step_count": 200,
     "env_max_steps": 200,
     "reward_per_illegal_step": -1.0,
-    "cause": "CardGameEnv.step() returns before incrementing _step_count when the action is illegal, so max_steps is never reached"
+    "probe_step_budget": 5000,
+    "livelocks": false,
+    "cause": "fixed in #25: the illegal-action branch increments _step_count and applies max_steps, so the episode truncates like any other"
   }
 }
