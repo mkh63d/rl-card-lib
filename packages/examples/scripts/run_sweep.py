@@ -31,7 +31,6 @@ from rl_card_lib.harness import (
     LEARNERS,
     agent_class_name,
     build_learner,
-    checkpoint_suffix,
     library_reference_store,
     make_episode_recorder,
     measure_baselines,
@@ -123,7 +122,7 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
     print(f"  after:  {_format_metrics(after)}  ({train_seconds:.0f}s train)",
           flush=True)
 
-    suffix = checkpoint_suffix(kind)
+    suffix = agent.checkpoint_suffix
     final_path = os.path.join(checkpoint_dir, f"final{suffix}")
     agent.save(final_path)
     metrics.save(os.path.join(checkpoint_dir, "metrics.json"))

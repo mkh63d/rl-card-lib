@@ -180,11 +180,12 @@ sweeping a custom non-card game through the public API alone.
   game satisfies and which optional capabilities (search, determinization,
   multiplayer payoffs) it unlocks. Nice DX, not required for the loop.
 
-- [ ] **`Agent.checkpoint_suffix`.** `Trainer._save_checkpoint` hardcodes `.pt`
-  even for `QLearningAgent`, which pickles — so `checkpoint_ep400.pt` in a
-  tabular run is a pickle that `torch.load` cannot open. `purge_checkpoints`
-  globs both extensions defensively; the real fix is a class attribute the
-  trainer consults, kept out of the reporting change to keep its diff reviewable.
+- [x] **`Agent.checkpoint_suffix`.** Done (2026-08-26, #37). `Trainer._save_checkpoint`
+  hardcoded `.pt` even for `QLearningAgent`, which pickles — so
+  `checkpoint_ep400.pt` in a tabular run was a pickle `torch.load` could not
+  open. Now a class attribute on `Agent` (`.pt`), overridden to `.pkl` on
+  `QLearningAgent`, which the trainer and the training scripts consult;
+  `harness.checkpoint_suffix(kind)` asks the class rather than repeating it.
 - [ ] **Dark-mode figures.** The report is light-only on purpose (matplotlib
   PNGs are baked at render time, and it is printed as an appendix). Supporting
   both would mean rendering every figure twice.

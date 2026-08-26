@@ -12,7 +12,9 @@ from rl_card_lib.trainer.metrics import TrainingMetrics
 from rl_card_lib.trainer.trainer import Trainer, SelfPlayTrainer
 from rl_card_lib.games import KlondikeSolitaire, Macao
 from rl_card_lib.env import CardGameEnv
-from rl_card_lib.agents import RandomAgent, DQNAgent, GreedyLookaheadAgent
+from rl_card_lib.agents import (
+    RandomAgent, DQNAgent, GreedyLookaheadAgent, QLearningAgent,
+)
 from rl_card_lib.agents.base import Agent
 
 
@@ -181,6 +183,34 @@ class TestTrainer:
         # Check that checkpoint was saved
         files = os.listdir(tmp_path)
         assert any("checkpoint" in f for f in files)
+        # DQNAgent.save() calls torch.save, so .pt is the honest name.
+        assert all(f.endswith(".pt") for f in files if f.startswith("checkpoint_ep"))
+
+    def test_checkpoint_extension_matches_the_serializer(self, tmp_path):
+        """A tabular run pickles; its checkpoints must not be named `.pt`.
+
+        `.pt` files that are really pickles fail `torch.load` with "Invalid
+        magic number", which points at corruption rather than at the
+        extension being wrong. Trainer takes the suffix from the agent.
+        """
+        game = KlondikeSolitaire()
+        env = CardGameEnv(game, max_steps=20)
+        agent = QLearningAgent(action_size=env.action_space.n, seed=0)
+        trainer = Trainer(
+            env, agent,
+            checkpoint_dir=str(tmp_path),
+            checkpoint_interval=2,
+        )
+        trainer.train(episodes=3, verbose=False)
+
+        written = [f for f in os.listdir(tmp_path) if f.startswith("checkpoint_ep")]
+        assert written, "no checkpoint was written"
+        assert all(f.endswith(".pkl") for f in written), written
+
+        # And the file is genuinely loadable by the agent that wrote it.
+        restored = QLearningAgent(action_size=env.action_space.n, seed=0)
+        restored.load(os.path.join(tmp_path, written[0]))
+        assert restored.table_size > 0
 
 
 class TestTrainerDeals:

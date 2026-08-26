@@ -347,9 +347,12 @@ class Trainer:
         import os
         os.makedirs(self.checkpoint_dir, exist_ok=True)
         
+        # The agent names its own extension: a tabular run pickles its
+        # table, and calling that file `.pt` earns an "Invalid magic
+        # number" from anyone who reasonably reaches for `torch.load`.
         path = os.path.join(
             self.checkpoint_dir,
-            f"checkpoint_ep{self._episode_count}.pt"
+            f"checkpoint_ep{self._episode_count}{self.agent.checkpoint_suffix}"
         )
         self.agent.save(path)
         

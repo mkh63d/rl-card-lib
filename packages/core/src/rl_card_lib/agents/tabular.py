@@ -40,6 +40,10 @@ class QLearningAgent(Agent):
 
     accepts_next_legal_actions = True
 
+    #: `save()` pickles the table rather than calling `torch.save`,
+    #: so the checkpoint must not claim to be a torch archive.
+    checkpoint_suffix = ".pkl"
+
     def __init__(
         self,
         action_size: int,
