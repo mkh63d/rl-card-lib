@@ -54,7 +54,7 @@ Odczytane z żywych obiektów `CardGameEnv`, nie z komentarzy.
 
 | | Klondike | Macao (2 graczy) |
 |---|---|---|
-| `observation_space` | `Box(-inf, inf, (221,), float32)` | `Box(-inf, inf, (126,), float32)` |
+| `observation_space` | `Box(0.0, 1.0, (221,), float32)` | `Box(0.0, high, (126,), float32)`, gdzie `high` = 1.0 poza cechą rozmiaru ręki przeciwnika: 52/15 ≈ 3.467 |
 | `action_space` | `Discrete(68)` | `Discrete(65)` |
 | rozbicie obserwacji | 52 × 4 (lokalizacja i widoczność każdej karty) + 4 (wierzchołki baz, znormalizowane) + 7 (rozmiary kolumn / 19) + 1 (kupka odkryta / 24) + 1 (talia / 24) = **221** | 52 (ręka, binarnie) + 52 (wierzchołek stosu, one-hot) + 4 (żądany kolor) + 13 (żądana figura) + 2 (faza deklaracji) + 1 (kara dobrania / 15) + 1 (ręka przeciwnika / 15) + 1 (talia / 52) = **126** |
 | rozbicie akcji | 0 dobierz/przełóż · 1–7 z kupki na kolumnę · 8–11 z kupki na bazę · 12–18 wierzch kolumny na bazę · 19–67 kolumna→kolumna (`19 + from*7 + to`) = **68** (7 pozycji `from == to` jest martwych) | 0–51 zagraj tę kartę · 52 dobierz · 53 pas · 54–57 zadeklaruj kolor · 58–64 zadeklaruj figurę = **65**, wszystkie używane |

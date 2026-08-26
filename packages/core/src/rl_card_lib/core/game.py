@@ -23,9 +23,9 @@ class Game(ABC):
         winner: Index of the winning player, or None (no winner / not over).
 
     Provided with sensible defaults (override only when needed): `copy`,
-    `determinize`, `get_reward`, `render`, `action_to_string`,
-    `get_legal_action_mask`, `get_current_player`, `next_player`, `get_winner`,
-    `log_action`, `get_history`.
+    `determinize`, `get_reward`, `get_observation_bounds`, `render`,
+    `action_to_string`, `get_legal_action_mask`, `get_current_player`,
+    `next_player`, `get_winner`, `log_action`, `get_history`.
     """
 
     def __init__(self, num_players: int = 1):
@@ -76,6 +76,31 @@ class Game(ABC):
     @abstractmethod
     def is_game_over(self) -> bool:
         """Return True once the game has reached a terminal state."""
+
+    def get_observation_bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return per-feature (low, high) limits on `get_observation()`.
+
+        `CardGameEnv` turns these into its `gymnasium.spaces.Box`. The default
+        is (-inf, +inf): true of any encoder, and useless to a consumer -- it
+        is also what `gymnasium.utils.env_checker.check_env` warns about
+        ("minimum value is -infinity. This is probably too low").
+
+        Override it whenever the encoding is actually bounded, which a
+        normalised one is. Real limits are what let a consumer clip or
+        renormalise observations without guessing, and several Stable-Baselines3
+        wrappers (`VecNormalize` bounds, observation clipping) read them. Derive
+        them from the same constants `get_observation()` divides by, so the two
+        cannot drift apart -- see `KlondikeSolitaire` and `Macao` for the two
+        shapes this takes, a flat [0, 1] and a per-feature array. See issue #39.
+
+        Returns:
+            `(low, high)`, both of shape `get_observation_shape()`.
+        """
+        shape = self.get_observation_shape()
+        return (
+            np.full(shape, -np.inf, dtype=np.float32),
+            np.full(shape, np.inf, dtype=np.float32),
+        )
 
     def get_current_player(self) -> Any:
         """Return the state object for the seat currently to move."""
