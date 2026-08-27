@@ -4,6 +4,8 @@ Example: Quick demo of the library functionality.
 This script provides a minimal example of using the RL Card Library.
 """
 
+import sys
+
 import numpy as np
 
 from rl_card_lib.cardgames import (
@@ -152,6 +154,15 @@ def demo_training():
 
 def main():
     """Run all demos."""
+    # Every demo below prints card glyphs: Card, Deck, game.render() and
+    # action_to_string all carry a suit symbol. On a stream whose encoding is
+    # not UTF-8 -- cp1250 on a Polish Windows -- the very first print raises
+    # UnicodeEncodeError, and this script is the first command in the README
+    # quickstart (#43). The hasattr guard is for streams with no reconfigure:
+    # io.StringIO, as installed by redirect_stdout and pytest's capture.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     demo_cards()
     demo_klondike()
     demo_macao()

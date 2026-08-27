@@ -489,6 +489,15 @@ def macao_position(seed: int = 100_003) -> dict:
 
 
 def main() -> int:
+    # The summary line below prints card glyphs, and it runs before the first
+    # figure is emitted. On a stream whose encoding is not UTF-8 -- cp1250 is
+    # the default on a Polish Windows -- that raises UnicodeEncodeError, so the
+    # script would exit non-zero having written nothing at all (#43). The
+    # hasattr guard is for the streams that have no reconfigure: io.StringIO,
+    # which is what redirect_stdout and pytest's capture install.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     position = macao_position()
     print(f"position: hand {position['hand']} top {position['top']} "
           f"legal {position['legal_actions']} ({position['q_source']})")
