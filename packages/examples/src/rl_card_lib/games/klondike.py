@@ -65,6 +65,25 @@ class KlondikeSolitaire(CardGame):
 
     MAX_ACTIONS = 68
 
+    #: The divisors `get_observation()` normalises its count features by. Each
+    #: is the *true* maximum of the quantity it scales, not a convenient round
+    #: number, so every one of the 221 features lands in exactly [0, 1] and
+    #: `get_observation_bounds()` can declare that. They are named here rather
+    #: than written inline at the two use sites because a bound that disagrees
+    #: with its encoder is worse than no bound at all -- it makes
+    #: `observation_space.contains()` lie. See issue #39.
+    #:
+    #: MAX_TABLEAU_PILE: a pile holds at most 6 face-down cards (only pile 7
+    #: starts with that many, and face-down cards are only ever removed) under
+    #: a face-up section that is always one strictly descending,
+    #: alternating-colour run, so at most K..A -- 6 + 13 = 19.
+    #: MAX_STOCK: the deal puts 28 cards in the tableau and the remaining
+    #: 52 - 28 = 24 in the stock. It bounds the waste too, which only ever
+    #: holds cards drawn from the stock.
+    MAX_FOUNDATION_RANK = int(Rank.KING)
+    MAX_TABLEAU_PILE = 19
+    MAX_STOCK = 24
+
     #: Reward paid on the terminal step of a lost deal, in both reward modes.
     #: Without it a stuck deal is indistinguishable from running out of time.
     #: Only reachable when `max_passes` is finite -- see BUNDLED_MAX_PASSES.
@@ -225,25 +244,42 @@ class KlondikeSolitaire(CardGame):
         # Foundation top ranks (normalized 0-1)
         for pile in self.foundations:
             if pile:
-                observation.append(pile[-1].rank / 13.0)
+                observation.append(pile[-1].rank / self.MAX_FOUNDATION_RANK)
             else:
                 observation.append(0.0)
 
         # Tableau pile sizes (normalized)
         for pile in self.tableaux:
-            observation.append(len(pile) / 19.0)  # Max possible pile size ~19
+            observation.append(len(pile) / self.MAX_TABLEAU_PILE)
 
         # Waste visible count
-        observation.append(len(self.waste) / 24.0)
+        observation.append(len(self.waste) / self.MAX_STOCK)
 
         # Stock count
-        observation.append(len(self.stock) / 24.0)
+        observation.append(len(self.stock) / self.MAX_STOCK)
 
         return np.array(observation, dtype=np.float32)
 
     def get_observation_shape(self) -> tuple[int, ...]:
         """Get observation shape."""
         return (52 * 4 + 4 + 7 + 2,)  # 221 features
+
+    def get_observation_bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        """Klondike's encoding is exactly [0, 1] in every feature.
+
+        The first 208 features are one-hot card locations. The remaining 13 are
+        counts, and each is divided by MAX_FOUNDATION_RANK / MAX_TABLEAU_PILE /
+        MAX_STOCK -- the true maximum of that count, so each quotient tops out
+        at 1.0 and none can exceed it. *That* is the fact holding this bound up,
+        and the one a future encoder change would break: normalise a new feature
+        by anything other than its own maximum and the high belongs here as an
+        array, the way `Macao.get_observation_bounds()` does it. See issue #39.
+        """
+        shape = self.get_observation_shape()
+        return (
+            np.zeros(shape, dtype=np.float32),
+            np.ones(shape, dtype=np.float32),
+        )
 
     def get_action_space_size(self) -> int:
         """Get total number of actions."""

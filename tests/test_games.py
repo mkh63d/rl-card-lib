@@ -1,5 +1,6 @@
 """Tests for game implementations."""
 
+import random
 import warnings
 
 import pytest
@@ -684,6 +685,94 @@ class TestGymnasiumContract:
         wants a `render_mode` set at construction.
         """
         check_env(factory(), skip_render_check=True)
+
+    @staticmethod
+    def _observation_box(env):
+        """The Box carrying the observation, Dict-wrapped or not."""
+        space = env.observation_space
+        if isinstance(space, gym.spaces.Dict):
+            return space["observation"]
+        return space
+
+    @pytest.mark.parametrize("factory", ENV_FACTORIES)
+    def test_observation_space_declares_finite_bounds(self, factory):
+        """A bound a consumer can actually use (#39).
+
+        Both envs used to declare Box(-inf, inf) while every value they had
+        ever produced sat in [0.000, 1.933]. An infinite bound is true of any
+        encoder and tells a consumer nothing: anything wanting to clip or
+        renormalise -- SB3's VecNormalize among them -- has to guess.
+        """
+        box = self._observation_box(factory())
+
+        assert np.isfinite(box.low).all(), "observation space still unbounded below"
+        assert np.isfinite(box.high).all(), "observation space still unbounded above"
+        assert (box.low == 0.0).all(), "both encodings are non-negative"
+
+    @pytest.mark.parametrize("factory", ENV_FACTORIES)
+    def test_env_checker_stops_warning_about_infinite_bounds(self, factory):
+        """The reported symptom of #39, guarded where it was reported.
+
+        `check_env` has passed since #15, but warned twice per env about the
+        observation space's infinite minimum and maximum -- the last two
+        complaints it had left.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            check_env(factory(), skip_render_check=True)
+
+        about_infinity = [str(w.message) for w in caught if "infinity" in str(w.message)]
+        assert not about_infinity, about_infinity
+
+    @pytest.mark.parametrize("factory", ENV_FACTORIES)
+    def test_random_play_stays_inside_declared_bounds(self, factory):
+        """The bounds must hold for real observations, not merely look tight.
+
+        A declared Box is a promise about every observation the env can emit,
+        and a tight wrong one is worse than the honest infinite one it replaced
+        -- it makes `observation_space.contains()` lie. Ten seeded deals of
+        random legal play per env, so an encoder change that outgrows its
+        declared range fails here instead of in a consumer.
+        """
+        env = factory()
+        space = env.observation_space
+
+        for seed in range(10):
+            rng = random.Random(seed)
+            obs, info = env.reset(seed=seed)
+            assert space.contains(obs), f"reset observation outside space (seed={seed})"
+
+            for step in range(200):
+                legal = info.get("legal_actions") or [0]
+                obs, _, terminated, truncated, info = env.step(rng.choice(legal))
+                assert space.contains(obs), (
+                    f"observation outside declared space (seed={seed}, step={step})"
+                )
+                if terminated or truncated:
+                    break
+
+    def test_macao_hand_past_the_scale_is_still_in_bounds(self):
+        """The case that forces Macao's per-feature high (#39).
+
+        Hand-size features divide by HAND_SIZE_SCALE = 15, a typical hand and
+        not a limit, so an opponent holding more than that encodes above 1.0 --
+        routine once draw penalties stack. A flat `high=1.0` would therefore
+        have been wrong rather than merely loose, putting ordinary observations
+        outside the space the env advertises.
+        """
+        game = Macao(num_players=2, seed=0)
+        env = CardGameEnv(game)
+        env.reset(seed=0)
+
+        opponent = game.players[1 - game.current_player_idx]
+        while len(opponent.hand) < 30 and game.deck.cards:
+            opponent.hand.append(game.deck.cards.pop())
+
+        observation = np.asarray(game.get_observation(), dtype=np.float32)
+        hand_feature = observation[Macao.OPPONENT_HANDS_OFFSET]
+
+        assert hand_feature > 1.0, "a 30-card hand should encode past the scale"
+        assert env.observation_space.contains(observation)
 
     @pytest.mark.parametrize("factory", ENV_FACTORIES)
     def test_accepts_gymnasium_wrappers(self, factory):

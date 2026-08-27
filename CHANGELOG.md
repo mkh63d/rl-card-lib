@@ -114,6 +114,41 @@
 
 ### Fixed
 
+- **Both observation spaces declare their real bounds instead of `(-inf, inf)`**
+  ([#39](https://github.com/mkh63d/rl-card-lib/issues/39)). `CardGameEnv` had
+  only one thing it could say about any game's encoding, so it said the
+  uselessly true thing: `Box(-inf, inf, ...)`. Neither encoding is remotely
+  unbounded -- both are one-hot card locations plus counts normalised by their
+  own maxima -- and over 10 deals of random play Klondike lived in
+  `[0.000, 1.000]` and Macao in `[0.000, 1.933]`. `check_env` had passed since
+  #15 but warned twice per env ("A Box observation space minimum value is
+  -infinity"), which were the only complaints it had left.
+
+  `Game.get_observation_bounds()` is the new hook: a concrete method defaulting
+  to `(-inf, +inf)`, so no existing custom game has to change, that a game
+  overrides to declare what its encoder actually produces. Klondike returns a
+  flat `[0, 1]` -- it divides each count by that count's true maximum, so every
+  one of its 221 features tops out at exactly 1.0. Macao returns a **per-feature
+  `high` array**, because a flat `1.0` there would be wrong rather than merely
+  loose: hand sizes divide by `HAND_SIZE_SCALE = 15`, a typical hand and not a
+  limit, so an opponent sitting on a stacked draw penalty encodes above 1.0 and
+  would fall outside the env's own advertised space. Their honest high is
+  `DECK_SIZE / HAND_SIZE_SCALE` (52/15 ~ 3.467): play only shuffles the 52 cards
+  between deck, discard and hands, so no hand can hold more.
+
+  Both games' divisors are now named constants (`MAX_TABLEAU_PILE`, `MAX_STOCK`,
+  `HAND_SIZE_SCALE`, `DECK_SIZE`, ...) read by the encoder and the bound alike,
+  since a bound that drifts from its encoder makes `contains()` lie -- worse
+  than the infinite one it replaced. A new test plays 10 seeded deals per env
+  and asserts every observation is inside the declared space, so an encoder
+  change that outgrows its range fails here rather than in a consumer.
+
+  **No behaviour changes and no recorded number moves**: the observations
+  themselves are byte-identical, only the declaration around them. What changes
+  is downstream -- a consumer can clip or renormalise from the space instead of
+  guessing, and the Stable-Baselines3 wrappers that read those limits
+  (`VecNormalize` bounds, observation clipping) now see real ones.
+
 - **The bundled Klondike no longer trains with the repeated-position penalty**
   ([#36](https://github.com/mkh63d/rl-card-lib/issues/36)). This reverses a
   default introduced earlier in this same cycle: the entry below switched

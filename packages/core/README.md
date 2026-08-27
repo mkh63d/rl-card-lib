@@ -96,6 +96,9 @@ trainer.train(episodes=100)
 
 **Provided with sensible defaults — override only when needed:**
 
+- `get_observation_bounds() -> (low, high)` — `(-inf, +inf)` by default;
+  override when your encoding is bounded (a normalised one is) and `CardGameEnv`
+  declares a tight `Box` a consumer can clip or renormalise against
 - `copy() -> Game` — deep copy by default; the search agents rely on it
 - `determinize(observer_idx, rng) -> Game` — `self.copy()` by default; override
   for hidden-information games
