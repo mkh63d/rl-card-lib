@@ -290,6 +290,25 @@ class CardGameEnv(gym.Env):
             mask[action] = True
         return mask
 
+    def action_masks(self) -> np.ndarray:
+        """The mask, under the name the wider ecosystem looks for.
+
+        `sb3-contrib` finds an env's mask by calling a method named exactly
+        `action_masks()` -- `get_action_masks()` reaches it through
+        `env.get_wrapper_attr("action_masks")` on a bare env and through
+        `VecEnv.env_method("action_masks")` on a vectorised one. It does *not*
+        read the `action_mask` field of `MaskedCardGameEnv`'s observation,
+        which is why exposing that field alone left `MaskablePPO` sampling
+        illegal actions like any unmasked policy.
+
+        Defined on `CardGameEnv` rather than on the masked subclass so both
+        halves of the pair are maskable: the `Dict` observation and this method
+        are independent, and an algorithm needing only the mask can take the
+        plain `Box` env. It delegates rather than rebuilding the mask, so the
+        two spellings cannot drift apart.
+        """
+        return self.get_legal_action_mask()
+
     def action_to_string(self, action: int) -> str:
         try:
             return self.game.action_to_string(action)

@@ -75,10 +75,16 @@ Passing `check_env` would not make the environment *usable* by a generic
 Gymnasium consumer, because action masking lives outside the observation
 (`info["legal_actions"]`). Driven by an unmasked SB3 PPO, Macao produced an
 episode whose total reward was exactly `-300.0` = 300 × `invalid_action_reward`:
-not one legal action was chosen in 300 steps. `MaskedCardGameEnv` already
-exposes exactly the `Dict(observation, action_mask)` shape that
-`sb3-contrib`'s `MaskablePPO` expects, but it is not used by any script in the
-repo — `registration.py:58` and `:82` both build a plain `CardGameEnv`.
+not one legal action was chosen in 300 steps.
+
+**Closed by #40.** The `Dict(observation, action_mask)` shape of
+`MaskedCardGameEnv` was *not*, as this note previously claimed, the channel
+`MaskablePPO` reads — sb3-contrib calls a method named `action_masks()` and
+never inspects the observation, so exposing the Dict alone changed nothing.
+`CardGameEnv.action_masks()` now supplies it, and
+`packages/examples/scripts/train_maskable_ppo.py` trains MaskablePPO on
+`rl_card_lib/MacaoMasked-v0` and scores it on the held-out deals. See §3c and
+§5c of [`gymnasium.md`](../gymnasium.md) for the measured result.
 
 Two related sub-points, if they are worth folding in here:
 

@@ -122,6 +122,10 @@ pytest --cov --cov-report=html
 
 - ✅ Define custom card games with Gymnasium compatibility — the envs subclass
   `gymnasium.Env`, pass `check_env`, and are reachable via `gymnasium.make`
+- ✅ Learnable by third-party algorithms, not just accepted by them — every env
+  exposes `action_masks()`, so `sb3-contrib`'s `MaskablePPO` trains on
+  `rl_card_lib/MacaoMasked-v0` with no adapter
+  ([guide](docs/guides/third-party-algorithms.md))
 - ✅ An agent zoo spanning three families:
   - **Baselines (no learning)**: `RandomAgent`, `HeuristicAgent`, `GreedyLookaheadAgent`
   - **Search**: `MCTSAgent` (UCT with determinized hidden cards)
@@ -271,6 +275,13 @@ rl-card-lib (root)
   classes subclass `gymnasium.Env`)
 - `matplotlib>=3.5.0` - Plotting
 - `tqdm>=4.64.0` - Progress bars
+
+### Optional extras
+- `report[charts]` → `matplotlib` - figures and the HTML report
+- `examples[sb3]` → `sb3-contrib>=2.0.0` - MaskablePPO, for
+  `scripts/train_maskable_ppo.py`. Optional so the library stays installable
+  without a third-party training framework: the bundled agents read the legal
+  moves from `info["legal_actions"]` and need none of it.
 
 ### Development
 - `pytest>=7.0.0` - Testing

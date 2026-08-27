@@ -71,8 +71,31 @@ Reach for the **masked** ids when something is going to learn on them. Neither
 game makes more than a handful of its actions legal at once — in Macao only 2–4
 of 65 in a typical position — so a policy that cannot see `info["legal_actions"]`
 spends nearly every step collecting `invalid_action_reward` instead of playing.
-The masked ids expose exactly the `Dict(observation, action_mask)` shape that
-`sb3-contrib`'s `MaskablePPO` reads.
+
+### Masking, for an outside algorithm
+
+There are two separate channels, and it is worth not confusing them:
+
+- The **masked ids** put the mask *in the observation*, so a policy can read it
+  as a feature and learn to use it.
+- **Every** id, masked or not, also exposes `action_masks()` — the method name
+  `sb3-contrib` looks for when it asks an environment what is legal. That is
+  what actually constrains the sampled action.
+
+So `MaskablePPO` works off the shelf, with no adapter:
+
+```python
+import gymnasium
+import rl_card_lib.games                     # registers the ids
+from sb3_contrib import MaskablePPO
+
+env = gymnasium.make("rl_card_lib/MacaoMasked-v0")
+MaskablePPO("MultiInputPolicy", env).learn(total_timesteps=300_000)
+```
+
+`sb3-contrib` is an optional extra — `pip install -e "./packages/examples[sb3]"`.
+The worked version, which also measures the result on the held-out deals, is
+[`scripts/train_maskable_ppo.py`](../guides/third-party-algorithms.md).
 
 The step cap stays on the env (`CardGameEnv.max_steps`) rather than being set as
 `max_episode_steps` on the registration, so a truncation has one cause and one

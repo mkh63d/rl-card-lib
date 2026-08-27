@@ -171,20 +171,33 @@ i zwraca z `reset`/`step` słownik `{"observation": …, "action_mask": …}`.
 Maska jest typu `int8`, nie `bool` ([:232-236](../packages/core/src/rl_card_lib/env/card_game_env.py#L232-L236)),
 bo `MultiBinary` wymaga typu całkowitego.
 
-Dwie rzeczy warte odnotowania w pracy:
+Trzy rzeczy warte odnotowania w pracy:
 
 1. To jest konstrukcja **w pełni legalna w Gymnasium** (`Dict` to standardowa
-   przestrzeń) i **dokładnie ten wzorzec**, którego oczekuje `sb3-contrib`
-   `MaskablePPO`. Czyli droga do interoperacyjności jest w bibliotece już
-   w połowie przetarta.
-2. Ale `MaskedCardGameEnv` **nie jest używany przez żaden skrypt treningowy
-   ani przez sweep**: `registration.py` buduje oba środowiska zwykłym
-   `CardGameEnv`
-   ([registration.py:58](../packages/examples/src/rl_card_lib/games/registration.py#L58),
-   [:82](../packages/examples/src/rl_card_lib/games/registration.py#L82)).
-   Agenci biblioteki dostają maskę kanałem `info["legal_actions"]`, a nie przez
-   obserwację. `MaskedCardGameEnv` jest więc możliwością, nie ścieżką
-   produkcyjną.
+   przestrzeń): maska jedzie w obserwacji, więc sieć może się jej **nauczyć**
+   jako cechy.
+2. **Ale to nie jest kanał, którym `MaskablePPO` czyta maskę** — wcześniejsza
+   wersja tej notatki twierdziła inaczej i było to błędne rozpoznanie.
+   `sb3_contrib.common.maskable.utils.get_action_masks()` szuka metody
+   nazwanej dokładnie `action_masks()`: sięga po nią przez
+   `env.get_wrapper_attr("action_masks")` dla środowiska gołego i przez
+   `VecEnv.env_method("action_masks")` dla zwektoryzowanego. Pola `action_mask`
+   w obserwacji **nie ogląda w ogóle**. Samo `MaskedCardGameEnv` zostawiało
+   więc `MaskablePPO` przy losowaniu ruchów nielegalnych, tak jak każdą inną
+   politykę bez maski — to jest właściwa treść zgłoszenia #40.
+3. Lukę domyka `CardGameEnv.action_masks()`
+   ([card_game_env.py](../packages/core/src/rl_card_lib/env/card_game_env.py)),
+   delegująca do istniejącego `get_legal_action_mask()`, więc obie pisownie nie
+   mogą się rozjechać. Metoda siedzi na klasie bazowej, nie na podklasie
+   maskowanej — dzięki temu maskowalne są **wszystkie** cztery
+   zarejestrowane id, także te z płaską obserwacją `Box`. Adapter ani
+   `ActionMasker` nie są potrzebne.
+
+Agenci samej biblioteki nadal dostają maskę kanałem `info["legal_actions"]`,
+a `registration.py` nadal buduje środowiska sweepu zwykłym `CardGameEnv` — to
+się nie zmieniło i nie musiało. Zmieniło się to, że ścieżka dla algorytmu
+zewnętrznego jest teraz w repozytorium użyta i zmierzona
+(`packages/examples/scripts/train_maskable_ppo.py`, §5c).
 
 ---
 
@@ -391,16 +404,35 @@ nie długim epizodem. Wewnętrzny `Trainer` biblioteki nigdy tego nie ujawniał,
 jego agenci zawsze dostają `legal_actions` i nie proponują nielegalnego ruchu —
 dlatego ta poprawka nie zmienia żadnej liczby w wynikach uczenia.
 
-**Zdanie do pracy — wersja po PR #25 i #26.** Zgodność z Gymnasium jest dziś
-*operacyjna*, nie tylko nominalna: środowisko implementuje `gymnasium.Env`,
+**Zdanie do pracy — wersja po PR #25, #26 i #40.** Zgodność z Gymnasium jest
+dziś *operacyjna*, nie tylko nominalna: środowisko implementuje `gymnasium.Env`,
 przechodzi `env_checker`, przyjmuje wrappery i jest bezpośrednio akceptowane
 przez Stable-Baselines3, a epizod złożony z samych nielegalnych akcji kończy się
-limitem kroków zamiast wisieć. **Pozostaje jedno realne ograniczenie**: ponieważ
-maska legalnych akcji jest podawana kanałem `info["legal_actions"]`, a nie
-w obserwacji, algorytm zewnętrzny bez maski działa w tych grach na oślep i nie
-osiąga niczego. Ścieżką naprawy, której biblioteka ma już połowę, jest
-`MaskedCardGameEnv` + `sb3-contrib MaskablePPO`; nie jest ona w repozytorium ani
-wykorzystana, ani zmierzona.
+limitem kroków zamiast wisieć. **Zastrzeżenie o niezmierzonej ścieżce maskowanej
+przestaje obowiązywać**: `CardGameEnv` udostępnia metodę `action_masks()`, po
+którą sięga `sb3-contrib`, więc `MaskablePPO` uczy się na
+`rl_card_lib/MacaoMasked-v0` bez żadnego adaptera
+(`packages/examples/scripts/train_maskable_ppo.py`).
+
+**Wynik pomiaru.** 300 000 kroków, ziarno 0, ocena na pełnej puli 200 rozdań
+TEST — tym samym protokołem i na tych samych rozdaniach co agenci wbudowani:
+
+| agent | z losowym | z heurystycznym |
+|---|---|---|
+| **MaskablePPO (300k)** | **79,5 %** | **37,0 %** |
+| Random | 1,5 % | 2,5 % |
+| GreedyLookahead(1) | 64,0 % | 23,5 % |
+| Heuristic | 95,0 % | 54,0 % |
+
+Czytać to uczciwie: algorytm zewnętrzny **nauczył się gry** — 79,5 % przeciw
+losowemu, podczas gdy sam losowy osiąga tam 1,5 %, i wygrywa z
+`GreedyLookahead(1)` w obu kolumnach. **Nie** pokonuje ręcznie napisanej
+heurystyki, która zna reguły Macao wprost. Hiperparametry zostawiono domyślne,
+bo tezą jest „algorytm z półki uczy się tej gry”, a nie „jest najsilniejszym
+graczem w repozytorium”.
+
+Dawna formuła — „akceptowane przez ekosystem, ale nauczyć się tych gier potrafią
+tylko agenci wbudowani” — nie jest już prawdziwa i nie powinna trafić do pracy.
 
 ---
 
@@ -412,4 +444,5 @@ wykorzystana, ani zmierzona.
 | Sygnatury `reset`/`step`, konwencja `terminated`/`truncated` | **Gymnasium (konwencja)** | typy zweryfikowane w runtime |
 | Klasa bazowa `gymnasium.Env`, `metadata`, `np_random`, `spec`, rejestracja, wrappery, `VectorEnv` | **nieużywane** | `check_env` → `TypeError` na wszystkich 4 klasach |
 | Pętla treningowa, self-play, bufory, maskowanie, agenci, kodowanie, metryki, raport | **własne** | **4 376** linii w warstwie uczącej (trener 699, agenci 2 262, środowisko 467, harness 948); całe `packages/` to 14 083 linie w 69 plikach |
-| Współpraca ze Stable-Baselines3 | **wymaga adaptera** (~30 linii); po adapterze trening rusza, ale bez maski agent gra wyłącznie nielegalnie | log w `raw/gymnasium_probe.json` |
+| Współpraca ze Stable-Baselines3 (bez maski) | **wymaga adaptera** (~30 linii); po adapterze trening rusza, ale bez maski agent gra wyłącznie nielegalnie | log w `raw/gymnasium_probe.json` |
+| Współpraca z `sb3-contrib MaskablePPO` | **bez adaptera** — `action_masks()` na `CardGameEnv`; 79,5 % / 37,0 % na 200 rozdaniach TEST | `scripts/train_maskable_ppo.py`, §5c |

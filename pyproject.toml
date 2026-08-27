@@ -43,6 +43,10 @@ dev = [
     "flake8>=6.0.0",
     "pylint>=3.0.0",
 ]
+# MaskablePPO, for packages/examples/scripts/train_maskable_ppo.py.
+sb3 = [
+    "sb3-contrib>=2.0.0",
+]
 docs = [
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",
