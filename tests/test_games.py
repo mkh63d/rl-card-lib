@@ -725,11 +725,45 @@ class TestGymnasiumRegistration:
         assert isinstance(terminated, bool) and isinstance(truncated, bool)
 
     def test_masked_ids_expose_the_action_mask(self):
-        """The masked ids give MaskablePPO the Dict shape it expects."""
+        """The masked ids carry the mask in the observation, as a feature.
+
+        This is the `Dict` shape a policy can *see* the mask through. It is not
+        how `sb3-contrib` finds the mask -- that is `action_masks()`, covered
+        below -- and conflating the two is what left MaskablePPO sampling
+        illegal actions despite this field being present.
+        """
         env = gym.make("rl_card_lib/MacaoMasked-v0")
         obs, info = env.reset(seed=11)
         assert set(obs) == {"observation", "action_mask"}
         assert obs["action_mask"].sum() == len(info["legal_actions"])
+
+    @pytest.mark.parametrize("env_id", registered_gym_ids())
+    def test_action_masks_survives_the_wrapper_chain(self, env_id):
+        """`get_wrapper_attr` reaches the mask through `gymnasium.make`.
+
+        This is exactly how `sb3_contrib.common.maskable.utils.get_action_masks`
+        asks a bare env for its mask, so it is the regression guard for #40:
+        `gymnasium.make` returns an `OrderEnforcing` wrapper, and if the method
+        stopped being reachable through it, MaskablePPO would silently fall back
+        to sampling illegally rather than raising.
+
+        Parametrized over *every* id, masked or not: the mask and the `Dict`
+        observation are independent, and an algorithm that needs only the mask
+        may take the plain `Box` env.
+        """
+        env = gym.make(env_id)
+        _, info = env.reset(seed=11)
+
+        mask = env.get_wrapper_attr("action_masks")()
+        assert mask.dtype == np.bool_
+        assert sorted(np.flatnonzero(mask)) == sorted(info["legal_actions"])
+
+    @pytest.mark.parametrize("env_class", [CardGameEnv, MaskedCardGameEnv])
+    def test_action_masks_agrees_with_get_legal_action_mask(self, env_class):
+        """The ecosystem spelling and the library's own cannot drift apart."""
+        env = env_class(Macao(num_players=2), max_steps=200)
+        env.reset(seed=11)
+        assert np.array_equal(env.action_masks(), env.get_legal_action_mask())
 
     def test_entry_points_are_importable_strings(self):
         """Strings, not closures, so another process can rebuild `env.spec`.

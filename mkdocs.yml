@@ -96,6 +96,7 @@ nav:
   - Guides:
       - The agent zoo: guides/agents.md
       - Training and reports: guides/training-and-reports.md
+      - Third-party algorithms: guides/third-party-algorithms.md
       - Add your own game: custom_game.md
   - Architecture: architecture.md
   - API Reference:

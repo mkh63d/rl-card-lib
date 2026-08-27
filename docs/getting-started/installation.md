@@ -43,11 +43,20 @@ pip install -e ".[dev]"
 
 # Build this documentation site (mkdocs, material theme, mkdocstrings)
 pip install -e ".[docs]"
+
+# Train a third-party algorithm on the bundled games (adds sb3-contrib)
+pip install -e "./packages/examples[sb3]"
 ```
 
 `matplotlib` is an optional extra of the report package. Without it, the JSON
 and Markdown APIs still work and figure rendering simply becomes a no-op — the
 same way `TrainingMetrics.plot()` behaves in the core package.
+
+`sb3-contrib` is an extra for the same reason: the bundled agents read the legal
+moves from `info["legal_actions"]` and need no third-party training framework,
+so the library stays installable without one. It is needed only by
+[`scripts/train_maskable_ppo.py`](../guides/third-party-algorithms.md), and it
+pulls `stable-baselines3` in with it.
 
 ## Verify the install
 

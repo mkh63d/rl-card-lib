@@ -4,6 +4,36 @@
 
 ### Added
 
+- **A third-party algorithm can now actually learn these games, and there is a
+  number for it** ([#40](https://github.com/mkh63d/rl-card-lib/issues/40)).
+  Every env gained `action_masks()`, the method `sb3-contrib` calls when it asks
+  an environment what is legal -- reached through
+  `env.get_wrapper_attr("action_masks")` on a bare env and
+  `VecEnv.env_method("action_masks")` on a vectorised one. This was the missing
+  piece: `MaskedCardGameEnv`'s `Dict(observation, action_mask)` observation is
+  read by a policy network as a *feature*, and sb3-contrib never looks at it, so
+  MaskablePPO had been sampling illegal actions like any unmasked policy despite
+  the mask being right there. It delegates to the existing
+  `get_legal_action_mask()`, so the two spellings cannot drift apart, and it sits
+  on `CardGameEnv` rather than the masked subclass, so all four registered ids
+  are maskable -- an algorithm wanting the mask but not 65 extra input features
+  can take the plain `Box` env.
+
+  `packages/examples/scripts/train_maskable_ppo.py` is the worked example. It
+  trains MaskablePPO on `rl_card_lib/MacaoMasked-v0` with no adapter and no
+  `ActionMasker`, then scores it through `rl_card_lib.harness.evaluation` -- the
+  same protocol, opponents and 200 held-out deals every bundled agent is
+  measured on. At 300k steps and seed 0: **79.5% vs. random, 37.0% vs. the
+  heuristic**, against 1.5% / 2.5% for a random policy and 64.0% / 23.5% for
+  `GreedyLookahead(1)`. It does not beat the hand-written `MacaoHeuristicAgent`
+  (95.0% / 54.0%), and the defaults are left untuned deliberately: the claim
+  demonstrated is that an off-the-shelf algorithm learns this game, not that it
+  is the strongest player here. This retires the standing caveat that the
+  library was "accepted by the ecosystem, but only the bundled agents can
+  actually learn these games". `sb3-contrib` is an optional extra
+  (`pip install -e "./packages/examples[sb3]"`), not a dependency -- its tests
+  skip when it is absent, which is what CI does.
+
 - **The bundled games are registered as Gymnasium ids.** `import rl_card_lib.games`
   now registers `rl_card_lib/Klondike-v0`, `rl_card_lib/Macao-v0` and the
   action-masked `rl_card_lib/KlondikeMasked-v0` / `rl_card_lib/MacaoMasked-v0`,

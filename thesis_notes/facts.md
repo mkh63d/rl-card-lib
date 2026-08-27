@@ -95,7 +95,8 @@ Zmierzone na 200 rozdaniach z puli TEST; pełna tabela w
 | Gymnasium | **1.3.0** | `gymnasium>=0.29.0` |
 | Matplotlib | **3.10.9** | `matplotlib>=3.5` |
 | tqdm | **4.67.3** | `tqdm>=4.64` |
-| stable-baselines3 | **2.9.0** | *nie jest zależnością biblioteki* — zainstalowana wyłącznie do testu interoperacyjności z §5 [`gymnasium.md`](gymnasium.md) |
+| stable-baselines3 | **2.9.0** | *nie jest zależnością biblioteki* — wciągana tranzytywnie przez `sb3-contrib` |
+| sb3-contrib | **2.9.0** | *nie jest zależnością biblioteki* — zadeklarowany **opcjonalny extra** `examples[sb3]`, używany przez `scripts/train_maskable_ppo.py` (§5c [`gymnasium.md`](gymnasium.md)) |
 
 > **Uwaga do §6.2 pracy.** Zdanie „depends on NumPy (≥ 1.21), PyTorch (≥ 2.0),
 > Gymnasium (≥ 0.29), Matplotlib (≥ 3.5) … and tqdm (≥ 4.64)” opisuje **dolne
