@@ -11,7 +11,7 @@ from __future__ import annotations
 from rl_card_lib.agents import RandomAgent
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games.heuristics import KlondikeHeuristicAgent, MacaoHeuristicAgent
-from rl_card_lib.games.klondike import KlondikeSolitaire
+from rl_card_lib.games.klondike import KlondikeSolitaire, bundled_klondike
 from rl_card_lib.games.klondike_solver import solve_klondike
 from rl_card_lib.games.macao import Macao
 from rl_card_lib.harness.deals import TEST_SEEDS, TRAIN_SEEDS
@@ -33,6 +33,11 @@ MACAO_MAX_STEPS = 200
 # the trainer's periodic evaluation, in the final evaluation protocol, in the
 # baselines and in the solver that curates the solvable-deal pool. A game that
 # differs across those is not one experiment.
+#
+# Nothing here constructs a Klondike with it: `bundled_klondike()` is the one
+# constructor that applies it, and this name exists so an entry point that only
+# needs the *number* -- the Gymnasium ids' `max_passes` default, the evaluation
+# protocol below -- can say it without reaching into the class. See issue #38.
 KLONDIKE_MAX_PASSES = KlondikeSolitaire.BUNDLED_MAX_PASSES
 
 # Price of stepping into a position already seen this episode: 0.0, so the
@@ -71,15 +76,6 @@ MACAO_REPEAT_PENALTY = 0.0
 # small budget keeps curation fast and lets undecided deals fail quickly (they
 # are excluded from the pool anyway). See harness/solve_benchmark.py.
 KLONDIKE_POOL_SOLVE_NODES = 10_000
-
-
-def _klondike() -> KlondikeSolitaire:
-    """The Klondike every bundled entry point plays.
-
-    One constructor for the whole experiment, so training, evaluation, the
-    baselines and the solvable-pool solver cannot end up on different rules.
-    """
-    return KlondikeSolitaire(max_passes=KLONDIKE_MAX_PASSES)
 
 
 def _train_env(game, max_steps, repeat_penalty=0.0):
@@ -142,9 +138,10 @@ def register_bundled_games() -> None:
     """Register Klondike and Macao. Idempotent; called on package import."""
     register_sweep_game(
         "klondike",
-        env_factory=lambda: _train_env(_klondike(), KLONDIKE_MAX_STEPS,
+        env_factory=lambda: _train_env(bundled_klondike(), KLONDIKE_MAX_STEPS,
                                        KLONDIKE_REPEAT_PENALTY),
-        eval_env_factory=lambda: _eval_env(_klondike(), KLONDIKE_MAX_STEPS),
+        eval_env_factory=lambda: _eval_env(bundled_klondike(),
+                                           KLONDIKE_MAX_STEPS),
         max_steps=KLONDIKE_MAX_STEPS,
         evaluate=_evaluate_klondike,
         episode_extras=_klondike_extras,

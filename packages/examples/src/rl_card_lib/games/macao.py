@@ -64,6 +64,26 @@ class Macao(CardGame):
     MAX_ACTIONS = RANK_DECLARATION_OFFSET + len(DECLARABLE_RANKS)  # 65, all used
     HAND_SIZE = 5
 
+    #: The divisors `get_observation()` normalises its count features by.
+    #:
+    #: HAND_SIZE_SCALE is a *typical* hand, deliberately not a limit: a player
+    #: forced to eat several stacked draw-2s holds well over 15 cards, and the
+    #: feature then reads above 1.0. That single fact is why this game's
+    #: `get_observation_bounds()` returns a per-feature `high` array while
+    #: Klondike's is flat -- ten deals of random play already reach 1.933 here.
+    #: DECK_SIZE is a real limit and bounds both the deck feature and, since the
+    #: 52 cards are merely shuffled between deck, discard and hands (see the
+    #: recycle in `_finish_step`), every hand-size feature above. See issue #39.
+    HAND_SIZE_SCALE = 15.0
+    DECK_SIZE = 52
+
+    #: Where the opponent-hand-size block starts, in the layout
+    #: `get_observation_shape()` spells out: 52 hand + 52 top card + 4 suit
+    #: + 13 rank + 2 declaration + 1 penalty. The one part of the observation
+    #: not confined to [0, 1], and so the only index `get_observation_bounds()`
+    #: has to single out.
+    OPPONENT_HANDS_OFFSET = 52 + 52 + 4 + 13 + 2 + 1
+
     #: Terminal payoffs (shaped mode). The winner's reward arrives on the
     #: winning step; the losers' share is only visible through get_reward(),
     #: since a step() reward always belongs to the actor.
@@ -217,16 +237,19 @@ class Macao(CardGame):
         observation.append(1.0 if self.pending_declaration == "suit" else 0.0)
         observation.append(1.0 if self.pending_declaration == "rank" else 0.0)
 
-        # Draw penalty (normalized 0-15)
-        observation.append(min(self.draw_penalty / 15.0, 1.0))
+        # Draw penalty (normalized, and clamped -- a stacked penalty can run
+        # past the scale, and unlike the hand sizes below this one is capped
+        # here rather than declared wide in get_observation_bounds()).
+        observation.append(min(self.draw_penalty / self.HAND_SIZE_SCALE, 1.0))
 
-        # Opponent hand sizes (normalized)
+        # Opponent hand sizes (normalized, and NOT clamped: an unclamped count
+        # keeps telling the network apart a hand of 16 from one of 30)
         for i, player in enumerate(self.players):
             if i != self.current_player_idx:
-                observation.append(len(player.hand) / 15.0)
+                observation.append(len(player.hand) / self.HAND_SIZE_SCALE)
 
         # Cards in deck (normalized)
-        observation.append(len(self.deck) / 52.0)
+        observation.append(len(self.deck) / self.DECK_SIZE)
 
         return np.array(observation, dtype=np.float32)
 
@@ -235,6 +258,27 @@ class Macao(CardGame):
         # 52 (hand) + 52 (top card) + 4 (suit) + 13 (rank) + 2 (declaration
         # phase) + 1 (penalty) + (num_players-1) (opponent hands) + 1 (deck)
         return (52 + 52 + 4 + 13 + 2 + 1 + (self.num_players - 1) + 1,)
+
+    def get_observation_bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        """Every feature is [0, 1] except the opponent hand sizes.
+
+        Those divide by HAND_SIZE_SCALE, which is a typical hand rather than a
+        maximum, so they exceed 1.0 whenever an opponent is holding more than
+        15 cards -- routine after a stacked draw penalty. The honest high for
+        them is DECK_SIZE / HAND_SIZE_SCALE: play only ever moves the 52 cards
+        between the deck, the discard pile and the hands, so no hand can hold
+        more than DECK_SIZE of them.
+
+        A flat `high=1.0` would be wrong rather than merely loose -- it would
+        put real observations outside the space the env advertises. See #39.
+        """
+        shape = self.get_observation_shape()
+        low = np.zeros(shape, dtype=np.float32)
+        high = np.ones(shape, dtype=np.float32)
+        opponents = self.num_players - 1
+        start = self.OPPONENT_HANDS_OFFSET
+        high[start:start + opponents] = self.DECK_SIZE / self.HAND_SIZE_SCALE
+        return low, high
 
     def get_action_space_size(self) -> int:
         """Get action space size."""

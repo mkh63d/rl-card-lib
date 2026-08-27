@@ -15,7 +15,7 @@ from rl_card_lib.cardgames import (
     is_next_lower,
     count_by_color,
 )
-from rl_card_lib.games import KlondikeSolitaire, Macao
+from rl_card_lib.games import KlondikeSolitaire, Macao, bundled_klondike
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import RandomAgent, DQNAgent
 
@@ -55,6 +55,9 @@ def demo_klondike():
     """Demonstrate Klondike Solitaire game."""
     print("\n=== Klondike Solitaire Demo ===\n")
 
+    # Plain Klondike, on purpose: this demo only renders a board and takes a
+    # few random moves, so unlimited passes are the ordinary rules to show.
+    # demo_training() below trains, and therefore takes bundled_klondike().
     game = KlondikeSolitaire()
     obs = game.reset()
 
@@ -101,8 +104,10 @@ def demo_training():
     """Demonstrate quick training setup."""
     print("\n=== Training Demo ===\n")
 
-    # Create environment
-    game = KlondikeSolitaire()
+    # Create environment. bundled_klondike() rather than KlondikeSolitaire():
+    # something is about to learn on this env, and the bare constructor plays
+    # unlimited passes, under which a deal can never be lost (issue #38).
+    game = bundled_klondike()
     env = CardGameEnv(game, max_steps=100)
 
     # Create agents

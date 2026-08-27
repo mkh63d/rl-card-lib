@@ -68,6 +68,7 @@ or `None`.
 | `copy()` | deep copy of the game | large state or an RNG whose stream you must reproduce exactly (the bundled games override for speed) |
 | `determinize()` | `self.copy()` | your game has **hidden** information a search agent should re-sample rather than read |
 | `get_reward(player_idx)` | `0.0` | **multiplayer** — MCTS needs each non-actor's terminal payoff, or losses are invisible to the search |
+| `get_observation_bounds()` | `(-inf, +inf)` | your encoding is **bounded** — a normalised one is. `CardGameEnv` turns it into the env's `Box`, so real limits are what let a consumer clip or renormalise without guessing (and stop `check_env` warning). Derive them from the constants `get_observation()` divides by |
 | `render()`, `action_to_string()`, `get_legal_action_mask()` | generic | cosmetic |
 
 Because `copy()` deep-copies by default, the search agents work on your game
@@ -249,6 +250,7 @@ transposition table is usually enough.
 - [ ] Multiplayer? Override `get_reward(player_idx)` with actor-relative
       terminal payoffs.
 - [ ] Hidden information? Override `determinize()`.
+- [ ] Normalised (so bounded) observation? Override `get_observation_bounds()`.
 - [ ] `register_sweep_game(...)` (or `register_game(...)` for report-only),
       declaring `headline_key`, `headline_max` and `higher_is_better`.
 - [ ] Optionally supply a `HeuristicAgent` subclass and a `heuristic_factory`.

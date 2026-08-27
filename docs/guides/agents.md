@@ -119,11 +119,11 @@ learners, by contrast, only read `get_observation_shape()` and
 ## Example
 
 ```python
-from rl_card_lib.games import KlondikeSolitaire
+from rl_card_lib.games import bundled_klondike
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import MCTSAgent, DoubleDQNAgent
 
-env = CardGameEnv(KlondikeSolitaire(), max_steps=200)
+env = CardGameEnv(bundled_klondike(), max_steps=200)
 
 # A learner: needs only the shapes.
 learner = DoubleDQNAgent(

@@ -6,6 +6,7 @@ player-0-centric terminal reward, the unlearnable Ace/Jack declarations, the
 global RNG reseeding, and the search bugs those exposed in MCTSAgent.
 """
 
+import inspect
 import random
 
 import numpy as np
@@ -14,8 +15,11 @@ import pytest
 from rl_card_lib.agents import MCTSAgent, RandomAgent
 from rl_card_lib.cardgames import Card, Rank, Suit
 from rl_card_lib.env import CardGameEnv
-from rl_card_lib.games import KlondikeSolitaire, Macao
+from rl_card_lib.games import KlondikeSolitaire, Macao, bundled_klondike
+from rl_card_lib.games.gym_registration import make_klondike, make_klondike_masked
 from rl_card_lib.games.registration import KLONDIKE_REPEAT_PENALTY
+from rl_card_lib.harness.baselines import run_klondike_baselines
+from rl_card_lib.harness.evaluation import evaluate_klondike
 from rl_card_lib.harness.registry import sweep_game
 
 
@@ -203,6 +207,52 @@ class TestBundledKlondikeCanActuallyLose:
         """
         assert KlondikeSolitaire().max_passes is None
         assert KlondikeSolitaire.BUNDLED_MAX_PASSES == 3
+
+    def test_the_factory_gives_the_bundled_rules(self):
+        """`bundled_klondike()` is the named way to get the finite game.
+
+        The bare constructor stays permissive (the test above), so the project's
+        own rules need a name of their own -- otherwise every entry point
+        repeats `max_passes=BUNDLED_MAX_PASSES` and one of them eventually
+        forgets to (issue #38).
+        """
+        assert bundled_klondike().max_passes == KlondikeSolitaire.BUNDLED_MAX_PASSES
+
+    def test_the_factory_still_forwards_an_explicit_unlimited(self):
+        """Asking for the unlimited game on purpose has to keep working.
+
+        The factory only changes the *default*; a caller who writes
+        `max_passes=None` has said what they want and gets it.
+        """
+        assert bundled_klondike(max_passes=None).max_passes is None
+
+    def test_no_bundled_entry_point_plays_unlimited_passes(self):
+        """The guard the five wrong evaluation paths needed (issue #38).
+
+        `max_passes` defines what the environment *is*, so a bundled path that
+        silently takes the class default has scored an agent on a game it never
+        played. Measured on the same 200 held-out deals the gap is around three
+        cards for the heuristic and six for MCTS(20) -- enough for an agent to
+        look like it cleared random when it did not.
+
+        Env-building entry points are checked on the game they construct; the
+        two that build their game inside their own loop are checked on the
+        signature default, which is the thing that regressed.
+        """
+        built = {
+            "sweep env_factory": sweep_game("klondike").env_factory().game,
+            "sweep eval_env_factory": sweep_game("klondike").eval_env_factory().game,
+            "Klondike-v0": make_klondike().game,
+            "KlondikeMasked-v0": make_klondike_masked().game,
+        }
+        for name, game in built.items():
+            assert game.max_passes is not None, f"{name} plays unlimited passes"
+
+        for fn in (evaluate_klondike, run_klondike_baselines):
+            default = inspect.signature(fn).parameters["max_passes"].default
+            assert default is not None, (
+                f"{fn.__name__} defaults to the unlimited game"
+            )
 
     def test_a_real_deal_really_does_die(self):
         """End to end: play the bundled rules until something actually loses.

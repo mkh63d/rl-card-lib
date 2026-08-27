@@ -6,6 +6,8 @@ report through the [public game API](../custom_game.md).
 
 ::: rl_card_lib.games.klondike.KlondikeSolitaire
 
+::: rl_card_lib.games.klondike.bundled_klondike
+
 ::: rl_card_lib.games.macao.Macao
 
 ::: rl_card_lib.games.klondike_solver.solve_klondike
