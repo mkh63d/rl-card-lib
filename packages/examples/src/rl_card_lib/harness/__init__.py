@@ -30,6 +30,7 @@ from rl_card_lib.harness.evaluation import (
     evaluate_macao_suite,
 )
 from rl_card_lib.harness.learners import (
+    DEFAULT_DUELING,
     DEFAULT_TARGET_UPDATE_FREQ,
     LEARNERS,
     SWEEP_Q_TABLE_LIMIT,
@@ -55,6 +56,7 @@ from rl_card_lib.harness.solve_benchmark import (
 )
 
 __all__ = [
+    "DEFAULT_DUELING",
     "DEFAULT_TARGET_UPDATE_FREQ",
     "LEARNERS",
     "SWEEP_Q_TABLE_LIMIT",

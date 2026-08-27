@@ -50,6 +50,18 @@ DEFAULT_TARGET_UPDATE_FREQ = 500
 # per step the evicted rows were never going to be looked up again (#41).
 SWEEP_Q_TABLE_LIMIT = 200_000
 
+# Whether Double DQN builds the dueling head. `DuelingQNetwork` computes
+# `Q = V + (A - mean A)`, so the part that depends on the action is a centred
+# advantage: when V grows large the legal actions are squeezed together by
+# construction. That is measured -- over the 200 TEST deals the legal-action Q
+# spread is 5.4% of mean Q on Klondike against plain DQN's 57.0%, while on
+# Macao, where episodes are short and V stays modest, the two sit together at
+# ~20% (thesis_notes/raw/q_spread_probe.json, diagnosis.md D2). True is what
+# every run in thesis_notes/raw/runs/ was trained with, so it stays the default
+# until a sweep says otherwise; #42 measures the alternative rather than
+# guessing at it, and thesis_notes/scripts/ablate_dueling.py passes False here.
+DEFAULT_DUELING = True
+
 
 def build_learner(
     kind: str,
@@ -59,6 +71,7 @@ def build_learner(
     *,
     target_update_freq: Optional[int] = None,
     q_table_limit: Optional[int] = None,
+    dueling: Optional[bool] = None,
 ) -> Agent:
     """
     Construct one learning agent by name.
@@ -76,11 +89,19 @@ def build_learner(
             SWEEP_Q_TABLE_LIMIT or 0 for the unbounded textbook table. Only
             q-learning has a table; the others accept and ignore it, the
             same way they do target_update_freq.
+        dueling: Whether Double DQN builds the dueling head, or None for
+            DEFAULT_DUELING. Only double_dqn has the switch -- the others have
+            no value/advantage split and ignore it, the same way they do
+            target_update_freq. Exists so the #42 ablation can build the same
+            agent with a plain head instead of keeping a second copy of these
+            hyper-parameters beside it.
 
     Returns:
         The constructed agent
     """
     freq = target_update_freq or DEFAULT_TARGET_UPDATE_FREQ
+    # `is None` rather than `or`: False is a value a caller means.
+    duel = DEFAULT_DUELING if dueling is None else dueling
     if kind == "q_learning":
         # None asks for the sweep's declared bound; 0 asks for no bound.
         limit = SWEEP_Q_TABLE_LIMIT if q_table_limit is None else q_table_limit
@@ -108,7 +129,7 @@ def build_learner(
             hidden_sizes=[256, 128], learning_rate=5e-4, gamma=0.95,
             epsilon_start=1.0, epsilon_end=0.05, epsilon_decay=0.995,
             buffer_size=50_000, batch_size=64, target_update_freq=freq,
-            dueling=True, device="cpu", seed=seed,
+            dueling=duel, device="cpu", seed=seed,
         )
     if kind == "ppo":
         return PPOAgent(

@@ -6,6 +6,7 @@ from rl_card_lib.agents import RandomAgent
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.games import KlondikeSolitaire, Macao
 from rl_card_lib.harness import (
+    DEFAULT_DUELING,
     DEFAULT_TARGET_UPDATE_FREQ,
     LEARNERS,
     SWEEP_Q_TABLE_LIMIT,
@@ -156,6 +157,77 @@ class TestQTableLimit:
         """The sweep passes one value for every learner, as with the cadence."""
         agent = build_learner(kind, 221, 68, seed=0, q_table_limit=1234)
         assert not hasattr(agent, "max_table_size")
+
+
+class TestDuelingHead:
+    """Double DQN's dueling head is a declared default, not a hardcoded one.
+
+    `DuelingQNetwork` computes Q = V + (A - mean A), so the part that depends
+    on the action is a centred advantage and a large V squeezes the legal
+    actions together. Over the 200 TEST deals that is 5.4% of mean Q for Double
+    DQN against plain DQN's 57.0% on Klondike, while on Macao the two sit
+    together at ~20% (thesis_notes/raw/q_spread_probe.json). #42 asks whether
+    the head costs anything, which it cannot answer unless the flag reaches the
+    agent and nothing else moves with it.
+    """
+
+    def test_the_sweep_declares_the_dueling_head(self):
+        agent = build_learner("double_dqn", 221, 68, seed=0)
+        assert agent.dueling is DEFAULT_DUELING is True
+
+    def test_disabling_it_reaches_the_agent(self):
+        agent = build_learner("double_dqn", 221, 68, seed=0, dueling=False)
+        assert agent.dueling is False
+
+    def test_none_means_the_declared_default(self):
+        """None is 'the kind's own default', the way q_table_limit's None is."""
+        agent = build_learner("double_dqn", 221, 68, seed=0, dueling=None)
+        assert agent.dueling is DEFAULT_DUELING
+
+    def test_the_flag_swaps_the_network(self):
+        from rl_card_lib.agents import DuelingQNetwork
+        assert isinstance(
+            build_learner("double_dqn", 221, 68, seed=0).q_network,
+            DuelingQNetwork,
+        )
+        assert not isinstance(
+            build_learner("double_dqn", 221, 68, seed=0, dueling=False).q_network,
+            DuelingQNetwork,
+        )
+
+    @pytest.mark.parametrize("kind", ("q_learning", "dqn", "ppo"))
+    def test_agents_without_the_head_ignore_it(self, kind):
+        """The sweep passes one value for every learner, as with the cadence."""
+        agent = build_learner(kind, 221, 68, seed=0, dueling=False)
+        assert not hasattr(agent, "dueling")
+
+    def test_nothing_but_the_head_changes(self):
+        """What makes #42's ablation a single-factor one, so it is asserted.
+
+        If the flag moved a hyper-parameter too, a score difference between the
+        two arms would no longer be attributable to the architecture.
+        """
+        duel = build_learner("double_dqn", 221, 68, seed=0)
+        plain = build_learner("double_dqn", 221, 68, seed=0, dueling=False)
+        for attribute in ("gamma", "batch_size", "buffer_size", "epsilon",
+                          "epsilon_start", "epsilon_end", "epsilon_decay",
+                          "target_update_freq", "hidden_sizes", "state_size",
+                          "action_size"):
+            assert getattr(duel, attribute) == getattr(plain, attribute), attribute
+        assert type(duel) is type(plain)
+
+    def test_a_plain_head_cannot_load_a_dueling_checkpoint(self, tmp_path):
+        """Why the ablation's runs need a filename of their own.
+
+        The two heads have different parameter counts, so a checkpoint written
+        under one architecture is not loadable under the other -- and the
+        thesis sweep names checkpoints after the agent, not the network.
+        """
+        path = str(tmp_path / "dueling.pt")
+        build_learner("double_dqn", 221, 68, seed=0).save(path)
+        plain = build_learner("double_dqn", 221, 68, seed=0, dueling=False)
+        with pytest.raises(RuntimeError):
+            plain.load(path)
 
 
 class TestEvaluation:

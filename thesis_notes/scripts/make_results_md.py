@@ -209,6 +209,75 @@ def solve_time_block(baselines) -> str:
               "przebieg sieci jest tu tańszy niż narzut pomiaru.\n")
 
 
+def dueling_block() -> str:
+    """The #42 architecture ablation, which is deliberately not a fourth arm.
+
+    Returns "" when the JSON is absent, so this generator still runs on a
+    machine that has never spent the ~13 CPU-hours the ablation costs.
+    """
+    data = load_json("ablation_dueling.json")
+    if not data:
+        return ""
+
+    label = {"dueling": "Double DQN (głowica duelling, domyślna)",
+             "noduel": "Double DQN (płaska głowica Q, `dueling=False`)"}
+    metric = {"klondike": "karty na bazach",
+              "macao": "win rate vs heurystyka"}
+
+    parts = ["\n---\n\n"
+             "## Ablacja: czy głowica duelling na siebie zarabia? (#42)\n\n"
+             "To ablacja **architektury**, nie czwarte ramię. Ramię jest "
+             "dźwignią środowiska lub protokołu, trzymaną identycznie dla "
+             "każdego agenta; głowicę duelling ma tylko Double DQN. Poza nią "
+             "nie zmienia się nic — ta sama funkcja straty, ten sam "
+             "optymalizator, te same `hidden_sizes`, to samo ramię `fixed`, "
+             "ten sam strumień rozdań TRAIN dla danego seeda i ta sama pula "
+             "200 rozdań TEST.\n\n"
+             "> **Czego sparować się nie da:** wag początkowych. Płaska i "
+             "duellingowa głowica mają różne liczby parametrów, więc ten sam "
+             "seed losuje inną sieć. Stąd 3 seedy i podawane odchylenie — "
+             "przy n=3 nakładające się przedziały znaczą „brak wykrywalnej "
+             "różnicy”, a nie „tyle samo”.\n\n"]
+
+    for game in ("klondike", "macao"):
+        block = data.get(game) or {}
+        score, spread = block.get("score") or {}, block.get("q") or {}
+        if not score and not spread:
+            continue
+        rows = []
+        for key in ("dueling", "noduel"):
+            row, q_row = score.get(key) or {}, spread.get(key) or {}
+            deviation = row.get("test_after_sd")
+            rows.append([
+                label[key],
+                str(row.get("seeds", "—")),
+                ("—" if row.get("test_after_mean") is None
+                 else f"{row['test_after_mean']:.3f}"
+                 + (f" ± {deviation:.3f}" if deviation is not None else "")),
+                ("—" if q_row.get("mean_legal_Q") is None
+                 else f"{q_row['mean_legal_Q']:.3f}"),
+                ("—" if q_row.get("mean_legal_Q_spread") is None
+                 else f"{q_row['mean_legal_Q_spread']:.4f}"),
+                ("—" if q_row.get("spread_as_pct_of_mean_Q") is None
+                 else f"{q_row['spread_as_pct_of_mean_Q']:.1f} %"),
+            ])
+        parts.append(
+            f"### {game.capitalize()} — {metric[game]}\n\n"
+            + markdown_table(
+                ["wariant", "seedy", metric[game], "średnie Q (legalne)",
+                 "średni rozstęp Q", "rozstęp jako % średniej"], rows)
+            + "\n\n")
+
+    parts.append(
+        "Wynik pochodzi z rekordów przebiegów (`test_after`), a rozstęp Q — z "
+        "zachłannej powtórki checkpointów, tą samą ścieżką kodu dla obu "
+        "wariantów. Dane: [`raw/ablation_dueling.json`]"
+        "(raw/ablation_dueling.json); skrypt: "
+        "[`scripts/ablate_dueling.py`](scripts/ablate_dueling.py); omówienie: "
+        "[`diagnosis.md`](diagnosis.md) D2.\n")
+    return "".join(parts)
+
+
 def timing_table(runs) -> tuple[str, float]:
     rows = []
     total = 0.0
@@ -265,6 +334,7 @@ def main() -> int:
         if any(k[0] == game for k in runs) or (baselines or {}).get(game):
             parts.append(game_block(runs, baselines, game, heading, metric))
     parts.append(solve_time_block(baselines))
+    parts.append(dueling_block())
 
     table, total = timing_table(runs)
     if table:

@@ -14,7 +14,7 @@
 |---|---|---|---|---|
 | **D0** | Pojemność bufora **64** z Tabeli 6.1 **nie istnieje w kodzie** — kod ma 50 000 | błąd w tekście pracy, nie w kodzie | n/d — sprawdzone w kodzie i w historii git | n/d — poprawka dotyczy tekstu pracy |
 | **D1** | Truncation traktowany jak stan terminalny: bootstrap zerowany w **100 %** epizodów Klondike | **wysoka** | tak — osobne ramię `fixed` | **scalone w #24** |
-| **D2** | Jak mocno Q różnicuje legalne akcje: rozstęp 57,0 % średniej dla Klondike DQN, ale 5,4 % dla Double DQN (głowica duelling centruje przewagi) — obaj zapętlają się tak samo, więc **płaskość Q nie tłumaczy zapętlenia** | średnia (hipoteza odrzucona) | tak — pomiar | n/d — hipoteza, nie usterka |
+| **D2** | Jak mocno Q różnicuje legalne akcje: rozstęp 57,0 % średniej dla Klondike DQN, ale 5,4 % dla Double DQN (głowica duelling centruje przewagi) — obaj zapętlają się tak samo, więc **płaskość Q nie tłumaczy zapętlenia** | średnia (hipoteza odrzucona) | tak — pomiar, a od #42 także **ablacja jednego czynnika**: wyłączenie głowicy rozszerza rozstęp 5,4 % → 38,1 %, a wynik nie rośnie (6,44 → 6,10 karty) | `dueling` wystawione w `build_learner` (#42); **domyślna wartość `True` zostaje** — po pomiarze nie gorsza na Klondike, lepsza na Macao i stabilniejsza między seedami |
 | **D3** | Zachłanna polityka **zapętla się**: 73–78 % kroków wraca do pozycji już widzianej (losowa: 42 %), przy 10–14 różnych akcjach na epizod zamiast 33; na bazę trafia 2,2–2,6 % ruchów wobec 10,9 % u heurystyki | **wysoka — główna przyczyna**; ale włączenie kary **nie pomaga** (0,3–0,8 pp dla rodziny DQN) i **szkodzi PPO** (17,09 → 9,73 karty; solve rate 27,5 % → 0,4 %) | diagnoza tak; lekarstwo **obalone** — ramię `noloop` policzone w pełnym protokole (Klondike, 4 agenty × 3 seedy) | kara **scalona w #29**, po pomiarze **domyślna wartość cofnięta do 0,0 w #36** — domyślny Klondike znowu uczy się bez shapingu, mechanizm zostaje opcjonalny |
 | **D4** | Klondike nie ma sygnału terminalnego: `LOSS_REWARD` jest kodem nieosiągalnym przy `max_passes=None` | **wysoka** | częściowo — pomiar + ramię `fixed` | **scalone w #30** (`BUNDLED_MAX_PASSES = 3`) i #24 |
 | **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar | **scalone w #31** — kadencja per gra (klondike 500, macao 100) |
@@ -46,23 +46,31 @@ co oznaczałoby bufor równy jednemu batchowi, czyli brak dekorelacji próbek.
 miejsca, z którego budowane są wszystkie agenty w sweepie:
 
 ```python
-# packages/examples/src/rl_card_lib/harness/learners.py:49-64
+# packages/examples/src/rl_card_lib/harness/learners.py:118-133
 if kind == "dqn":
     return DQNAgent(
-        ..., buffer_size=50_000, batch_size=64, target_update_freq=500, ...
+        ..., buffer_size=50_000, batch_size=64, target_update_freq=freq, ...
     )
 if kind == "double_dqn":
     return DoubleDQNAgent(
-        ..., buffer_size=50_000, batch_size=64, target_update_freq=500,
-        dueling=True, ...
+        ..., buffer_size=50_000, batch_size=64, target_update_freq=freq,
+        dueling=duel, ...
     )
 ```
+
+> `target_update_freq=500` zastąpiło `freq` w PR #33 (kadencja per gra, D8),
+> a `dueling=True` zastąpiło `duel` w PR do #42 — obie wartości domyślne
+> mieszkają dziś w stałych `DEFAULT_TARGET_UPDATE_FREQ` i `DEFAULT_DUELING`
+> nad `build_learner`, a `buffer_size` i `batch_size` nadal są literałami.
+> `DEFAULT_DUELING` to wciąż `True`, czyli konfiguracja, w której wytrenowano
+> wszystkie 60 przebiegów w `raw/runs/`; ablacja z #42 mierzy alternatywę,
+> nie zmienia domyślnej wartości (D2).
 
 Potwierdzenia:
 
 | Źródło | `buffer_size` |
 |---|---|
-| `harness/learners.py:54` (DQN) i `:62` (Double DQN) — ścieżka sweepa | **50 000** |
+| `harness/learners.py:123` (DQN) i `:131` (Double DQN) — ścieżka sweepa | **50 000** |
 | domyślna wartość `DQNAgent.__init__` ([dqn_agent.py:206](../packages/core/src/rl_card_lib/agents/dqn_agent.py#L206)) | 100 000 |
 | `scripts/train_klondike.py:35` | 50 000 |
 | `scripts/train_macao.py:32` | 30 000 |
@@ -254,9 +262,55 @@ zachłanna: podczas treningu ε > 0 przerywa cykl losowym ruchem średnio co
 
 ### Poprawka i wynik
 
-Nie ma jednej linii do zmiany. Adresowane pośrednio przez ramiona `fixed`
-(D1) i `noloop` (D3); wynik mierzony tym samym rozstępem Q po treningu —
-patrz §Wyniki ablacji.
+**Jedna linia jednak była** — zapisane na sztywno `dueling=True` w gałęzi
+`double_dqn` funkcji `build_learner`. Dziś czyta ona `dueling=duel`
+([learners.py:132](../packages/examples/src/rl_card_lib/harness/learners.py#L132)),
+a sama wartość domyślna mieszka w stałej `DEFAULT_DUELING`
+([learners.py:63](../packages/examples/src/rl_card_lib/harness/learners.py#L63)),
+razem z liczbami z tej sekcji.
+Zgłoszone jako [#42](https://github.com/mkh63d/rl-card-lib/issues/42) i zmierzone
+ablacją: ten sam agent z płaską głowicą Q, ramię `fixed`, 3 seedy, obie gry, ten
+sam protokół ([`scripts/ablate_dueling.py`](scripts/ablate_dueling.py), dane w
+[`raw/ablation_dueling.json`](raw/ablation_dueling.json)).
+
+| Gra | Wariant | Wynik TEST | średnie Q | rozstęp Q | rozstęp jako % średniej |
+|---|---|---:|---:|---:|---:|
+| Klondike | duelling (domyślny) | **6,44 ± 0,08** karty | 1,076 | 0,058 | **5,4 %** |
+| Klondike | płaska głowica Q | 6,10 ± 0,32 karty | 0,960 | 0,297 | **38,1 %** |
+| Macao | duelling (domyślny) | **0,127 ± 0,006** win rate | 5,576 | 1,133 | 20,3 % |
+| Macao | płaska głowica Q | 0,080 ± 0,028 win rate | 5,496 | 1,138 | 20,7 % |
+
+**Mechanizm potwierdzony.** Wyłączenie głowicy rozszerza rozstęp Q na Klondike
+**siedmiokrotnie** (5,4 % → 38,1 %), a na Macao nie zmienia go wcale
+(20,3 % → 20,7 %). Dokładnie ta asymetria, którą przewiduje wyjaśnienie
+architektoniczne: centrowanie przewag ściska akcje tylko wtedy, gdy `V` jest
+duże, a na Macao `V` pozostaje umiarkowane. Kontrola odtworzona w tym samym
+przebiegu zgadza się co do cyfry z [`raw/policy_diagnostics.json`](raw/policy_diagnostics.json)
+(5,4333 % i 20,3333 %), więc różnica nie jest artefaktem sposobu pomiaru.
+
+**I to właśnie najmocniej domyka tezę tej sekcji.** Q różnicuje akcje siedem
+razy mocniej — i wynik **nie poprawia się**: 6,44 → 6,10 karty, czyli nieznacznie
+gorzej, w granicach szumu seedów. Hipoteza „Q jest zbyt płaskie, żeby wybrać
+dobry ruch” nie upada już tylko przez porównanie dwóch różnych agentów (DQN
+i Double DQN), ale przez zmianę **jednego czynnika w jednym agencie**: płaskość Q
+nie kosztuje ani jednej karty. Przyczyna zapętlenia pozostaje strukturalna, tak
+jak opisano wyżej.
+
+**Domyślna wartość zostaje `True`** — i jest to teraz decyzja poparta pomiarem,
+a nie tylko tym, że w takiej konfiguracji wytrenowano wszystkie 60 przebiegów
+w [`raw/runs/`](raw/runs/). Głowica duelling nie jest gorsza na Klondike, jest
+lepsza na Macao (0,127 wobec 0,080) i przede wszystkim **stabilniejsza między
+seedami**: odchylenie 0,08 wobec 0,32 karty na Klondike i 0,006 wobec 0,028 na
+Macao. Ta sama niestabilność widać w samym rozstępie Q — trzy seedy bez głowicy
+dały 33,3 %, 16,5 % i 64,5 %, podczas gdy z głowicą 5,8 %, 4,6 % i 5,9 %.
+
+> **Czego sparować się nie da:** wag początkowych. Obie głowice mają różne
+> liczby parametrów, więc ten sam seed losuje inną sieć. Sparowane są strumień
+> rozdań TRAIN, ramię, liczba epizodów, pula TEST i ścieżka ewaluacji — ale przy
+> n = 3 nakładające się przedziały znaczą „brak wykrywalnej różnicy”, a nie
+> „tyle samo”. Różnica na Klondike (−0,34 karty przy odchyleniu 0,32) jest
+> właśnie takim przypadkiem; różnica na Macao (−0,047 przy odchyleniu 0,028)
+> jest sugestywna, ale nie rozstrzygnięta przy trzech seedach.
 
 ---
 
@@ -925,6 +979,12 @@ liczba, nie nowa.
 > [`tables/ablation_fixes.csv`](tables/ablation_fixes.csv).
 > Protokół: pula TRAIN = seedy 0–9999, pula TEST = 200 rozdań 100000–100199,
 > ewaluacja zachłanna, 3 seedy inicjalizacji, średnia ± odchylenie standardowe.
+>
+> Tabela obejmuje wyłącznie **trzy ramiona protokołu**. Ablacja głowicy
+> duelling (#42) nie jest tu wierszem, bo nie jest ramieniem: ramię to dźwignia
+> środowiska/protokołu, trzymana identycznie dla każdego agenta, a duelling to
+> architektura jednego agenta. Jej wynik jest w [D2](#d2-jak-mocno-wyuczona-funkcja-q-różnicuje-legalne-akcje)
+> i w [`raw/ablation_dueling.json`](raw/ablation_dueling.json).
 
 <!-- ABLATION_TABLE -->
 

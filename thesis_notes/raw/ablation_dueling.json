@@ -1,0 +1,200 @@
+{
+  "schema": "thesis_notes/ablation/dueling/1",
+  "question": "Does Double DQN's dueling head cost score or Q differentiation? (issue #42)",
+  "protocol": {
+    "arm": "fixed",
+    "episodes": 5000,
+    "init_seeds": [
+      0,
+      1,
+      2
+    ],
+    "deals": 200,
+    "test_pool": [
+      100000,
+      100200
+    ],
+    "variants": {
+      "dueling": "the shipped default, Q = V + (A - mean A)",
+      "noduel": "the same agent with a plain Q-head (#42)"
+    },
+    "paired": "TRAIN deal stream, arm, episode count, TEST pool and evaluation code path; NOT the initial weights, whose parameter counts differ between the two heads",
+    "score_from": "the run records' test_after",
+    "q_from": "a greedy replay of the checkpoints; play_macao fixes the opponent at seed 0, so its win_rate is not the protocol's win_rate_vs_heuristic",
+    "control_runs": "raw/runs/{game}__double_dqn__{arm}__s{seed}.json",
+    "ablation_runs": "raw/ablation_dueling/runs/{game}__double_dqn_noduel__{arm}__s{seed}.json"
+  },
+  "klondike": {
+    "headline_key": "cards_up",
+    "score": {
+      "dueling": {
+        "seeds": 3,
+        "test_after_mean": 6.4383,
+        "test_after_sd": 0.0794,
+        "test_before_mean": 2.555,
+        "train_seconds_mean": 14923.4,
+        "per_seed": [
+          {
+            "init_seed": 0,
+            "test_after": 6.395
+          },
+          {
+            "init_seed": 1,
+            "test_after": 6.53
+          },
+          {
+            "init_seed": 2,
+            "test_after": 6.39
+          }
+        ]
+      },
+      "noduel": {
+        "seeds": 3,
+        "test_after_mean": 6.095,
+        "test_after_sd": 0.3204,
+        "test_before_mean": 3.3633,
+        "train_seconds_mean": 9602.1,
+        "per_seed": [
+          {
+            "init_seed": 0,
+            "test_after": 6.33
+          },
+          {
+            "init_seed": 1,
+            "test_after": 5.73
+          },
+          {
+            "init_seed": 2,
+            "test_after": 6.225
+          }
+        ]
+      }
+    },
+    "q": {
+      "dueling": {
+        "seeds": 3,
+        "repeated_position_frac": 0.7788,
+        "distinct_actions_per_episode": 13.9167,
+        "cards_up": 6.4383,
+        "win_rate": 0.0,
+        "mean_legal_Q": 1.0757,
+        "mean_legal_Q_spread": 0.0583,
+        "spread_as_pct_of_mean_Q": 5.4333,
+        "positions": 57696.3333,
+        "action_mix": {
+          "-> foundation": 0.022,
+          "draw/recycle": 0.17,
+          "tableau<->tableau": 0.776,
+          "waste->tableau": 0.031
+        }
+      },
+      "noduel": {
+        "seeds": 3,
+        "repeated_position_frac": 0.766,
+        "distinct_actions_per_episode": 11.8267,
+        "cards_up": 6.095,
+        "win_rate": 0.0,
+        "mean_legal_Q": 0.96,
+        "mean_legal_Q_spread": 0.2969,
+        "spread_as_pct_of_mean_Q": 38.1,
+        "positions": 54520.3333,
+        "action_mix": {
+          "-> foundation": 0.022,
+          "draw/recycle": 0.202,
+          "tableau<->tableau": 0.75,
+          "waste->tableau": 0.025
+        }
+      }
+    },
+    "delta": {
+      "test_after": -0.3433,
+      "mean_legal_Q": -0.1157,
+      "mean_legal_Q_spread": 0.2386,
+      "spread_as_pct_of_mean_Q": 32.6667
+    }
+  },
+  "macao": {
+    "headline_key": "win_rate_vs_heuristic",
+    "score": {
+      "dueling": {
+        "seeds": 3,
+        "test_after_mean": 0.1267,
+        "test_after_sd": 0.0058,
+        "test_before_mean": 0.0,
+        "train_seconds_mean": 842.7,
+        "per_seed": [
+          {
+            "init_seed": 0,
+            "test_after": 0.13
+          },
+          {
+            "init_seed": 1,
+            "test_after": 0.12
+          },
+          {
+            "init_seed": 2,
+            "test_after": 0.13
+          }
+        ]
+      },
+      "noduel": {
+        "seeds": 3,
+        "test_after_mean": 0.08,
+        "test_after_sd": 0.0278,
+        "test_before_mean": 0.0433,
+        "train_seconds_mean": 678.3,
+        "per_seed": [
+          {
+            "init_seed": 0,
+            "test_after": 0.11
+          },
+          {
+            "init_seed": 1,
+            "test_after": 0.055
+          },
+          {
+            "init_seed": 2,
+            "test_after": 0.075
+          }
+        ]
+      }
+    },
+    "q": {
+      "dueling": {
+        "seeds": 3,
+        "repeated_position_frac": 0.0,
+        "win_rate": 0.105,
+        "mean_legal_Q": 5.576,
+        "mean_legal_Q_spread": 1.1325,
+        "spread_as_pct_of_mean_Q": 20.3333,
+        "positions": 4632.3333
+      },
+      "noduel": {
+        "seeds": 3,
+        "repeated_position_frac": 0.0,
+        "win_rate": 0.08,
+        "mean_legal_Q": 5.496,
+        "mean_legal_Q_spread": 1.1376,
+        "spread_as_pct_of_mean_Q": 20.7,
+        "positions": 4579.0
+      }
+    },
+    "delta": {
+      "test_after": -0.0467,
+      "mean_legal_Q": -0.08,
+      "mean_legal_Q_spread": 0.0051,
+      "spread_as_pct_of_mean_Q": 0.3667
+    }
+  },
+  "cross_check": {
+    "klondike": {
+      "remeasured_here": 5.4333,
+      "policy_diagnostics": 5.4333
+    },
+    "macao": {
+      "remeasured_here": 20.3333,
+      "policy_diagnostics": 20.3333
+    }
+  },
+  "seconds": 10104.8
+}
