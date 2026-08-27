@@ -234,6 +234,52 @@
 
 ### Fixed
 
+- **The two scripts that print card glyphs no longer fail on a console whose
+  encoding is not UTF-8**
+  ([#43](https://github.com/mkh63d/rl-card-lib/issues/43)). `Suit.symbol`
+  returns the Unicode suits, so anything printing a `Card`, a `Deck`,
+  `game.render()` or `action_to_string()` puts U+2660..U+2666 on stdout. When
+  that stream is not UTF-8 -- cp1250 is the default on a Polish Windows, both
+  for a redirected stream and for `PYTHONIOENCODING=cp1250` -- `print` raises
+  `UnicodeEncodeError: 'charmap' codec can't encode character '\u2666'` and the
+  script exits 1.
+
+  `thesis_notes/scripts/figures_concept.py` is the script the report names, and
+  the symptom is worse there than "exits non-zero on work that succeeded": the
+  position summary is printed *before* `fig_agent_env_loop()`, so the run
+  aborted having written **none** of the eight figures. The reproduce sequence
+  in `thesis_notes/README.md` therefore lost step 6 outright, rather than
+  merely returning a misleading exit code.
+
+  `packages/examples/scripts/quick_demo.py` had the same trap and is the more
+  exposed of the two: it is the first command in `README.md`,
+  `docs/getting-started/installation.md` and
+  `docs/getting-started/quickstart.md`, and it died on the very first line it
+  tried to print -- `Ace of Spades: [A♠]`, which never reached the terminal
+  at all, since `print` encodes the whole string before writing any of it. A new
+  reader's first contact with the library was a traceback.
+
+  Both now call `sys.stdout.reconfigure(encoding="utf-8", errors="replace")`
+  at the top of `main()`. Three details are deliberate. It sits in `main()`
+  rather than at module scope because reconfiguring the process's stdout is an
+  entry-point action and these scripts import one another
+  (`figure_action_rule.py` imports from `make_report`). It is guarded by
+  `hasattr(sys.stdout, "reconfigure")` because `io.StringIO` -- what
+  `contextlib.redirect_stdout` and pytest's capture install -- has no such
+  method, so an unguarded call would trade this crash for a different one.
+  And `errors="replace"` is the floor, not the mechanism: it never fires on a
+  UTF-8 stream, where the glyphs still print as glyphs.
+
+  Swept both script trees for the same trap; these are the only two scripts
+  that reach stdout with a glyph. `probe_gymnasium.py` captures its subject's
+  output into a `utf-8` JSON file, `make_report.py`'s `markdown_table` feeds a
+  `utf-8` file, and no `print()` in either tree holds a non-ASCII literal --
+  the only non-ASCII on stdout is runtime card data.
+
+  No library code changes, no test changes, and no recorded number moves. The
+  fix touches only how the two entry points configure their own stdout; no
+  figure and no file under `thesis_notes/raw/` is regenerated here.
+
 - **`make_report.py` no longer averages an architecture ablation into the arm
   it is meant to be compared against.** `load_runs()` globs `raw/runs/*.json`
   and keys each record by its own `game`/`agent`/`arm` fields, so a
