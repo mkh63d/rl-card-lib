@@ -4,6 +4,33 @@
 
 ### Added
 
+- **`bundled_klondike()` — one name for the Klondike the library actually plays**
+  ([#38](https://github.com/mkh63d/rl-card-lib/issues/38)). Since #18 every
+  bundled entry point plays `BUNDLED_MAX_PASSES = 3`, while the class default
+  stays unlimited. Keeping the class permissive is right — a library user asking
+  for `KlondikeSolitaire()` should get ordinary Klondike — but it is also the
+  *obvious* way to write it, it silently yields different rules than the bundled
+  game, and nothing warned. Five separate evaluation paths took it by accident
+  and scored agents on a game they were never trained on. The effect is not
+  small: on the same 200 held-out deals, random reads 9.79 cards under the
+  bundled rules against 11.59 unlimited, the heuristic 25.84 against 28.74, and
+  MCTS(20) 20.34 against 26.80 — enough for an agent to look like it cleared
+  random when it did not, or the reverse. The solvable-deal pool shrank from 102
+  deals to 91 once curated under the real rules, because the solver's
+  transposition key includes the pass count whenever the limit is finite.
+  `rl_card_lib.games.bundled_klondike()` is now the documented way to get that
+  game, and the one constructor every bundled path builds through: the sweep's
+  training and evaluation envs, `evaluate_klondike`, `run_klondike_baselines`,
+  the Gymnasium `Klondike-v0` / `KlondikeMasked-v0` ids and the solvable-pool
+  solver. Its signature mirrors `KlondikeSolitaire.__init__` with exactly one
+  default changed, so `bundled_klondike(max_passes=None)` still asks for the
+  unlimited game on purpose. A new test walks those entry points and fails if
+  any of them ever takes the class default again.
+
+  **No behaviour changes and no recorded number moves**: every bundled path
+  already passed the finite value, four times over, each at its own call site.
+  This gives that agreement a name instead of a convention.
+
 - **The bundled games are registered as Gymnasium ids.** `import rl_card_lib.games`
   now registers `rl_card_lib/Klondike-v0`, `rl_card_lib/Macao-v0` and the
   action-masked `rl_card_lib/KlondikeMasked-v0` / `rl_card_lib/MacaoMasked-v0`,

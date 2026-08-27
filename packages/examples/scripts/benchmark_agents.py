@@ -27,8 +27,8 @@ from rl_card_lib.agents import (
 )
 from rl_card_lib.games import (
     KlondikeHeuristicAgent,
-    KlondikeSolitaire,
     Macao,
+    bundled_klondike,
 )
 from rl_card_lib.harness import (
     klondike_baseline_agents,
@@ -53,7 +53,7 @@ def benchmark_klondike(episodes: int, max_steps: int = 300) -> list[dict]:
     Returns:
         One result row per agent
     """
-    probe = KlondikeSolitaire()
+    probe = bundled_klondike()
     state_size = probe.get_observation_shape()[0]
     action_size = probe.get_action_space_size()
 

@@ -11,11 +11,11 @@ trainer, so you rarely call `bind()` yourself.
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.trainer import Trainer
 from rl_card_lib.agents import DoubleDQNAgent
-from rl_card_lib.games import KlondikeSolitaire
+from rl_card_lib.games import bundled_klondike
 
 from rl_card_lib.harness import TRAIN_SEEDS
 
-env = CardGameEnv(KlondikeSolitaire(), max_steps=200, deal_seeds=TRAIN_SEEDS)
+env = CardGameEnv(bundled_klondike(), max_steps=200, deal_seeds=TRAIN_SEEDS)
 agent = DoubleDQNAgent(
     state_size=env.observation_space.shape[0],
     action_size=env.action_space.n,
@@ -49,7 +49,7 @@ holds raises rather than quietly re-dealing.
 Pass `eval_env` to get the trainer's periodic evaluation onto held-out deals:
 
 ```python
-eval_env = CardGameEnv(KlondikeSolitaire(), max_steps=200,
+eval_env = CardGameEnv(bundled_klondike(), max_steps=200,
                        deal_seeds=TEST_SEEDS, deal_order="cycle")
 trainer = Trainer(env, agent, eval_env=eval_env)
 ```
