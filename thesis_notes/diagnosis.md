@@ -20,7 +20,7 @@
 | **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar | **scalone w #31** — kadencja per gra (klondike 500, macao 100) |
 | **D6** | Harmonogram ε schodzi do 0,05 po **599 epizodach** — 88 % treningu jest prawie zachłanne | średnia | pomiar analityczny | bez zmian — świadomy wybór harmonogramu |
 | **D7** | Ewaluacja **zużywa** harmonogram ε (`agent.reset()` obniża ε) | niska, ale psuje reprodukowalność | pomiar | **scalone w #28** |
-| **D8** | Tablica Q-learningu rośnie o **0,84 wpisu na krok** — czysta memoryzacja | wysoka dla Q-learningu | pomiar | **PR-PLACEHOLDER** (zgłoszenie #41) — opcjonalny limit tablicy (LRU) i pomiar `new_entries_per_step`; sama memoryzacja to nadal właściwość metody |
+| **D8** | Tablica Q-learningu rośnie o **0,84 wpisu na krok** — czysta memoryzacja | wysoka dla Q-learningu | pomiar | **scalone w [#49](https://github.com/mkh63d/rl-card-lib/pull/49)** (zgłoszenie #41) — opcjonalny limit tablicy (LRU) i pomiar `new_entries_per_step`; sama memoryzacja to nadal właściwość metody |
 | **D9** | γ = 0,95 przy epizodzie 300-krokowym: horyzont efektywny ~20 kroków | średnia | analiza | bez zmian — świadomy wybór γ |
 | **D10** | Epizod z samych nielegalnych akcji nigdy się nie kończył (dziś: truncation po `max_steps`) | poza zakresem wyników, ważne dla §Gymnasium | pomiar | **scalone w #25** |
 | **D11** | **Zachłanna ewaluacja niszczy wyuczoną politykę.** Te same wagi PPO, bundlowane reguły: `argmax` → 7,8 karty i 0,3 % wygranych; próbkowanie własnego rozkładu → **17,1 karty i 16,8 % wygranych** przy baselinie losowym 9,8. Na regułach sprzed #30 ta sama różnica to 7,1 → **22,0** karty i 0,2 → **27,8 %** | **najwyższa — zmienia główny wniosek rozdz. 6** | tak — pomiar na tych samych 200 rozdaniach TEST | **scalone w #33** (zgłoszenie #21) |
@@ -709,7 +709,7 @@ tabularny **jest** polityką losową, więc jego wynik to oszacowanie polityki
 losowej z szumem n = 30, a nie efekt uczenia.
 
 Zmienił się natomiast **koszt pamięciowy i widoczność zjawiska**
-(PR-PLACEHOLDER, zgłoszenie [#41](https://github.com/mkh63d/rl-card-lib/issues/41)):
+(PR [#49](https://github.com/mkh63d/rl-card-lib/pull/49), zgłoszenie [#41](https://github.com/mkh63d/rl-card-lib/issues/41)):
 
 - `QLearningAgent` przyjmuje `max_table_size` — tablica z eksmisją LRU i
   jednorazowym ostrzeżeniem przy pierwszej eksmisji. Sweep deklaruje
