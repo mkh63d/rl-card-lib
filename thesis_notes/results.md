@@ -170,6 +170,30 @@ Rysunki: [`figures/test_comparison_macao_asis.png`](figures/test_comparison_maca
 
 ---
 
+## Ablacja: czy głowica duelling na siebie zarabia? (#42)
+
+To ablacja **architektury**, nie czwarte ramię. Ramię jest dźwignią środowiska lub protokołu, trzymaną identycznie dla każdego agenta; głowicę duelling ma tylko Double DQN. Poza nią nie zmienia się nic — ta sama funkcja straty, ten sam optymalizator, te same `hidden_sizes`, to samo ramię `fixed`, ten sam strumień rozdań TRAIN dla danego seeda i ta sama pula 200 rozdań TEST.
+
+> **Czego sparować się nie da:** wag początkowych. Płaska i duellingowa głowica mają różne liczby parametrów, więc ten sam seed losuje inną sieć. Stąd 3 seedy i podawane odchylenie — przy n=3 nakładające się przedziały znaczą „brak wykrywalnej różnicy”, a nie „tyle samo”.
+
+### Klondike — karty na bazach
+
+| wariant | seedy | karty na bazach | średnie Q (legalne) | średni rozstęp Q | rozstęp jako % średniej |
+|---|---|---|---|---|---|
+| Double DQN (głowica duelling, domyślna) | 3 | 6.438 ± 0.079 | 1.076 | 0.0583 | 5.4 % |
+| Double DQN (płaska głowica Q, `dueling=False`) | 3 | 6.095 ± 0.320 | 0.960 | 0.2969 | 38.1 % |
+
+### Macao — win rate vs heurystyka
+
+| wariant | seedy | win rate vs heurystyka | średnie Q (legalne) | średni rozstęp Q | rozstęp jako % średniej |
+|---|---|---|---|---|---|
+| Double DQN (głowica duelling, domyślna) | 3 | 0.127 ± 0.006 | 5.576 | 1.1325 | 20.3 % |
+| Double DQN (płaska głowica Q, `dueling=False`) | 3 | 0.080 ± 0.028 | 5.496 | 1.1376 | 20.7 % |
+
+Wynik pochodzi z rekordów przebiegów (`test_after`), a rozstęp Q — z zachłannej powtórki checkpointów, tą samą ścieżką kodu dla obu wariantów. Dane: [`raw/ablation_dueling.json`](raw/ablation_dueling.json); skrypt: [`scripts/ablate_dueling.py`](scripts/ablate_dueling.py); omówienie: [`diagnosis.md`](diagnosis.md) D2.
+
+---
+
 ## Czasy
 
 | gra | agent | ramię | seedy | trening [s/seed] | trening [min/seed] | ewaluacja [s/seed] |

@@ -32,8 +32,23 @@
   run's filenames -- the two heads hold different parameter counts, so without
   the tag the ablation would overwrite `klondike__double_dqn__fixed__s0.pt` and
   then fail to load it back. The control is never retrained; it is the runs
-  already on disk. Result and verdict: `thesis_notes/diagnosis.md` D2 and
-  `thesis_notes/raw/ablation_dueling.json`.
+  already on disk.
+
+  **The measurement, over 3 seeds and both games:** turning the head off widens
+  Klondike's Q spread sevenfold, 5.4% to **38.1%** of mean Q, and leaves Macao
+  untouched at ~20% -- the asymmetry the centred-advantage explanation predicts,
+  since the squeeze only bites when V is large. The score does not follow:
+  **6.44 ± 0.08 cards with the head against 6.10 ± 0.32 without**, slightly
+  worse and inside seed noise. So the flat Q was costing nothing, which settles
+  D2's standing question by changing one factor in one agent rather than by
+  comparing two different ones.
+
+  `DEFAULT_DUELING` therefore stays `True` on the measurement rather than on the
+  procedural argument: no worse on Klondike, better on Macao (0.127 ± 0.006
+  against 0.080 ± 0.028), and markedly steadier across seeds -- the three
+  no-dueling seeds spread their Q by 33.3%, 16.5% and 64.5% where the dueling
+  ones sat at 5.8%, 4.6% and 5.9%. Full result:
+  `thesis_notes/diagnosis.md` D2 and `thesis_notes/raw/ablation_dueling.json`.
 
   Not changed: `load_trained_learner` still rebuilds through `build_learner`
   with no `dueling` argument, so it keeps producing dueling agents and cannot
