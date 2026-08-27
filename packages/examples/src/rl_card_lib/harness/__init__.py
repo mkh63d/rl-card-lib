@@ -32,6 +32,7 @@ from rl_card_lib.harness.evaluation import (
 from rl_card_lib.harness.learners import (
     DEFAULT_TARGET_UPDATE_FREQ,
     LEARNERS,
+    SWEEP_Q_TABLE_LIMIT,
     agent_class_name,
     build_learner,
     checkpoint_suffix,
@@ -56,6 +57,7 @@ from rl_card_lib.harness.solve_benchmark import (
 __all__ = [
     "DEFAULT_TARGET_UPDATE_FREQ",
     "LEARNERS",
+    "SWEEP_Q_TABLE_LIMIT",
     "SweepGame",
     "TEST_SEEDS",
     "TEST_SEED_END",

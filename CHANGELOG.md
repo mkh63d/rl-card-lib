@@ -4,6 +4,45 @@
 
 ### Added
 
+- **The Q-table can be bounded, and its memorisation is now a recorded number**
+  ([#41](https://github.com/mkh63d/rl-card-lib/issues/41)). `QLearningAgent`
+  stored one entry per distinct rounded observation and never pruned. On
+  Klondike the observation is a 221-dim vector of which 208 are card-location
+  bits, so `precision=2` merges nothing: the table grew **0.836 entries per
+  step** — 1 253 141 entries after 1 499 936 steps — and each checkpoint weighed
+  **1.26–1.76 GB**, roughly 16 GB across a full sweep, with `pickle.dump`
+  copying the structure as it wrote. That was the constraint on how many tabular
+  runs could share a machine.
+
+  `max_table_size` caps it. Entries are evicted least-recently-used, the first
+  eviction warns once, and the cap must be at least 2 because a single `learn()`
+  call holds the row for `observation` while fetching `next_observation` — at a
+  cap of 1 the update would have gone to a detached array and vanished. The
+  agent also counts `new_entries` and exposes `new_entries_per_step`, recorded
+  per episode alongside `table_size` and drawn on the Q-table figure.
+
+  **That second number is the point.** A capped `table_size` curve flattens, and
+  a flat curve reads as an agent that has finished exploring. It has not:
+  `new_entries_per_step` keeps sitting near 1.0, saying that almost every state
+  it meets is still one it holds no value for — so every legal action ties at
+  `optimistic_init` and `select_action` picks uniformly. This is why the trained
+  agent scores 9.79 cards on Klondike at ε = 0, the random baseline to two
+  decimals, with a 41.2 % revisit fraction against random's 42.0 %. The cap
+  bounds the memory; it does not and cannot fix the learning, and the figure now
+  says so rather than leaving a reader to divide two series.
+
+  **No recorded number moves.** The class default is still `None`, the unbounded
+  textbook table — a library user asking for `QLearningAgent` gets ordinary
+  tabular Q-learning — and the uncapped path skips the LRU bookkeeping entirely,
+  running the instructions it always did. What declares a bound is the sweep:
+  `SWEEP_Q_TABLE_LIMIT = 200_000` in `harness/learners.py`, roughly 0.3 GB a
+  checkpoint at the ~1.4 KB an entry measured here, overridable with
+  `run_sweep.py --q-table-limit` (`0` restores the unbounded table). The same
+  split as [#38](https://github.com/mkh63d/rl-card-lib/issues/38): permissive
+  class, explicit bundled value, one name for it. A checkpoint records the cap
+  it was trained under and `load()` adopts it, so the existing uncapped `.pkl`
+  files load untrimmed even when rebuilt through the now-capped `build_learner`.
+
 - **`bundled_klondike()` — one name for the Klondike the library actually plays**
   ([#38](https://github.com/mkh63d/rl-card-lib/issues/38)). Since #18 every
   bundled entry point plays `BUNDLED_MAX_PASSES = 3`, while the class default

@@ -29,6 +29,7 @@ import traceback
 import rl_card_lib.games  # noqa: F401  (import side effect: registration)
 from rl_card_lib.harness import (
     LEARNERS,
+    SWEEP_Q_TABLE_LIMIT,
     agent_class_name,
     build_learner,
     library_reference_store,
@@ -67,6 +68,7 @@ def train_one(game: str, kind: str, args, store: RunStore) -> RunRecord:
     agent = build_learner(
         kind, env.observation_space.shape[0], env.action_space.n, args.seed,
         target_update_freq=spec.target_update_freq,
+        q_table_limit=args.q_table_limit,
     )
 
     episodes = args.episodes_for(kind)
@@ -190,7 +192,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--episodes", type=int, default=200)
     parser.add_argument("--episodes-q-learning", type=int, default=None,
                         help="Override the episode count for Q-learning alone; "
-                             "its table grows without bound and can exhaust RAM")
+                             "a shorter run is the other way to bound its table")
+    parser.add_argument("--q-table-limit", type=int, default=None,
+                        help="Entries Q-learning may hold before it evicts the "
+                             "least recently used ones "
+                             f"(default {SWEEP_Q_TABLE_LIMIT:,}); "
+                             "0 for the unbounded textbook table")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--eval-episodes", type=int, default=30,
                         help="Deals per before/after evaluation")
@@ -267,11 +274,25 @@ def main(argv=None) -> int:
         games, agents = resolve(args)
 
         if args.episodes >= 2000 and "q_learning" in agents:
+            limit = (
+                SWEEP_Q_TABLE_LIMIT if args.q_table_limit is None
+                else args.q_table_limit
+            )
             print(
-                "Warning: Q-learning stores one entry per distinct observation "
-                f"and never prunes. At {args.episodes} episodes its table can "
-                "reach multiple GB and the pickle write copies it. Use "
-                "--episodes-q-learning to cap it if memory is tight.\n",
+                "Warning: Q-learning stores one entry per distinct observation, "
+                f"and at {args.episodes} episodes it will meet far more of them "
+                "than it can ever reuse. "
+                + (
+                    f"Its table is capped at {limit:,} entries (~"
+                    f"{limit * 1.4 / 1e6:.1f} GB per checkpoint), so it will "
+                    "evict; the run is bounded but it is not learning. Pass "
+                    "--q-table-limit 0 for the unbounded table.\n"
+                    if limit else
+                    "Its table is uncapped (--q-table-limit 0), so it can reach "
+                    "multiple GB and the pickle write copies it. Use "
+                    "--q-table-limit or --episodes-q-learning if memory is "
+                    "tight.\n"
+                ),
                 file=sys.stderr,
             )
 

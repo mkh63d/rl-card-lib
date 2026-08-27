@@ -1,5 +1,7 @@
 """Tests for the heuristic, search and advanced learning agents."""
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -504,6 +506,110 @@ class TestQLearningAgent:
         agent.select_action(np.array([0.124], dtype=np.float32), [0])
         assert agent.table_size == 1
 
+    def test_uncapped_agent_never_evicts(self):
+        """The default is the textbook table -- unbounded, and untouched by #41."""
+        agent = QLearningAgent(action_size=3, seed=0)
+        agent.eval()
+        for i in range(50):
+            agent.select_action(np.full(2, float(i), dtype=np.float32), [0, 1])
+
+        assert agent.table_size == 50
+        assert agent.evictions == 0
+
+    def test_rejects_a_cap_below_two(self):
+        """One learn() touches two rows, so a cap of 1 could not hold both."""
+        with pytest.raises(ValueError, match="at least 2"):
+            QLearningAgent(action_size=3, max_table_size=1)
+
+    def test_table_stops_growing_at_the_cap(self):
+        agent = QLearningAgent(action_size=3, max_table_size=10, seed=0)
+        agent.eval()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            for i in range(50):
+                agent.select_action(np.full(2, float(i), dtype=np.float32), [0, 1])
+
+        assert agent.table_size == 10
+        assert agent.evictions == 40
+
+    def test_eviction_is_least_recently_used(self):
+        """Re-touching a state must save it; the untouched one goes instead."""
+        agent = QLearningAgent(action_size=3, max_table_size=3, seed=0)
+        agent.eval()
+        observations = {i: np.full(2, float(i), dtype=np.float32) for i in range(4)}
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            for i in (0, 1, 2, 0, 3):  # 1 is the least recently used when 3 lands
+                agent.select_action(observations[i], [0])
+
+        present = {i: agent._key(observations[i]) in agent.q_table for i in range(4)}
+        assert present == {0: True, 1: False, 2: True, 3: True}
+
+    def test_learn_does_not_evict_the_row_it_is_updating(self):
+        """learn() holds a row while fetching a second one, which may evict.
+
+        At the minimum cap of 2 the update must still land: if eviction took
+        the row learn() is part-way through, the write would go to a detached
+        array and vanish silently.
+        """
+        agent = QLearningAgent(
+            action_size=3, learning_rate=1.0, gamma=1.0, max_table_size=2, seed=0,
+        )
+        observation = np.zeros(2, dtype=np.float32)
+        next_observation = np.ones(2, dtype=np.float32)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            for _ in range(3):
+                agent.learn(observation, 0, 1.0, next_observation, False,
+                            next_legal_actions=[0])
+
+        assert agent.get_q_values(observation)[0] == pytest.approx(1.0)
+
+    def test_first_eviction_warns_once(self):
+        """The cap has to fail loudly, but not once per evicted row."""
+        agent = QLearningAgent(action_size=3, max_table_size=2, seed=0)
+        agent.eval()
+
+        with pytest.warns(RuntimeWarning, match="entry cap"):
+            for i in range(3):
+                agent.select_action(np.full(2, float(i), dtype=np.float32), [0])
+
+        with warnings.catch_warnings(record=True) as later:
+            warnings.simplefilter("always")
+            for i in range(3, 20):
+                agent.select_action(np.full(2, float(i), dtype=np.float32), [0])
+        assert later == []
+
+    def test_new_entries_per_step_reports_memorisation(self):
+        """The rate is the finding: ~1.0 means it is memorising, not learning."""
+        agent = QLearningAgent(action_size=3, seed=0)
+        agent.eval()
+
+        for i in range(10):
+            agent.select_action(np.full(2, float(i), dtype=np.float32), [0])
+        assert agent.new_entries_per_step == pytest.approx(1.0)
+
+        # Ten more steps that revisit known states create nothing.
+        for i in range(10):
+            agent.select_action(np.full(2, float(i), dtype=np.float32), [0])
+        assert agent.new_entries_per_step == pytest.approx(0.5)
+
+    def test_new_entries_keeps_counting_past_the_cap(self):
+        """table_size flattens at the cap; the rate must not, or the plateau
+        would read as the agent having finished exploring."""
+        agent = QLearningAgent(action_size=3, max_table_size=5, seed=0)
+        agent.eval()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            for i in range(40):
+                agent.select_action(np.full(2, float(i), dtype=np.float32), [0])
+
+        assert agent.table_size == 5
+        assert agent.new_entries == 40
+        assert agent.new_entries_per_step == pytest.approx(1.0)
+
     def test_epsilon_decays_per_episode(self):
         agent = QLearningAgent(action_size=3, epsilon_start=1.0, epsilon_decay=0.9, seed=0)
         observation = np.ones(2, dtype=np.float32)
@@ -542,6 +648,46 @@ class TestQLearningAgent:
 
         with pytest.raises(ValueError, match="action_size"):
             QLearningAgent(action_size=9).load(path)
+
+    def test_save_load_roundtrip_preserves_the_cap(self, tmp_path):
+        agent = QLearningAgent(action_size=4, max_table_size=3, seed=0)
+        agent.eval()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            for i in range(10):
+                agent.select_action(np.full(2, float(i), dtype=np.float32), [0, 1])
+
+        path = str(tmp_path / "q.pkl")
+        agent.save(path)
+
+        restored = QLearningAgent(action_size=4)
+        restored.load(path)
+
+        assert restored.max_table_size == 3
+        assert restored.table_size == agent.table_size
+        assert restored.new_entries == agent.new_entries
+        assert restored.evictions == agent.evictions
+
+    def test_load_of_an_uncapped_checkpoint_stays_uncapped(self, tmp_path):
+        """The checkpoint records how the table was trained, so it wins.
+
+        Otherwise rebuilding an agent through the sweep's capped `build_learner`
+        would silently trim a table that was trained without a cap -- and every
+        checkpoint written before #41 was.
+        """
+        trained = QLearningAgent(action_size=4, seed=0)
+        trained.eval()
+        for i in range(10):
+            trained.select_action(np.full(2, float(i), dtype=np.float32), [0, 1])
+
+        path = str(tmp_path / "uncapped.pkl")
+        trained.save(path)
+
+        restored = QLearningAgent(action_size=4, max_table_size=3, seed=0)
+        restored.load(path)
+
+        assert restored.max_table_size is None
+        assert restored.table_size == 10, "an uncapped table was trimmed on load"
 
     def test_trains_on_a_real_game(self, klondike_env):
         agent = QLearningAgent(action_size=klondike_env.action_space.n, seed=0)

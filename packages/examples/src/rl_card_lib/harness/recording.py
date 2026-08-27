@@ -43,7 +43,10 @@ def make_episode_recorder(
     Returns:
         A callback for `Trainer.train(callback=...)` and the dict it fills.
     """
-    extras: dict = {"epsilon": [], "wall_clock": [], "table_size": []}
+    extras: dict = {
+        "epsilon": [], "wall_clock": [], "table_size": [],
+        "new_entries_per_step": [],
+    }
     game = getattr(env, "game", None)
     last = {"at": time.perf_counter()}
     # Absent on PPO, which explores by sampling its policy.
@@ -61,8 +64,13 @@ def make_episode_recorder(
         extras["epsilon"].append(played_at["epsilon"])
         played_at["epsilon"] = getattr(agent, "epsilon", None)
         # Present only on the tabular agent; this is the series that shows the
-        # table growing without bound.
+        # table growing without bound. Its companion is the share of steps that
+        # created an entry -- the one that keeps reading ~1.0 after a capped
+        # table has flattened, saying the eviction bought memory and not skill.
         extras["table_size"].append(getattr(agent, "table_size", None))
+        extras["new_entries_per_step"].append(
+            getattr(agent, "new_entries_per_step", None)
+        )
 
         if episode_extras is not None and game is not None:
             for key, value in episode_extras(game, agent).items():

@@ -40,6 +40,16 @@ _LEARNER_CLASSES: dict[str, type[Agent]] = {
 # via `register_sweep_game(target_update_freq=...)`.
 DEFAULT_TARGET_UPDATE_FREQ = 500
 
+# Entries the sweep lets the Q-table reach before it starts evicting. The
+# class itself is unbounded -- that is textbook Q-learning, and a library
+# user asking for QLearningAgent should get it -- but the sweep has to fit
+# nine tabular checkpoints on one disk and several training processes in one
+# machine's RAM. Klondike measured 1 253 141 entries, a 1.26-1.76 GB pickle;
+# at ~1.4 KB an entry this holds a checkpoint near 0.3 GB and the whole sweep
+# near 2.5 GB instead of ~16 GB. It costs no accuracy: at 0.84 new entries
+# per step the evicted rows were never going to be looked up again (#41).
+SWEEP_Q_TABLE_LIMIT = 200_000
+
 
 def build_learner(
     kind: str,
@@ -48,6 +58,7 @@ def build_learner(
     seed: int,
     *,
     target_update_freq: Optional[int] = None,
+    q_table_limit: Optional[int] = None,
 ) -> Agent:
     """
     Construct one learning agent by name.
@@ -61,12 +72,18 @@ def build_learner(
             or None for DEFAULT_TARGET_UPDATE_FREQ. Games declare their own
             through `register_sweep_game`; q-learning and PPO have no target
             network and ignore it, so a caller can pass it for every kind.
+        q_table_limit: Entries the Q-table may hold, None for
+            SWEEP_Q_TABLE_LIMIT or 0 for the unbounded textbook table. Only
+            q-learning has a table; the others accept and ignore it, the
+            same way they do target_update_freq.
 
     Returns:
         The constructed agent
     """
     freq = target_update_freq or DEFAULT_TARGET_UPDATE_FREQ
     if kind == "q_learning":
+        # None asks for the sweep's declared bound; 0 asks for no bound.
+        limit = SWEEP_Q_TABLE_LIMIT if q_table_limit is None else q_table_limit
         return QLearningAgent(
             action_size=action_size,
             learning_rate=0.1,
@@ -74,6 +91,7 @@ def build_learner(
             epsilon_start=1.0,
             epsilon_end=0.05,
             epsilon_decay=0.995,  # per episode: floor at ~600 episodes
+            max_table_size=limit or None,
             seed=seed,
         )
     if kind == "dqn":

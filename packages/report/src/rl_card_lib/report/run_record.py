@@ -79,6 +79,7 @@ EPISODE_SERIES = (
     "wall_clock",
     "cards_up",
     "table_size",
+    "new_entries_per_step",
 )
 
 AGENT_LABELS = {
@@ -163,7 +164,18 @@ METRICS: dict[str, dict[str, Any]] = {
     "epsilon": {"label": "Exploration rate", "kind": "rate",
                 "min": 0.0, "max": 1.0},
     "table_size": {"label": "Q-table entries", "kind": "count", "min": 0,
-                   "unit": "states", "note": "unbounded; grows with training"},
+                   "unit": "states",
+                   "note": "grows with training; bounded only if the agent "
+                           "was given a max_table_size"},
+    # A ratio, not a percentage, and it can sit just above 1.0: learn()
+    # instantiates the successor state's row as well as the current one.
+    "new_entries_per_step": {
+        "label": "New Q-table entries per step", "kind": "value",
+        "min": 0.0, "unit": "entries/step",
+        "note": "at or above ~1.0 every state met is one the agent has no "
+                "value for, so it is memorising rather than generalising "
+                "and its policy is at or near random",
+    },
     "reward": {"label": "Episode reward", "kind": "value",
                "note": "shaped; unbounded"},
     "mean_reward": {"label": "Mean reward", "kind": "value",
@@ -633,11 +645,12 @@ class RunRecord:
 
         # Store every series a recorder supplied, not a fixed set: a custom
         # game records its own progress signal (say, penalty_points) exactly
-        # the way the bundled games record cards_up. The four known extras keep
+        # the way the bundled games record cards_up. The known extras keep
         # their keys and their leading position for schema stability; anything
         # else is kept verbatim so register_game(episode_curves=[...]) has
         # data to draw.
-        known_extras = ("epsilon", "wall_clock", "cards_up", "table_size")
+        known_extras = ("epsilon", "wall_clock", "cards_up", "table_size",
+                        "new_entries_per_step")
         for name in (*known_extras, *(k for k in extras if k not in known_extras)):
             values = extras.get(name)
             # A series of all-None (PPO has no epsilon) is the same as absent.

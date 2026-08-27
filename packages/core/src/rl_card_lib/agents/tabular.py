@@ -2,6 +2,8 @@
 
 from typing import Optional
 import pickle
+import warnings
+
 import numpy as np
 
 from rl_card_lib.agents.base import Agent
@@ -23,6 +25,19 @@ class QLearningAgent(Agent):
     near random. Watching that failure is the point, and it is what motivates the
     function approximation the DQN agents use.
 
+    Measured on Klondike: 1 253 141 entries after 1 499 936 steps, i.e. **0.836
+    new entries per step**, and at epsilon = 0 the trained agent scores the
+    random baseline to two decimals. `new_entries_per_step` reports that ratio
+    while training runs, so the failure is a number the run records rather than
+    one a reader has to derive afterwards.
+
+    The table is unbounded by default, which is the textbook algorithm. Pass
+    `max_table_size` to cap it: entries are then evicted least-recently-used and
+    the first eviction warns. A cap bounds the memory -- the uncapped Klondike
+    checkpoint is 1.26-1.76 GB and `pickle.dump` copies it while writing -- but
+    it buys no accuracy. At ~0.84 new entries per step the evicted rows were
+    never going to be looked up again either.
+
     Args:
         action_size: Total number of possible actions
         learning_rate: Step size for the TD update
@@ -35,6 +50,10 @@ class QLearningAgent(Agent):
             to encourage trying unexplored actions
         precision: Decimal places the observation is rounded to before it is used
             as a key; coarser values merge more states into the same entry
+        max_table_size: Entries to keep before the least recently used one is
+            evicted, or None for the unbounded textbook table. Must be at least
+            2: one `learn()` call touches the rows for both `observation` and
+            `next_observation`, and a cap of 1 would evict the row being updated
         seed: Random seed for reproducibility
     """
 
@@ -54,9 +73,17 @@ class QLearningAgent(Agent):
         epsilon_decay: float = 0.995,
         optimistic_init: float = 0.0,
         precision: int = 2,
+        max_table_size: Optional[int] = None,
         seed: Optional[int] = None,
     ):
         super().__init__(name="QLearningAgent")
+
+        if max_table_size is not None and max_table_size < 2:
+            raise ValueError(
+                f"max_table_size must be at least 2, got {max_table_size}: a "
+                "single learn() call touches two rows, so a cap of 1 would "
+                "evict the row it is updating"
+            )
 
         self.action_size = action_size
         self.learning_rate = learning_rate
@@ -67,14 +94,23 @@ class QLearningAgent(Agent):
         self.epsilon_decay = epsilon_decay
         self.optimistic_init = optimistic_init
         self.precision = precision
+        self.max_table_size = max_table_size
         self.seed = seed
 
         self.rng = np.random.RandomState(seed)
+        # A plain dict: it has preserved insertion order since 3.7, which is
+        # all the LRU below needs, and it keeps the pickle identical in type
+        # to the ones already on disk.
         self.q_table: dict[bytes, np.ndarray] = {}
 
         self.steps = 0
         self.episodes = 0
         self.train_steps = 0
+        # Entries ever created. Under a cap this keeps climbing after table_size
+        # has flattened, and that gap is the evidence eviction bought nothing.
+        self.new_entries = 0
+        self.evictions = 0
+        self._warned_full = False
 
     def _key(self, observation: np.ndarray) -> bytes:
         """
@@ -93,13 +129,50 @@ class QLearningAgent(Agent):
         return rounded.tobytes()
 
     def _q_values(self, observation: np.ndarray) -> np.ndarray:
-        """Return the Q-row for a state, creating it on first visit."""
+        """Return the Q-row for a state, creating it on first visit.
+
+        Under a cap this is also the LRU touch point: a hit moves its key to the
+        end, and a miss that overflows the table drops the oldest one. The
+        uncapped path skips that bookkeeping entirely, so the default
+        configuration runs the same instructions it always did.
+        """
         key = self._key(observation)
         row = self.q_table.get(key)
         if row is None:
             row = np.full(self.action_size, self.optimistic_init, dtype=np.float64)
             self.q_table[key] = row
+            self.new_entries += 1
+            if self.max_table_size is not None:
+                self._evict_to_fit()
+        elif self.max_table_size is not None:
+            # Re-insert to move the key to the newest end of the dict.
+            self.q_table[key] = self.q_table.pop(key)
         return row
+
+    def _evict_to_fit(self) -> None:
+        """Drop least-recently-used rows until the table is back within its cap.
+
+        This cannot drop the row `learn()` is part-way through updating, because
+        the cap is at least 2: the key just inserted is last, the one touched
+        immediately before it is second from last, and eviction takes from the
+        front.
+        """
+        while len(self.q_table) > self.max_table_size:
+            del self.q_table[next(iter(self.q_table))]
+            self.evictions += 1
+
+        if self.evictions and not self._warned_full:
+            self._warned_full = True
+            warnings.warn(
+                f"Q-table hit its {self.max_table_size}-entry cap and is now "
+                f"evicting; {self.new_entries_per_step:.2f} of every step has "
+                "created a new entry so far. A rate near 1.0 means this state "
+                "space is too large to tabulate -- the agent is memorising "
+                "rather than generalising, and its policy is at or near random. "
+                "The cap bounds the memory, not the error.",
+                RuntimeWarning,
+                stacklevel=3,
+            )
 
     def select_action(
         self,
@@ -194,6 +267,30 @@ class QLearningAgent(Agent):
         """Number of distinct states the agent has stored."""
         return len(self.q_table)
 
+    @property
+    def new_entries_per_step(self) -> float:
+        """Share of environment steps that created a new table entry.
+
+        The headline diagnostic for a tabular agent. Near 1.0 means practically
+        every state it meets is one it has never seen, so its Q-row is still at
+        `optimistic_init`, every legal action ties, and `select_action` picks
+        among them uniformly -- a random policy wearing a Q-table. Klondike
+        measures 0.84 here; Macao 0.99.
+
+        Counted per step rather than per lookup so the number stays comparable
+        across configurations: `learn()` consults two rows and an exploratory
+        move consults none. That also lets the ratio sit a little above 1.0,
+        since `learn()` instantiates the successor state's row as well as the
+        current one -- so read it as "at or above 1.0 is total memorisation",
+        not as a percentage.
+
+        Under a cap this keeps climbing after `table_size` has flattened,
+        because a state whose row was evicted counts as new when it returns.
+        That is the intended reading: the cap bounded the memory, not the
+        number of states the agent has no value for.
+        """
+        return self.new_entries / self.steps if self.steps else 0.0
+
     def save(self, path: str) -> None:
         """
         Save the Q-table and exploration state to file.
@@ -210,11 +307,19 @@ class QLearningAgent(Agent):
                 "train_steps": self.train_steps,
                 "action_size": self.action_size,
                 "precision": self.precision,
+                "max_table_size": self.max_table_size,
+                "new_entries": self.new_entries,
+                "evictions": self.evictions,
             }, handle)
 
     def load(self, path: str) -> None:
         """
         Load the Q-table and exploration state from file.
+
+        The checkpoint's own `max_table_size` wins over this instance's, because
+        it records how the table was actually trained: a file written without a
+        cap loads back uncapped and untrimmed, whatever the caller constructed.
+        That also keeps a pre-cap checkpoint loading exactly as it used to.
 
         Args:
             path: File path to load from
@@ -228,12 +333,17 @@ class QLearningAgent(Agent):
                 f"{checkpoint['action_size']}, this agent has {self.action_size}"
             )
 
+        # `.get` on the keys added with the cap: checkpoints written before it
+        # do not carry them.
+        self.max_table_size = checkpoint.get("max_table_size")
         self.q_table = checkpoint["q_table"]
         self.epsilon = checkpoint["epsilon"]
         self.steps = checkpoint["steps"]
         self.episodes = checkpoint["episodes"]
         self.train_steps = checkpoint["train_steps"]
         self.precision = checkpoint["precision"]
+        self.new_entries = checkpoint.get("new_entries", len(self.q_table))
+        self.evictions = checkpoint.get("evictions", 0)
 
     def get_q_values(self, observation: np.ndarray) -> np.ndarray:
         """
