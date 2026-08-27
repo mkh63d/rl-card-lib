@@ -234,6 +234,52 @@
 
 ### Fixed
 
+- **`render_mode="human"` no longer crashes the episode on a console that
+  cannot encode the card glyphs**
+  ([#47](https://github.com/mkh63d/rl-card-lib/issues/47)). `CardGameEnv.render`
+  printed `game.render()` straight to stdout, and `step()` calls it on every
+  step when the env was built with `render_mode="human"`. On a console with a
+  legacy code page -- cp1250, the default on a Polish Windows, and equally what
+  a redirected stream gets -- `print` raised
+  `UnicodeEncodeError: 'charmap' codec can't encode character '♦'` from
+  inside `step()`, so the documented Gymnasium human-render path took down a
+  *running* episode.
+
+  This is one level below [#43](https://github.com/mkh63d/rl-card-lib/issues/43)
+  rather than a duplicate of it. That fix had the two scripts reconfigure their
+  own stdout, which is the right move for an entry point and the wrong one for a
+  library: a consumer cannot adopt it without reconfiguring global stdout on the
+  library's behalf. And #43 fired at a script's last line, where this fires
+  mid-training. `render_mode="human"` is part of the Gymnasium contract the
+  library advertises, so an outside user on a default Windows console met it on
+  their first render.
+
+  The new `rl_card_lib.utils.console.console_safe` returns text in a form the
+  target stream can actually represent, and the human branch of `render()` prints
+  through it. **Suits degrade to letters, not to `?`** -- `[A♠]` becomes `[AS]`
+  on cp1250 -- which is the readable half of the choice the issue left open. The
+  mapping is the new `Suit.ascii_symbol`, kept beside `Suit.symbol` so the two
+  cannot drift, and `_ASCII_SUITS` is built from `Suit` itself rather than
+  restating the glyphs. `Rank.symbol` was already ASCII.
+
+  Three details are deliberate. Nothing changes on a UTF-8 stream: the text is
+  test-encoded first and returned untouched when it fits, so the glyphs still
+  print as glyphs. A stream reporting `encoding` as `None` is also left alone --
+  `io.StringIO`, what `contextlib.redirect_stdout` and pytest's capture install,
+  holds `str` and needs no downgrade (verified, not assumed: it *has* an
+  `encoding` attribute, so a `hasattr` guard would have been the wrong test).
+  And `errors="replace"` survives only as a floor beneath the transliteration,
+  for a third-party game that renders non-ASCII of its own; it never fires on
+  either bundled game, whose rendered output and `action_to_string` were checked
+  to contain no non-ASCII beyond the four suits.
+
+  `render_mode="ansi"` and the string `render()` returns are untouched, so a
+  caller that captures the text keeps the glyphs whatever the console is. The
+  fix reaches `MaskedCardGameEnv` and `GymEnvWrapper` for free -- both subclass
+  `CardGameEnv` -- and `quick_demo.py` now has belt and braces: its own #43
+  `reconfigure` plus this. No recorded number moves and nothing under
+  `thesis_notes/raw/` is regenerated.
+
 - **The two scripts that print card glyphs no longer fail on a console whose
   encoding is not UTF-8**
   ([#43](https://github.com/mkh63d/rl-card-lib/issues/43)). `Suit.symbol`

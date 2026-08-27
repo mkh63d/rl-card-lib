@@ -1,9 +1,12 @@
 """Tests for utils module."""
 
+import io
+
 import pytest
 import numpy as np
 
 from rl_card_lib.cardgames import Card, Suit, Rank
+from rl_card_lib.utils.console import console_safe
 from rl_card_lib.utils.encoding import (
     one_hot_encode,
     binary_encode_cards,
@@ -219,3 +222,64 @@ class TestCreateSimpleBoardView:
         state = {"tableaux": piles}
         result = create_simple_board_view(state)
         assert "tableaux:" in result
+
+
+def _stream(encoding):
+    """A text stream with a real encoding, like a console rather than a buffer."""
+    return io.TextIOWrapper(io.BytesIO(), encoding=encoding, errors="strict")
+
+
+class TestConsoleSafe:
+    """Tests for console_safe (#47)."""
+
+    def test_utf8_stream_is_left_alone(self):
+        """A capable terminal keeps the glyphs; this is the common path."""
+        text = str(Card(Suit.SPADES, Rank.ACE))
+        assert console_safe(text, _stream("utf-8")) == text
+        assert "♠" in console_safe(text, _stream("utf-8"))
+
+    def test_cp1250_stream_gets_letters(self):
+        """The reported case: a Polish Windows console."""
+        text = str(Card(Suit.SPADES, Rank.ACE))
+        assert console_safe(text, _stream("cp1250")) == "[AS]"
+
+    def test_every_suit_downgrades_to_its_letter(self):
+        for suit in Suit:
+            card = str(Card(suit, Rank.KING))
+            assert console_safe(card, _stream("cp1250")) == f"[K{suit.ascii_symbol}]"
+
+    def test_result_is_encodable_by_the_stream(self):
+        """The point of the exercise: print() must not raise afterwards."""
+        text = " ".join(str(Card(suit, Rank.TEN)) for suit in Suit)
+        for encoding in ("cp1250", "ascii", "latin-1"):
+            console_safe(text, _stream(encoding)).encode(encoding)
+
+    def test_stream_reporting_no_encoding_is_left_alone(self):
+        """io.StringIO -- what redirect_stdout and pytest capture install."""
+        text = str(Card(Suit.HEARTS, Rank.TWO))
+        assert io.StringIO().encoding is None
+        assert console_safe(text, io.StringIO()) == text
+
+    def test_unknown_encoding_is_left_alone(self):
+        """A codec name Python cannot look up must not become a crash."""
+        text = str(Card(Suit.HEARTS, Rank.TWO))
+
+        class Stream:
+            encoding = "not-a-real-codec"
+
+        assert console_safe(text, Stream()) == text
+
+    def test_non_suit_character_falls_back_to_replacement(self):
+        """A third-party game rendering its own non-ASCII must not raise."""
+        result = console_safe("score → 5 [A♠]", _stream("ascii"))
+        result.encode("ascii")
+        assert "[AS]" in result
+
+    def test_ascii_text_is_untouched_on_any_stream(self):
+        for encoding in ("utf-8", "cp1250", "ascii"):
+            assert console_safe("Turn: 1", _stream(encoding)) == "Turn: 1"
+
+    def test_defaults_to_stdout(self, monkeypatch):
+        """stdout is read at call time, so a later redirect is honoured."""
+        monkeypatch.setattr("sys.stdout", _stream("cp1250"))
+        assert console_safe(str(Card(Suit.DIAMONDS, Rank.ACE))) == "[AD]"
