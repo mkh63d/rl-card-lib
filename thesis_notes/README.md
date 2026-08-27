@@ -64,6 +64,12 @@ python thesis_notes/scripts/solve_time_learners.py
 #     argmax vs próbkowanie dla PPO; wymaga checkpointów z kroku 4
 python thesis_notes/scripts/probe_policy_diagnostics.py
 
+# 5d. ablacja glowicy duelling dla Double DQN (#42): ten sam protokol,
+#     ramie fixed, 3 seedy, obie gry (~13 CPU-godzin, ~4 h zegarowe przy
+#     6 workerach); kontrola nie jest trenowana ponownie, wiec wymaga
+#     przebiegow i checkpointow z kroku 4
+python thesis_notes/scripts/ablate_dueling.py --workers 6
+
 # 6. tabele i wykresy
 python thesis_notes/scripts/make_report.py
 python thesis_notes/scripts/make_results_md.py
@@ -79,7 +85,10 @@ python thesis_notes/scripts/create_issues.py
 
 Każdy przebieg zapisuje własny JSON do `raw/runs/`, a `run_sweep_all.py`
 pomija te, które już istnieją — przerwany sweep wznawia się przez ponowne
-uruchomienie tego samego polecenia.
+uruchomienie tego samego polecenia. `ablate_dueling.py` działa tak samo, tyle
+że pisze do `raw/ablation_dueling/runs/`: jego przebiegi **nie są** częścią
+sweepu i celowo nie trafiają do `raw/runs/`, bo `make_report.load_runs()`
+uśredniłby je razem z kontrolą.
 
 ## Rysunki
 

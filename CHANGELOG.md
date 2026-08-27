@@ -4,6 +4,42 @@
 
 ### Added
 
+- **Double DQN's dueling head is now a declared default that can be switched
+  off, and the ablation it was blocking has been run**
+  ([#42](https://github.com/mkh63d/rl-card-lib/issues/42)). `build_learner`
+  hardcoded `dueling=True` for `double_dqn` and gave plain DQN no such head, so
+  the two learners differed by an architecture nobody had measured.
+  `DuelingQNetwork` computes `Q = V + (A - mean A)`: the part that depends on
+  the action is a *centred* advantage, so a large V squeezes the legal actions
+  together by construction. That squeeze was the measurement -- over the 200
+  TEST deals the legal-action Q spread was **5.4% of mean Q** for Double DQN
+  against plain DQN's **57.0%** on Klondike, while on Macao, where episodes are
+  short and V stays modest, the two sat together at ~20%.
+
+  `build_learner(..., dueling=...)` takes `None` for "the kind's own default",
+  the same contract `target_update_freq` and `q_table_limit` already use, so the
+  authoritative value lives in one place: the new `DEFAULT_DUELING` constant,
+  which documents the mechanism and the numbers above beside the value. It stays
+  `True` -- that is what all 60 runs in `thesis_notes/raw/runs/` were trained
+  under, and changing it would make `learners.py` describe a configuration no
+  recorded run used.
+
+  `thesis_notes/scripts/ablate_dueling.py` runs the comparison, and
+  `run_one.py --no-dueling` is what it drives. The flag is deliberately not a
+  fourth arm: arms are protocol levers held identical across every agent, and
+  this is one agent's architecture, so it is recorded in a sibling
+  `agent_config` block (run record schema `thesis_notes/run/3`) and tags the
+  run's filenames -- the two heads hold different parameter counts, so without
+  the tag the ablation would overwrite `klondike__double_dqn__fixed__s0.pt` and
+  then fail to load it back. The control is never retrained; it is the runs
+  already on disk. Result and verdict: `thesis_notes/diagnosis.md` D2 and
+  `thesis_notes/raw/ablation_dueling.json`.
+
+  Not changed: `load_trained_learner` still rebuilds through `build_learner`
+  with no `dueling` argument, so it keeps producing dueling agents and cannot
+  load a plain-head checkpoint. Nothing in the library writes one -- only the
+  ablation does, under its own filenames.
+
 - **A third-party algorithm can now actually learn these games, and there is a
   number for it** ([#40](https://github.com/mkh63d/rl-card-lib/issues/40)).
   Every env gained `action_masks()`, the method `sb3-contrib` calls when it asks
@@ -182,6 +218,15 @@
   class and opponent.
 
 ### Fixed
+
+- **`make_report.py` no longer averages an architecture ablation into the arm
+  it is meant to be compared against.** `load_runs()` globs `raw/runs/*.json`
+  and keys each record by its own `game`/`agent`/`arm` fields, so a
+  `double_dqn`/`fixed` record from a differently-built agent landing in that
+  directory would be appended to the control's list -- six records with
+  duplicate init seeds behind a row every table calls n=3, silently, with no
+  error. Records now carrying a `variant` (#42) are skipped. The ablation
+  already writes outside `raw/runs/`; this is the second lock on the same door.
 
 - **Both observation spaces declare their real bounds instead of `(-inf, inf)`**
   ([#39](https://github.com/mkh63d/rl-card-lib/issues/39)). `CardGameEnv` had

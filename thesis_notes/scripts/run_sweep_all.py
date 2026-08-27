@@ -83,33 +83,22 @@ def command(job: dict) -> list[str]:
         "--game", job["game"], "--agent", job["agent"],
         "--init-seed", str(job["init_seed"]), "--episodes", str(job["episodes"]),
         "--arm", job["arm"],
-    ]
+    ] + list(job.get("extra", ()))
 
 
 def name(job: dict) -> str:
-    return f"{job['game']}__{job['agent']}__{job['arm']}__s{job['init_seed']}"
+    """The stem run_one.py will write, which a caller may already know."""
+    return job.get("stem") or (
+        f"{job['game']}__{job['agent']}__{job['arm']}__s{job['init_seed']}")
 
 
-def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workers", type=int, default=7)
-    parser.add_argument("--dry-run", action="store_true")
-    args = parser.parse_args(argv)
+def run_pool(pending: list[dict], workers: int) -> tuple[list[str], list[str]]:
+    """Run each job as its own single-threaded process, `workers` at a time.
 
-    todo = jobs()
-    pending = [j for j in todo
-               if not os.path.exists(os.path.join(RUNS_DIR, name(j) + ".json"))]
-
-    total_cost = sum(j["cost"] for j in pending)
-    print(f"{len(todo)} jobs, {len(pending)} pending, "
-          f"{total_cost / 3600:.1f} CPU-hours estimated, "
-          f"~{total_cost / max(1, args.workers) / 3600:.1f} h wall at "
-          f"{args.workers} workers", flush=True)
-    for job in pending:
-        print(f"  {name(job):48s} ~{job['cost'] / 60:6.1f} min", flush=True)
-    if args.dry_run:
-        return 0
-
+    Split out of `main` so ablate_dueling.py schedules its runs exactly this
+    way rather than growing a second copy: the thread pinning below is part
+    of the measurement, not an implementation detail.
+    """
     os.makedirs(RUNS_DIR, exist_ok=True)
     work: queue.Queue = queue.Queue()
     for job in pending:
@@ -119,7 +108,6 @@ def main(argv=None) -> int:
     env.update({"OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
                 "OPENBLAS_NUM_THREADS": "1", "PYTHONUNBUFFERED": "1"})
 
-    started = time.time()
     done, failed = [], []
     lock = threading.Lock()
 
@@ -149,11 +137,36 @@ def main(argv=None) -> int:
             work.task_done()
 
     threads = [threading.Thread(target=worker, daemon=True)
-               for _ in range(args.workers)]
+               for _ in range(workers)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
+    return done, failed
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--workers", type=int, default=7)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args(argv)
+
+    todo = jobs()
+    pending = [j for j in todo
+               if not os.path.exists(os.path.join(RUNS_DIR, name(j) + ".json"))]
+
+    total_cost = sum(j["cost"] for j in pending)
+    print(f"{len(todo)} jobs, {len(pending)} pending, "
+          f"{total_cost / 3600:.1f} CPU-hours estimated, "
+          f"~{total_cost / max(1, args.workers) / 3600:.1f} h wall at "
+          f"{args.workers} workers", flush=True)
+    for job in pending:
+        print(f"  {name(job):48s} ~{job['cost'] / 60:6.1f} min", flush=True)
+    if args.dry_run:
+        return 0
+
+    started = time.time()
+    done, failed = run_pool(pending, args.workers)
 
     print(f"\nfinished {len(done)} run(s) in {(time.time() - started) / 60:.1f} min",
           flush=True)

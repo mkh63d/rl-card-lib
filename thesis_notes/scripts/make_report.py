@@ -110,6 +110,12 @@ def load_runs() -> dict:
     for path in sorted(glob.glob(os.path.join(RAW, "runs", "*.json"))):
         with open(path, "r", encoding="utf-8") as handle:
             record = json.load(handle)
+        if record.get("variant"):
+            # An architecture ablation (#42), not one of the three protocol
+            # arms. Averaging it into (game, agent, arm) would put six records
+            # with duplicate init seeds behind a row the tables call n=3.
+            # ablate_dueling.py reports these against the arms separately.
+            continue
         runs[(record["game"], record["agent"], record["arm"])].append(record)
     for key in runs:
         runs[key].sort(key=lambda r: r["init_seed"])

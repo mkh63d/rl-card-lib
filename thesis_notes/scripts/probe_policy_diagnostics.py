@@ -32,6 +32,8 @@ import os
 import sys
 import time
 
+from typing import Optional
+
 import numpy as np
 import torch
 
@@ -213,16 +215,26 @@ def play_macao(agent, seeds, sample_ppo=None) -> dict:
     return out
 
 
-def load_checkpoint(game: str, kind: str, arm: str, seed: int):
-    """Rebuild the agent and load its weights, or None when the run is missing."""
+def load_checkpoint(game: str, kind: str, arm: str, seed: int,
+                    *, label: Optional[str] = None,
+                    dueling: Optional[bool] = None):
+    """Rebuild the agent and load its weights, or None when the run is missing.
+
+    `label` names the checkpoint file when it is not simply `kind` -- the #42
+    dueling ablation writes `double_dqn_noduel` -- and `dueling` is handed to
+    `build_learner` because the two heads have different parameter counts, so a
+    plain-head agent cannot load a dueling checkpoint's state dict. Both
+    default to None, which is what this script's own sweep wants.
+    """
     suffix = ".pkl" if kind == "q_learning" else ".pt"
-    path = os.path.join(CHECKPOINTS, f"{game}__{kind}__{arm}__s{seed}{suffix}")
+    path = os.path.join(
+        CHECKPOINTS, f"{game}__{label or kind}__{arm}__s{seed}{suffix}")
     if not os.path.exists(path):
         return None
     action_size = (KlondikeSolitaire.MAX_ACTIONS if game == "klondike"
                    else Macao.MAX_ACTIONS)
     state_size = 221 if game == "klondike" else 126
-    agent = build_learner(kind, state_size, action_size, seed)
+    agent = build_learner(kind, state_size, action_size, seed, dueling=dueling)
     agent.load(path)
     return agent
 

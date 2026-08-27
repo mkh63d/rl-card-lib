@@ -21,6 +21,15 @@ Klondike it is not even the same rule set as `asis` (finite vs unlimited passes)
 This is a before/after-the-PRs comparison, not a single-factor ablation; see
 results.md for the caveat in full.
 
+`--no-dueling` is not a fourth arm. Arms are protocol levers, held identical
+across every agent so a difference between two rows is a difference between
+them; the dueling head is Double DQN's architecture and only it has one. Issue
+#42 asks whether that head is why its Q barely differentiates the legal actions
+(diagnosis.md D2). The flag changes the network `build_learner` returns and
+nothing else -- same loss, optimiser, hidden sizes, arm and deal stream -- and
+it tags this run's filenames so it can never be read as a sweep run. Driven by
+thesis_notes/scripts/ablate_dueling.py; not part of the 60-run sweep.
+
 Writes one JSON per run to thesis_notes/raw/runs/. Re-running skips a run whose
 JSON already exists unless --force is given, so the sweep is resumable.
 
@@ -112,6 +121,15 @@ ARMS = {
 }
 
 
+#: Filename tag for a run whose *network* differs from the sweep's, in the slot
+#: that names the agent -- because the agent is still `double_dqn` and it is the
+#: network that varies. Deliberately not a member of LEARNERS and deliberately
+#: not an arm; `make_report.load_runs` skips any record carrying a `variant`, so
+#: an architecture ablation can never be averaged into the arms it exists to be
+#: compared against.
+NODUELING_VARIANT = "noduel"
+
+
 def git_commit() -> str:
     try:
         return subprocess.check_output(
@@ -143,6 +161,25 @@ def arm_config(game_name: str, arm: str) -> dict:
             spec["repeated_position_penalty"] if game_name == "klondike" else 0.0
         ),
     }
+
+
+def variant(args) -> str | None:
+    """The architecture tag for this run, or None for a stock sweep run."""
+    return NODUELING_VARIANT if getattr(args, "no_dueling", False) else None
+
+
+def run_stem(args) -> str:
+    """The filename every artefact of this run shares.
+
+    One definition rather than the two this file used to carry -- the JSON name
+    in `main` and the checkpoint name in `run`. A plain Q-head and a dueling one
+    have different parameter counts, so without the tag the #42 ablation would
+    overwrite `klondike__double_dqn__fixed__s0.pt` and then fail to load it
+    back; the run JSONs would collide the same way.
+    """
+    tag = variant(args)
+    agent = f"{args.agent}_{tag}" if tag else args.agent
+    return f"{args.game}__{agent}__{args.arm}__s{args.init_seed}"
 
 
 def make_env(game_name: str, deal_rng_seed: int, config: dict):
@@ -190,9 +227,12 @@ def run(args) -> dict:
     # init seed k sees the identical sequence of TRAIN deals -- a paired
     # comparison rather than four independent draws.
     env = make_env(game_name, deal_rng_seed=args.init_seed, config=config)
+    # None means "the kind's own default"; see build_learner. Only the #42
+    # ablation passes False, and only for double_dqn.
     agent = build_learner(
         args.agent, env.observation_space.shape[0], env.action_space.n,
         args.init_seed, target_update_freq=config["target_update_freq"],
+        dueling=False if getattr(args, "no_dueling", False) else None,
     )
 
     before = evaluate(game_name, agent, config, opponent_seed=args.init_seed)
@@ -233,9 +273,15 @@ def run(args) -> dict:
 
     dealt = env.dealt_seeds
     record = {
-        "schema": "thesis_notes/run/2",
+        # /3 adds `variant` and `agent_config`; a /2 record simply lacks them.
+        "schema": "thesis_notes/run/3",
         "game": game_name,
         "agent": args.agent,
+        # The agent *is* a Double DQN; the variant is what tells the two
+        # architectures apart. Kept out of `arm_config`, which describes the
+        # protocol and must stay identical across the agents in an arm.
+        "variant": variant(args),
+        "agent_config": {"dueling": getattr(agent, "dueling", None)},
         "arm": args.arm,
         "arm_config": config,
         "repeated_position_penalty": config["repeated_position_penalty"],
@@ -288,10 +334,7 @@ def run(args) -> dict:
     if args.checkpoint_dir:
         os.makedirs(args.checkpoint_dir, exist_ok=True)
         suffix = ".pkl" if args.agent == "q_learning" else ".pt"
-        path = os.path.join(
-            args.checkpoint_dir,
-            f"{game_name}__{args.agent}__{args.arm}__s{args.init_seed}{suffix}",
-        )
+        path = os.path.join(args.checkpoint_dir, run_stem(args) + suffix)
         agent.save(path)
         record["checkpoint"] = path
 
@@ -310,10 +353,17 @@ def main(argv=None) -> int:
     parser.add_argument("--checkpoint-dir",
                         default=os.path.join(HERE, "..", "checkpoints"))
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--no-dueling", action="store_true",
+        help="double_dqn only: a plain Q-head instead of the dueling one (#42)",
+    )
     args = parser.parse_args(argv)
 
+    if args.no_dueling and args.agent != "double_dqn":
+        parser.error("--no-dueling only applies to double_dqn")
+
     os.makedirs(args.out_dir, exist_ok=True)
-    name = f"{args.game}__{args.agent}__{args.arm}__s{args.init_seed}.json"
+    name = run_stem(args) + ".json"
     path = os.path.join(args.out_dir, name)
     if os.path.exists(path) and not args.force:
         print(f"skip (exists): {name}", flush=True)

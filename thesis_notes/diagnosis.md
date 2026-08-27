@@ -46,23 +46,31 @@ co oznaczałoby bufor równy jednemu batchowi, czyli brak dekorelacji próbek.
 miejsca, z którego budowane są wszystkie agenty w sweepie:
 
 ```python
-# packages/examples/src/rl_card_lib/harness/learners.py:49-64
+# packages/examples/src/rl_card_lib/harness/learners.py:118-133
 if kind == "dqn":
     return DQNAgent(
-        ..., buffer_size=50_000, batch_size=64, target_update_freq=500, ...
+        ..., buffer_size=50_000, batch_size=64, target_update_freq=freq, ...
     )
 if kind == "double_dqn":
     return DoubleDQNAgent(
-        ..., buffer_size=50_000, batch_size=64, target_update_freq=500,
-        dueling=True, ...
+        ..., buffer_size=50_000, batch_size=64, target_update_freq=freq,
+        dueling=duel, ...
     )
 ```
+
+> `target_update_freq=500` zastąpiło `freq` w PR #33 (kadencja per gra, D8),
+> a `dueling=True` zastąpiło `duel` w PR do #42 — obie wartości domyślne
+> mieszkają dziś w stałych `DEFAULT_TARGET_UPDATE_FREQ` i `DEFAULT_DUELING`
+> nad `build_learner`, a `buffer_size` i `batch_size` nadal są literałami.
+> `DEFAULT_DUELING` to wciąż `True`, czyli konfiguracja, w której wytrenowano
+> wszystkie 60 przebiegów w `raw/runs/`; ablacja z #42 mierzy alternatywę,
+> nie zmienia domyślnej wartości (D2).
 
 Potwierdzenia:
 
 | Źródło | `buffer_size` |
 |---|---|
-| `harness/learners.py:54` (DQN) i `:62` (Double DQN) — ścieżka sweepa | **50 000** |
+| `harness/learners.py:123` (DQN) i `:131` (Double DQN) — ścieżka sweepa | **50 000** |
 | domyślna wartość `DQNAgent.__init__` ([dqn_agent.py:206](../packages/core/src/rl_card_lib/agents/dqn_agent.py#L206)) | 100 000 |
 | `scripts/train_klondike.py:35` | 50 000 |
 | `scripts/train_macao.py:32` | 30 000 |
@@ -925,6 +933,12 @@ liczba, nie nowa.
 > [`tables/ablation_fixes.csv`](tables/ablation_fixes.csv).
 > Protokół: pula TRAIN = seedy 0–9999, pula TEST = 200 rozdań 100000–100199,
 > ewaluacja zachłanna, 3 seedy inicjalizacji, średnia ± odchylenie standardowe.
+>
+> Tabela obejmuje wyłącznie **trzy ramiona protokołu**. Ablacja głowicy
+> duelling (#42) nie jest tu wierszem, bo nie jest ramieniem: ramię to dźwignia
+> środowiska/protokołu, trzymana identycznie dla każdego agenta, a duelling to
+> architektura jednego agenta. Jej wynik jest w [D2](#d2-jak-mocno-wyuczona-funkcja-q-różnicuje-legalne-akcje)
+> i w [`raw/ablation_dueling.json`](raw/ablation_dueling.json).
 
 <!-- ABLATION_TABLE -->
 
