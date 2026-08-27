@@ -104,9 +104,18 @@ class CardGameEnv(gym.Env):
             obs_shape = None
 
         if obs_shape is not None:
+            try:
+                low, high = self.game.get_observation_bounds()
+            except AttributeError:
+                # A duck-typed game predating the hook. Deliberately narrower
+                # than the `except Exception` above: a game that *has* the
+                # method and raises out of it, or hands back arrays of the
+                # wrong shape, has a bug, and letting Box raise is how it gets
+                # found rather than silently falling back to (-inf, inf).
+                low, high = -np.inf, np.inf
             self.observation_space = spaces.Box(
-                low=-np.inf,
-                high=np.inf,
+                low=low,
+                high=high,
                 shape=tuple(obs_shape),
                 dtype=np.float32,
             )

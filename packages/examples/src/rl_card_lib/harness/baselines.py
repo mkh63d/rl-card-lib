@@ -27,6 +27,7 @@ from rl_card_lib.games import (
     KlondikeSolitaire,
     Macao,
     MacaoHeuristicAgent,
+    bundled_klondike,
 )
 from rl_card_lib.harness.deals import (
     TEST_SEED_END,
@@ -44,7 +45,7 @@ def klondike_baseline_agents(seed: int = 0, *, mcts_simulations: int = 20) -> li
     moves and MCTS pays the full budget on each one, so this is what finishes
     in minutes rather than what plays best.
     """
-    probe = KlondikeSolitaire()
+    probe = bundled_klondike()
     action_size = probe.get_action_space_size()
     return [
         ("Random", RandomAgent(action_size=action_size, seed=seed)),
@@ -87,7 +88,7 @@ def run_klondike_baselines(
         rewards, cards_up, wins = [], [], 0
         started = time.time()
 
-        game = KlondikeSolitaire(max_passes=max_passes)
+        game = bundled_klondike(max_passes=max_passes)
         env = CardGameEnv(game, max_steps=max_steps)
         if hasattr(agent, "bind"):
             agent.bind(env)

@@ -25,7 +25,7 @@ import numpy as np
 
 from rl_card_lib.agents import Agent
 from rl_card_lib.env import CardGameEnv
-from rl_card_lib.games import KlondikeSolitaire, Macao
+from rl_card_lib.games import KlondikeSolitaire, Macao, bundled_klondike
 from rl_card_lib.harness.deals import evaluation_seeds
 
 
@@ -65,9 +65,9 @@ def evaluate_klondike(
     agent.eval()
 
     # One game and one env for the whole evaluation: the deal is chosen by the
-    # seed handed to reset(), not by building a fresh KlondikeSolitaire (whose
-    # RNG nothing seeded) each time round.
-    game = KlondikeSolitaire(max_passes=max_passes)
+    # seed handed to reset(), not by building a fresh game (whose RNG nothing
+    # seeded) each time round.
+    game = bundled_klondike(max_passes=max_passes)
     env = CardGameEnv(game, max_steps=max_steps)
     if hasattr(agent, "bind"):
         agent.bind(env)

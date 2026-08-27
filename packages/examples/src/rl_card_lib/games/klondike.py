@@ -37,6 +37,12 @@ class KlondikeSolitaire(CardGame):
     LOSS_REWARD when the deal dies. Non-revealing tableau moves pay nothing on
     purpose: they are reversible, so any positive payment is farmable. Sparse
     mode pays only the win/loss terminals.
+
+    Note that `KlondikeSolitaire()` is *not* the game this library's bundled
+    experiments play: the class default is unlimited passes through the stock,
+    while every bundled entry point plays BUNDLED_MAX_PASSES of them. Call
+    `bundled_klondike()` for that game and this constructor for a deliberately
+    customised one. See issues #18 and #38.
     """
 
     # Action encoding:
@@ -59,6 +65,25 @@ class KlondikeSolitaire(CardGame):
 
     MAX_ACTIONS = 68
 
+    #: The divisors `get_observation()` normalises its count features by. Each
+    #: is the *true* maximum of the quantity it scales, not a convenient round
+    #: number, so every one of the 221 features lands in exactly [0, 1] and
+    #: `get_observation_bounds()` can declare that. They are named here rather
+    #: than written inline at the two use sites because a bound that disagrees
+    #: with its encoder is worse than no bound at all -- it makes
+    #: `observation_space.contains()` lie. See issue #39.
+    #:
+    #: MAX_TABLEAU_PILE: a pile holds at most 6 face-down cards (only pile 7
+    #: starts with that many, and face-down cards are only ever removed) under
+    #: a face-up section that is always one strictly descending,
+    #: alternating-colour run, so at most K..A -- 6 + 13 = 19.
+    #: MAX_STOCK: the deal puts 28 cards in the tableau and the remaining
+    #: 52 - 28 = 24 in the stock. It bounds the waste too, which only ever
+    #: holds cards drawn from the stock.
+    MAX_FOUNDATION_RANK = int(Rank.KING)
+    MAX_TABLEAU_PILE = 19
+    MAX_STOCK = 24
+
     #: Reward paid on the terminal step of a lost deal, in both reward modes.
     #: Without it a stuck deal is indistinguishable from running out of time.
     #: Only reachable when `max_passes` is finite -- see BUNDLED_MAX_PASSES.
@@ -78,7 +103,8 @@ class KlondikeSolitaire(CardGame):
     #:
     #: This constant is what every bundled entry point -- the sweep envs, the
     #: evaluation protocols, the baselines and the Gymnasium ids -- passes
-    #: instead. It lives here rather than in `games.registration` because
+    #: instead, and `bundled_klondike()` below is the one place that passes it.
+    #: It lives here rather than in `games.registration` because
     #: `harness` cannot import that module (registration imports harness), and
     #: a second copy of the number in `harness` is exactly how the two halves
     #: of an experiment drift into playing different games. See issue #18.
@@ -101,7 +127,9 @@ class KlondikeSolitaire(CardGame):
                 legal moves, so it can only end by truncation, never as a loss
                 -- LOSS_REWARD is then unreachable and the agent gets no
                 terminal signal at all. The bundled experiments therefore pass
-                BUNDLED_MAX_PASSES rather than taking this default.
+                BUNDLED_MAX_PASSES rather than taking this default; call
+                `bundled_klondike()` to get that game without repeating the
+                argument.
             reward_mode: "shaped" pays per-move progress rewards (foundations,
                 reveals) plus a small step cost; "sparse" pays only +1 for a won
                 deal and LOSS_REWARD for a dead one. Sparse cannot be farmed and
@@ -216,25 +244,42 @@ class KlondikeSolitaire(CardGame):
         # Foundation top ranks (normalized 0-1)
         for pile in self.foundations:
             if pile:
-                observation.append(pile[-1].rank / 13.0)
+                observation.append(pile[-1].rank / self.MAX_FOUNDATION_RANK)
             else:
                 observation.append(0.0)
 
         # Tableau pile sizes (normalized)
         for pile in self.tableaux:
-            observation.append(len(pile) / 19.0)  # Max possible pile size ~19
+            observation.append(len(pile) / self.MAX_TABLEAU_PILE)
 
         # Waste visible count
-        observation.append(len(self.waste) / 24.0)
+        observation.append(len(self.waste) / self.MAX_STOCK)
 
         # Stock count
-        observation.append(len(self.stock) / 24.0)
+        observation.append(len(self.stock) / self.MAX_STOCK)
 
         return np.array(observation, dtype=np.float32)
 
     def get_observation_shape(self) -> tuple[int, ...]:
         """Get observation shape."""
         return (52 * 4 + 4 + 7 + 2,)  # 221 features
+
+    def get_observation_bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        """Klondike's encoding is exactly [0, 1] in every feature.
+
+        The first 208 features are one-hot card locations. The remaining 13 are
+        counts, and each is divided by MAX_FOUNDATION_RANK / MAX_TABLEAU_PILE /
+        MAX_STOCK -- the true maximum of that count, so each quotient tops out
+        at 1.0 and none can exceed it. *That* is the fact holding this bound up,
+        and the one a future encoder change would break: normalise a new feature
+        by anything other than its own maximum and the high belongs here as an
+        array, the way `Macao.get_observation_bounds()` does it. See issue #39.
+        """
+        shape = self.get_observation_shape()
+        return (
+            np.zeros(shape, dtype=np.float32),
+            np.ones(shape, dtype=np.float32),
+        )
 
     def get_action_space_size(self) -> int:
         """Get total number of actions."""
@@ -663,3 +708,53 @@ class KlondikeSolitaire(CardGame):
             from_pile = relative_action // 7 + 1
             to_pile = relative_action % 7 + 1
             return f"Move from tableau {from_pile} to tableau {to_pile}"
+
+
+def bundled_klondike(
+    *,
+    draw_count: int = 1,
+    max_passes: Optional[int] = KlondikeSolitaire.BUNDLED_MAX_PASSES,
+    reward_mode: str = "shaped",
+    seed: Optional[int] = None,
+) -> KlondikeSolitaire:
+    """The Klondike the bundled experiments play. Prefer this over the class.
+
+    One named constructor for the whole experiment, so training, evaluation,
+    the baselines and the solvable-pool solver cannot end up on different
+    rules. Every bundled entry point builds its game here: the sweep's training
+    and evaluation envs, `harness.evaluate_klondike`,
+    `harness.run_klondike_baselines`, the Gymnasium `Klondike-v0` /
+    `KlondikeMasked-v0` ids, and the solver that curates the solvable-deal pool.
+
+    The signature mirrors `KlondikeSolitaire.__init__` with exactly one default
+    changed: `max_passes` is BUNDLED_MAX_PASSES rather than None. That one
+    difference is the whole point of the function. Under the class default the
+    draw/recycle action is legal forever, so a deal can never run out of moves,
+    so LOSS_REWARD is unreachable and an agent trains on a game it can neither
+    win nor lose (issue #18).
+
+    `KlondikeSolitaire(...)` remains the constructor for deliberate
+    customisation -- a library user who wants ordinary unlimited-pass Klondike
+    should reach for it and gets exactly that. But it is also the *obvious* way
+    to write it, and five separate evaluation paths once took it by accident and
+    scored agents on rules they were never trained on: on the same 200 held-out
+    deals the heuristic reads 25.84 cards under the bundled rules and 28.74
+    under unlimited passes, MCTS(20) 20.34 against 26.80 (issue #38). Pass
+    `max_passes=None` here to ask for the unlimited game on purpose.
+
+    Args:
+        draw_count: Number of cards to draw from stock (1 or 3)
+        max_passes: Maximum passes through the deck. Defaults to the bundled
+            finite value; None for unlimited.
+        reward_mode: "shaped" or "sparse" -- see `KlondikeSolitaire`
+        seed: Seed for the game's private RNG
+
+    Returns:
+        A `KlondikeSolitaire` playing the bundled rules
+    """
+    return KlondikeSolitaire(
+        draw_count=draw_count,
+        max_passes=max_passes,
+        reward_mode=reward_mode,
+        seed=seed,
+    )

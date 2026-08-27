@@ -25,7 +25,7 @@ from typing import Any, Optional
 import gymnasium as gym
 
 from rl_card_lib.env import CardGameEnv, MaskedCardGameEnv
-from rl_card_lib.games.klondike import KlondikeSolitaire
+from rl_card_lib.games.klondike import bundled_klondike
 from rl_card_lib.games.macao import Macao
 from rl_card_lib.games.registration import (
     KLONDIKE_MAX_PASSES,
@@ -58,7 +58,7 @@ def make_klondike(
     losing terminal and an outside agent sees only wins and truncations. Pass
     `max_passes=None` for the unlimited game.
     """
-    return CardGameEnv(KlondikeSolitaire(max_passes=max_passes),
+    return CardGameEnv(bundled_klondike(max_passes=max_passes),
                        max_steps=max_steps,
                        repeated_position_penalty=repeated_position_penalty,
                        **kwargs)
@@ -81,7 +81,7 @@ def make_klondike_masked(
 
     Same unshaped default and pass limit as `make_klondike`.
     """
-    return MaskedCardGameEnv(KlondikeSolitaire(max_passes=max_passes),
+    return MaskedCardGameEnv(bundled_klondike(max_passes=max_passes),
                              max_steps=max_steps,
                              repeated_position_penalty=repeated_position_penalty,
                              **kwargs)

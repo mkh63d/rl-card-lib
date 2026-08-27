@@ -15,12 +15,12 @@ python packages/examples/scripts/quick_demo.py
 `Trainer` expect:
 
 ```python
-from rl_card_lib.games import KlondikeSolitaire
+from rl_card_lib.games import bundled_klondike
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.trainer import Trainer
 from rl_card_lib.agents import DoubleDQNAgent
 
-game = KlondikeSolitaire()
+game = bundled_klondike()
 env = CardGameEnv(game, max_steps=200)
 
 agent = DoubleDQNAgent(
@@ -32,6 +32,14 @@ trainer = Trainer(env, agent)
 metrics = trainer.train(episodes=1000)
 metrics.plot()   # reward / win-rate curves (needs matplotlib)
 ```
+
+`bundled_klondike()` is the game this library's own experiments play — the
+sweep, the evaluation protocols, the baselines and the Gymnasium ids all build
+their game there, so anything you measure against it is comparable with the
+numbers in the report. `KlondikeSolitaire(...)` is the constructor for a
+deliberately customised game; it differs in one respect that matters, allowing
+unlimited passes through the stock, under which a deal can never be *lost* and
+an agent gets no terminal signal at all.
 
 See [the agent zoo](../guides/agents.md) for the full list of agents and when to
 reach for each one.

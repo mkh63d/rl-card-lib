@@ -34,6 +34,72 @@
   (`pip install -e "./packages/examples[sb3]"`), not a dependency -- its tests
   skip when it is absent, which is what CI does.
 
+- **The Q-table can be bounded, and its memorisation is now a recorded number**
+  ([#41](https://github.com/mkh63d/rl-card-lib/issues/41)). `QLearningAgent`
+  stored one entry per distinct rounded observation and never pruned. On
+  Klondike the observation is a 221-dim vector of which 208 are card-location
+  bits, so `precision=2` merges nothing: the table grew **0.836 entries per
+  step** — 1 253 141 entries after 1 499 936 steps — and each checkpoint weighed
+  **1.26–1.76 GB**, roughly 16 GB across a full sweep, with `pickle.dump`
+  copying the structure as it wrote. That was the constraint on how many tabular
+  runs could share a machine.
+
+  `max_table_size` caps it. Entries are evicted least-recently-used, the first
+  eviction warns once, and the cap must be at least 2 because a single `learn()`
+  call holds the row for `observation` while fetching `next_observation` — at a
+  cap of 1 the update would have gone to a detached array and vanished. The
+  agent also counts `new_entries` and exposes `new_entries_per_step`, recorded
+  per episode alongside `table_size` and drawn on the Q-table figure.
+
+  **That second number is the point.** A capped `table_size` curve flattens, and
+  a flat curve reads as an agent that has finished exploring. It has not:
+  `new_entries_per_step` keeps sitting near 1.0, saying that almost every state
+  it meets is still one it holds no value for — so every legal action ties at
+  `optimistic_init` and `select_action` picks uniformly. This is why the trained
+  agent scores 9.79 cards on Klondike at ε = 0, the random baseline to two
+  decimals, with a 41.2 % revisit fraction against random's 42.0 %. The cap
+  bounds the memory; it does not and cannot fix the learning, and the figure now
+  says so rather than leaving a reader to divide two series.
+
+  **No recorded number moves.** The class default is still `None`, the unbounded
+  textbook table — a library user asking for `QLearningAgent` gets ordinary
+  tabular Q-learning — and the uncapped path skips the LRU bookkeeping entirely,
+  running the instructions it always did. What declares a bound is the sweep:
+  `SWEEP_Q_TABLE_LIMIT = 200_000` in `harness/learners.py`, roughly 0.3 GB a
+  checkpoint at the ~1.4 KB an entry measured here, overridable with
+  `run_sweep.py --q-table-limit` (`0` restores the unbounded table). The same
+  split as [#38](https://github.com/mkh63d/rl-card-lib/issues/38): permissive
+  class, explicit bundled value, one name for it. A checkpoint records the cap
+  it was trained under and `load()` adopts it, so the existing uncapped `.pkl`
+  files load untrimmed even when rebuilt through the now-capped `build_learner`.
+
+- **`bundled_klondike()` — one name for the Klondike the library actually plays**
+  ([#38](https://github.com/mkh63d/rl-card-lib/issues/38)). Since #18 every
+  bundled entry point plays `BUNDLED_MAX_PASSES = 3`, while the class default
+  stays unlimited. Keeping the class permissive is right — a library user asking
+  for `KlondikeSolitaire()` should get ordinary Klondike — but it is also the
+  *obvious* way to write it, it silently yields different rules than the bundled
+  game, and nothing warned. Five separate evaluation paths took it by accident
+  and scored agents on a game they were never trained on. The effect is not
+  small: on the same 200 held-out deals, random reads 9.79 cards under the
+  bundled rules against 11.59 unlimited, the heuristic 25.84 against 28.74, and
+  MCTS(20) 20.34 against 26.80 — enough for an agent to look like it cleared
+  random when it did not, or the reverse. The solvable-deal pool shrank from 102
+  deals to 91 once curated under the real rules, because the solver's
+  transposition key includes the pass count whenever the limit is finite.
+  `rl_card_lib.games.bundled_klondike()` is now the documented way to get that
+  game, and the one constructor every bundled path builds through: the sweep's
+  training and evaluation envs, `evaluate_klondike`, `run_klondike_baselines`,
+  the Gymnasium `Klondike-v0` / `KlondikeMasked-v0` ids and the solvable-pool
+  solver. Its signature mirrors `KlondikeSolitaire.__init__` with exactly one
+  default changed, so `bundled_klondike(max_passes=None)` still asks for the
+  unlimited game on purpose. A new test walks those entry points and fails if
+  any of them ever takes the class default again.
+
+  **No behaviour changes and no recorded number moves**: every bundled path
+  already passed the finite value, four times over, each at its own call site.
+  This gives that agreement a name instead of a convention.
+
 - **The bundled games are registered as Gymnasium ids.** `import rl_card_lib.games`
   now registers `rl_card_lib/Klondike-v0`, `rl_card_lib/Macao-v0` and the
   action-masked `rl_card_lib/KlondikeMasked-v0` / `rl_card_lib/MacaoMasked-v0`,
@@ -116,6 +182,41 @@
   class and opponent.
 
 ### Fixed
+
+- **Both observation spaces declare their real bounds instead of `(-inf, inf)`**
+  ([#39](https://github.com/mkh63d/rl-card-lib/issues/39)). `CardGameEnv` had
+  only one thing it could say about any game's encoding, so it said the
+  uselessly true thing: `Box(-inf, inf, ...)`. Neither encoding is remotely
+  unbounded -- both are one-hot card locations plus counts normalised by their
+  own maxima -- and over 10 deals of random play Klondike lived in
+  `[0.000, 1.000]` and Macao in `[0.000, 1.933]`. `check_env` had passed since
+  #15 but warned twice per env ("A Box observation space minimum value is
+  -infinity"), which were the only complaints it had left.
+
+  `Game.get_observation_bounds()` is the new hook: a concrete method defaulting
+  to `(-inf, +inf)`, so no existing custom game has to change, that a game
+  overrides to declare what its encoder actually produces. Klondike returns a
+  flat `[0, 1]` -- it divides each count by that count's true maximum, so every
+  one of its 221 features tops out at exactly 1.0. Macao returns a **per-feature
+  `high` array**, because a flat `1.0` there would be wrong rather than merely
+  loose: hand sizes divide by `HAND_SIZE_SCALE = 15`, a typical hand and not a
+  limit, so an opponent sitting on a stacked draw penalty encodes above 1.0 and
+  would fall outside the env's own advertised space. Their honest high is
+  `DECK_SIZE / HAND_SIZE_SCALE` (52/15 ~ 3.467): play only shuffles the 52 cards
+  between deck, discard and hands, so no hand can hold more.
+
+  Both games' divisors are now named constants (`MAX_TABLEAU_PILE`, `MAX_STOCK`,
+  `HAND_SIZE_SCALE`, `DECK_SIZE`, ...) read by the encoder and the bound alike,
+  since a bound that drifts from its encoder makes `contains()` lie -- worse
+  than the infinite one it replaced. A new test plays 10 seeded deals per env
+  and asserts every observation is inside the declared space, so an encoder
+  change that outgrows its range fails here rather than in a consumer.
+
+  **No behaviour changes and no recorded number moves**: the observations
+  themselves are byte-identical, only the declaration around them. What changes
+  is downstream -- a consumer can clip or renormalise from the space instead of
+  guessing, and the Stable-Baselines3 wrappers that read those limits
+  (`VecNormalize` bounds, observation clipping) now see real ones.
 
 - **The bundled Klondike no longer trains with the repeated-position penalty**
   ([#36](https://github.com/mkh63d/rl-card-lib/issues/36)). This reverses a

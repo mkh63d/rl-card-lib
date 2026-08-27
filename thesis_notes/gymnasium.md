@@ -63,7 +63,7 @@ uruchamia się bez niej, tracąc jedynie obiekty przestrzeni.
 
 | Konstrukcja Gymnasium | Miejsce w kodzie | Wartość dla obu gier |
 |---|---|---|
-| `spaces.Box(low=-inf, high=+inf, shape, float32)` | [card_game_env.py:58-63](../packages/core/src/rl_card_lib/env/card_game_env.py#L58-L63), [gym_wrapper.py:24-26](../packages/core/src/rl_card_lib/core/gym_wrapper.py#L24-L26) | Klondike `Box(-inf, inf, (221,), float32)`; Macao `Box(-inf, inf, (126,), float32)` |
+| `spaces.Box(low, high, shape, float32)` | [card_game_env.py:58-63](../packages/core/src/rl_card_lib/env/card_game_env.py#L58-L63), [gym_wrapper.py:24-26](../packages/core/src/rl_card_lib/core/gym_wrapper.py#L24-L26) | granice deklaruje gra przez `Game.get_observation_bounds()` (#39): Klondike `Box(0.0, 1.0, (221,), float32)`; Macao `Box(0.0, high, (126,), float32)`, gdzie `high` = 1.0 poza cechą rozmiaru ręki przeciwnika (52/15 ≈ 3.467, bo dzielnik 15 nie jest ograniczeniem) |
 | `spaces.Discrete(n)` | [card_game_env.py:74](../packages/core/src/rl_card_lib/env/card_game_env.py#L74), [gym_wrapper.py:33](../packages/core/src/rl_card_lib/core/gym_wrapper.py#L33) | Klondike `Discrete(68)`; Macao `Discrete(65)` |
 | `spaces.Dict({...})` | [card_game_env.py:212-215](../packages/core/src/rl_card_lib/env/card_game_env.py#L212-L215) | tylko w `MaskedCardGameEnv` |
 | `spaces.MultiBinary(n)` | [card_game_env.py:214](../packages/core/src/rl_card_lib/env/card_game_env.py#L214) | tylko w `MaskedCardGameEnv`; `MultiBinary(65)` dla Macao |
@@ -164,7 +164,7 @@ podmienia `observation_space` na
 
 ```
 Dict('action_mask': MultiBinary(65),
-     'observation': Box(-inf, inf, (126,), float32))
+     'observation': Box(0.0, high, (126,), float32))
 ```
 
 i zwraca z `reset`/`step` słownik `{"observation": …, "action_mask": …}`.

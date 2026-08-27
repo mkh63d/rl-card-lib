@@ -22,10 +22,34 @@ comparison in a card game is not between two learners, but between *learning*,
 
 | Agent | What it does |
 |---|---|
-| `QLearningAgent` | Tabular Q-learning — the didactic reference point. |
+| `QLearningAgent` | Tabular Q-learning — the didactic reference point, and a demonstration of why tabular methods do not reach these state spaces. |
 | `DQNAgent` | Vanilla DQN with **masked TD targets** (illegal actions cannot leak into the bootstrap). |
 | `DoubleDQNAgent` | Adds double-Q, a dueling network head, and Huber loss on top of the shared masking. |
 | `PPOAgent` | On-policy actor-critic with a masked policy. |
+
+!!! warning "`QLearningAgent` does not learn these games, and that is the lesson"
+    Its table is keyed on the rounded observation. Klondike's is a 221-dim
+    vector of which 208 are card-location bits, so `precision=2` merges nothing
+    and the table grows **0.836 entries per step** — practically every position
+    is one it has never seen. A fresh row is all `optimistic_init`, so every
+    legal action ties and `select_action` picks uniformly. At ε = 0 the trained
+    agent scores 9.79 cards on Klondike: the random baseline, to two decimals.
+    It is a random policy wearing a Q-table, and it is what motivates the
+    function approximation the DQN agents use.
+
+    Watch `agent.new_entries_per_step` to see it happen. Near 1.0 means the
+    agent is memorising rather than generalising, and no amount of training will
+    change that — only a coarser state abstraction or function approximation
+    will.
+
+    The cost is real: an uncapped Klondike table reaches 1.26–1.76 GB per
+    checkpoint. Pass `max_table_size` to bound it, and entries are evicted
+    least-recently-used with a warning on the first eviction. That bounds the
+    memory and nothing else — a capped `table_size` curve flattens while
+    `new_entries_per_step` stays near 1.0, which is the honest reading. The
+    library's sweep sets `SWEEP_Q_TABLE_LIMIT` (200 000 entries, ~0.3 GB a
+    checkpoint); the class itself stays unbounded so that
+    `QLearningAgent(action_size=...)` is the textbook algorithm.
 
 !!! note "What `eval()` means, per family"
     Turning exploration off is not one rule. The value-based agents
@@ -95,11 +119,11 @@ learners, by contrast, only read `get_observation_shape()` and
 ## Example
 
 ```python
-from rl_card_lib.games import KlondikeSolitaire
+from rl_card_lib.games import bundled_klondike
 from rl_card_lib.env import CardGameEnv
 from rl_card_lib.agents import MCTSAgent, DoubleDQNAgent
 
-env = CardGameEnv(KlondikeSolitaire(), max_steps=200)
+env = CardGameEnv(bundled_klondike(), max_steps=200)
 
 # A learner: needs only the shapes.
 learner = DoubleDQNAgent(

@@ -1,6 +1,6 @@
 """Games module containing example card game implementations."""
 
-from rl_card_lib.games.klondike import KlondikeSolitaire
+from rl_card_lib.games.klondike import KlondikeSolitaire, bundled_klondike
 from rl_card_lib.games.klondike_solver import solve_klondike
 from rl_card_lib.games.macao import Macao
 from rl_card_lib.games.heuristics import (
@@ -10,6 +10,7 @@ from rl_card_lib.games.heuristics import (
 
 __all__ = [
     "KlondikeSolitaire",
+    "bundled_klondike",
     "Macao",
     "KlondikeHeuristicAgent",
     "MacaoHeuristicAgent",
