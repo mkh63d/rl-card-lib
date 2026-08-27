@@ -586,23 +586,50 @@ def _fig_table_size(plt, emitter, record, *, colour, **_):
     if not values:
         return None
 
+    # Recorded since #41; absent from every run before it.
+    rate = record.series("new_entries_per_step")
+    cap = (record.config_section("qlearning") or {}).get("max_table_size")
+
     fig, ax = plt.subplots(figsize=(7.2, 2.8))
     ax.plot(values, color=colour, linewidth=2.0, label="Distinct states")
+    # Without this line a capped run reads as the state space running out,
+    # which is the opposite of what happened.
+    if cap:
+        ax.axhline(cap, color="0.45", linestyle="--", linewidth=1.2,
+                   label=f"Cap ({cap:,}) -- evicting above this")
     ax.set_ylabel("Q-table entries")
     ax.set_title("Q-table growth")
     _episode_axis(ax, len(values))
     ax.legend(loc="upper left")
 
-    per_episode = values[-1] / max(1, len(values))
+    # The measured rate where it exists. Deriving it from the curve instead
+    # would read zero the moment a capped table flattens, which is exactly
+    # when the agent is still creating an entry almost every step.
+    if rate and rate[-1] is not None:
+        cost = (
+            f"{rate[-1]:.2f} of every step still creates a new entry, so the "
+            "table is memorising positions rather than generalising."
+        )
+    else:
+        per_episode = values[-1] / max(1, len(values))
+        cost = (
+            f"~{per_episode:,.0f} new per episode; near-linear growth means "
+            "the table is memorising positions rather than generalising."
+        )
+
+    headers, columns = ["Episode", "Entries"], [list(range(len(values))), values]
+    if rate:
+        headers.append("New per step")
+        columns.append(rate)
+
     return emitter.emit(
         plt, fig, "table_size", "Q-table growth",
         caption=(
-            f"{values[-1]:,} distinct states after {len(values)} episodes "
-            f"(~{per_episode:,.0f} new per episode). Near-linear growth means "
-            "the table is memorising positions rather than generalising."
+            f"{values[-1]:,} distinct states after {len(values)} episodes"
+            + (f", held at the {cap:,} entry cap" if cap else "")
+            + f". {cost}"
         ),
-        table=_series_table(["Episode", "Entries"],
-                            [list(range(len(values))), values]),
+        table=_series_table(headers, columns),
     )
 
 

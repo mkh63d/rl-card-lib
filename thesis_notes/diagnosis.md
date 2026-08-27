@@ -20,7 +20,7 @@
 | **D5** | `target_update_freq=500` to 1,7 epizodu Klondike i 10,9 epizodu Macao | średnia | pomiar | **scalone w #31** — kadencja per gra (klondike 500, macao 100) |
 | **D6** | Harmonogram ε schodzi do 0,05 po **599 epizodach** — 88 % treningu jest prawie zachłanne | średnia | pomiar analityczny | bez zmian — świadomy wybór harmonogramu |
 | **D7** | Ewaluacja **zużywa** harmonogram ε (`agent.reset()` obniża ε) | niska, ale psuje reprodukowalność | pomiar | **scalone w #28** |
-| **D8** | Tablica Q-learningu rośnie o **0,84 wpisu na krok** — czysta memoryzacja | wysoka dla Q-learningu | pomiar | bez zmian — właściwość metody tabelarycznej |
+| **D8** | Tablica Q-learningu rośnie o **0,84 wpisu na krok** — czysta memoryzacja | wysoka dla Q-learningu | pomiar | **PR-PLACEHOLDER** (zgłoszenie #41) — opcjonalny limit tablicy (LRU) i pomiar `new_entries_per_step`; sama memoryzacja to nadal właściwość metody |
 | **D9** | γ = 0,95 przy epizodzie 300-krokowym: horyzont efektywny ~20 kroków | średnia | analiza | bez zmian — świadomy wybór γ |
 | **D10** | Epizod z samych nielegalnych akcji nigdy się nie kończył (dziś: truncation po `max_steps`) | poza zakresem wyników, ważne dla §Gymnasium | pomiar | **scalone w #25** |
 | **D11** | **Zachłanna ewaluacja niszczy wyuczoną politykę.** Te same wagi PPO, bundlowane reguły: `argmax` → 7,8 karty i 0,3 % wygranych; próbkowanie własnego rozkładu → **17,1 karty i 16,8 % wygranych** przy baselinie losowym 9,8. Na regułach sprzed #30 ta sama różnica to 7,1 → **22,0** karty i 0,2 → **27,8 %** | **najwyższa — zmienia główny wniosek rozdz. 6** | tak — pomiar na tych samych 200 rozdaniach TEST | **scalone w #33** (zgłoszenie #21) |
@@ -700,13 +700,32 @@ near random. Watching that failure is the point”).
 
 ### Poprawka
 
-Żadna — to jest zamierzony punkt dydaktyczny biblioteki. **Ale w pracy trzeba
-to napisać jako wynik, a nie jako porażkę agenta.** Obecny tekst §6.5 mówi
-„Tabular Q-learning ended at 11.4 cards, the best of the learners but still
-below random and, unusually, worse than before training” — słowo „unusually”
-jest mylące: agent tabularny **jest** polityką losową, więc jego wynik to
-oszacowanie polityki losowej z szumem n = 30, a nie efekt uczenia.
+Co do samego uczenia — żadna, i żadna nie jest możliwa bez zmiany metody: to
+jest zamierzony punkt dydaktyczny biblioteki. **W pracy trzeba to napisać jako
+wynik, a nie jako porażkę agenta.** Obecny tekst §6.5 mówi „Tabular Q-learning
+ended at 11.4 cards, the best of the learners but still below random and,
+unusually, worse than before training” — słowo „unusually” jest mylące: agent
+tabularny **jest** polityką losową, więc jego wynik to oszacowanie polityki
+losowej z szumem n = 30, a nie efekt uczenia.
 
+Zmienił się natomiast **koszt pamięciowy i widoczność zjawiska**
+(PR-PLACEHOLDER, zgłoszenie [#41](https://github.com/mkh63d/rl-card-lib/issues/41)):
+
+- `QLearningAgent` przyjmuje `max_table_size` — tablica z eksmisją LRU i
+  jednorazowym ostrzeżeniem przy pierwszej eksmisji. Sweep deklaruje
+  `SWEEP_Q_TABLE_LIMIT = 200 000` wpisów (~0,3 GB na checkpoint przy zmierzonych
+  ~1,4 KB/wpis, zamiast 1,26–1,76 GB), do nadpisania przez
+  `run_sweep.py --q-table-limit`; `0` przywraca tablicę bez limitu.
+- Domyślna wartość w samej klasie to nadal `None`, czyli tablica podręcznikowa —
+  **żadna zapisana liczba się nie zmienia**, a checkpointy sprzed tej zmiany
+  wczytują się nieprzycięte, bo `load()` przyjmuje limit zapisany w pliku.
+- Agent liczy `new_entries_per_step` i sweep zapisuje tę serię obok
+  `table_size`. To jest istotna część. **Krzywa `table_size` z limitem
+  wypłaszcza się**, co samo w sobie czyta się jak „agent skończył eksplorować”.
+  Nie skończył: `new_entries_per_step` dalej stoi przy 1,0, czyli prawie każdy
+  napotkany stan to nadal stan bez wartości. Limit ogranicza pamięć, nie błąd, i
+  rysunek `table_size` mówi to teraz wprost — linią limitu i podpisem z tą
+  liczbą zamiast tempa liczonego z samej krzywej.
 ---
 
 ## D9. Współczynnik dyskonta względem długości epizodu

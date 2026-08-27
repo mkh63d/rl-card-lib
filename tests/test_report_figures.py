@@ -111,6 +111,29 @@ class TestRunFigures:
         assert "table_size" in keys(render(record, tmp_path))
         assert "table_size" not in keys(render(make_record(), tmp_path))
 
+    def test_table_size_chart_predates_the_memorisation_rate(self, tmp_path):
+        """Every run recorded before #41 carries table_size and nothing else."""
+        record = make_record(
+            agent="q_learning",
+            episode_extras={"table_size": list(range(100, 130))},
+        )
+        figure = next(f for f in render(record, tmp_path) if f.key == "table_size")
+        assert "new per episode" in figure.caption
+
+    def test_table_size_caption_prefers_the_measured_rate(self, tmp_path):
+        """Deriving it from the curve would read ~0 once a capped table flattens,
+        which is exactly when the agent is still missing on every step."""
+        record = make_record(
+            agent="q_learning",
+            episode_extras={
+                "table_size": [500] * 30,          # flat: sitting on its cap
+                "new_entries_per_step": [0.97] * 30,
+            },
+        )
+        figure = next(f for f in render(record, tmp_path) if f.key == "table_size")
+        assert "0.97 of every step" in figure.caption
+        assert "new per episode" not in figure.caption
+
     def test_before_after_needs_both_sides(self, tmp_path):
         without = make_record(baseline_after={"cards_up": 9.0})
         assert "before_after" not in keys(render(without, tmp_path))

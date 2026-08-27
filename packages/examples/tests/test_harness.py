@@ -8,6 +8,7 @@ from rl_card_lib.games import KlondikeSolitaire, Macao
 from rl_card_lib.harness import (
     DEFAULT_TARGET_UPDATE_FREQ,
     LEARNERS,
+    SWEEP_Q_TABLE_LIMIT,
     TEST_SEEDS,
     TRAIN_SEEDS,
     build_learner,
@@ -128,6 +129,33 @@ class TestTargetUpdateCadence:
         finally:
             _SWEEP_GAMES.pop("toy_cadence", None)
             GAME_SPEC.pop("toy_cadence", None)
+
+
+class TestQTableLimit:
+    """The sweep bounds the Q-table; the class stays textbook-unbounded (#41)."""
+
+    def test_the_sweep_declares_a_bound(self):
+        agent = build_learner("q_learning", 221, 68, seed=0)
+        assert agent.max_table_size == SWEEP_Q_TABLE_LIMIT
+
+    def test_zero_asks_for_the_unbounded_table(self):
+        agent = build_learner("q_learning", 221, 68, seed=0, q_table_limit=0)
+        assert agent.max_table_size is None
+
+    def test_an_explicit_limit_reaches_the_agent(self):
+        agent = build_learner("q_learning", 221, 68, seed=0, q_table_limit=1234)
+        assert agent.max_table_size == 1234
+
+    def test_the_class_default_is_still_unbounded(self):
+        """Constructing the agent directly must not pick up the sweep's bound."""
+        from rl_card_lib.agents import QLearningAgent
+        assert QLearningAgent(action_size=68).max_table_size is None
+
+    @pytest.mark.parametrize("kind", ("dqn", "double_dqn", "ppo"))
+    def test_agents_without_a_table_ignore_it(self, kind):
+        """The sweep passes one value for every learner, as with the cadence."""
+        agent = build_learner(kind, 221, 68, seed=0, q_table_limit=1234)
+        assert not hasattr(agent, "max_table_size")
 
 
 class TestEvaluation:
@@ -266,7 +294,8 @@ class TestEpisodeRecorder:
             episodes=2, max_steps_per_episode=15, verbose=False, callback=callback,
         )
 
-        assert set(extras) == {"epsilon", "wall_clock", "table_size"}
+        assert set(extras) == {"epsilon", "wall_clock", "table_size",
+                               "new_entries_per_step"}
 
     def test_epsilon_is_measured_for_dqn(self):
         env, agent, extras_fn = self.build("dqn")
@@ -335,6 +364,36 @@ class TestEpisodeRecorder:
 
         assert extras["table_size"][-1] >= extras["table_size"][0]
         assert extras["table_size"][-1] > 0
+
+    def test_new_entries_per_step_is_recorded_for_tabular(self):
+        """The memorisation rate rides alongside table_size, per episode."""
+        env, agent, extras_fn = self.build("q_learning")
+        trainer = Trainer(env, agent, log_interval=100, eval_interval=10_000)
+        callback, extras = make_episode_recorder(env, agent, extras_fn)
+
+        trainer.train(
+            episodes=3, max_steps_per_episode=15, verbose=False, callback=callback,
+        )
+
+        rates = extras["new_entries_per_step"]
+        assert len(rates) == len(extras["table_size"])
+        # Above 1.0 is legitimate: learn() instantiates the successor row too.
+        assert all(r >= 1.0 for r in rates), "a fresh table should miss every step"
+
+    def test_new_entries_per_step_is_absent_for_dqn(self):
+        """Only the tabular agent has a table, so the rest record None."""
+        env = CardGameEnv(Macao(num_players=2, seed=0), max_steps=15)
+        agent = build_learner(
+            "dqn", env.observation_space.shape[0], env.action_space.n, seed=0,
+        )
+        trainer = Trainer(env, agent, log_interval=100, eval_interval=10_000)
+        callback, extras = make_episode_recorder(env, agent, None)
+
+        trainer.train(
+            episodes=2, max_steps_per_episode=15, verbose=False, callback=callback,
+        )
+
+        assert extras["new_entries_per_step"] == [None, None]
 
     def test_a_game_without_the_extras_attribute_records_none(self):
         """An extras callable that finds no signal appends None, not a crash."""

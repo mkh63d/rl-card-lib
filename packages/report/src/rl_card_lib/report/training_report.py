@@ -275,6 +275,11 @@ def _collect_qlearning_info(agent: Optional[Agent]) -> Optional[dict[str, Any]]:
         # The headline cost of tabular Q-learning: one entry per distinct
         # rounded observation, and it only ever grows.
         "table_size": getattr(agent, "table_size", None),
+        # Entries the table keeps before evicting least-recently-used ones.
+        # Absent (filtered below) for the unbounded textbook table. The rate it
+        # evicts at is a measurement, not a setting, so it belongs to the
+        # per-episode `new_entries_per_step` series rather than here.
+        "max_table_size": getattr(agent, "max_table_size", None),
         "seed": getattr(agent, "seed", None),
     }
 
