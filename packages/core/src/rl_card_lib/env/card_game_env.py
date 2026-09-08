@@ -14,6 +14,8 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 
+from rl_card_lib.utils.console import console_safe
+
 
 #: Accepted values for CardGameEnv's `deal_order`.
 DEAL_ORDERS = ("random", "cycle")
@@ -50,7 +52,10 @@ class CardGameEnv(gym.Env):
             max_steps: Steps after which the episode truncates (None for no
                 cap). Illegal actions count against the cap too, so an agent
                 that only proposes illegal ones still ends its episode.
-            render_mode: None, "human" (print) or "ansi" (return string)
+            render_mode: None, "human" (print) or "ansi" (return string).
+                The "human" path degrades the suit glyphs to letters on a
+                console that cannot encode them; "ansi" always returns them
+                unchanged.
             invalid_action_reward: Reward returned for an illegal action; the
                 game itself is not stepped, but the step is still counted
                 against `max_steps`
@@ -269,7 +274,9 @@ class CardGameEnv(gym.Env):
             return None
         rendered = self.game.render()
         if self.render_mode == "human":
-            print(rendered)
+            # Not bare print(): the glyphs raise UnicodeEncodeError on a console
+            # whose code page cannot take them, and this runs inside step (#47).
+            print(console_safe(rendered))
             return None
         if self.render_mode == "ansi":
             return rendered

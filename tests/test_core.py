@@ -160,6 +160,16 @@ class TestCardExtended:
         for suit in Suit:
             assert suit.symbol in "♣♦♥♠"
 
+    def test_card_ascii_symbol(self):
+        """Every suit has a letter fallback for consoles that lack the glyph."""
+        assert [suit.ascii_symbol for suit in Suit] == ["C", "D", "H", "S"]
+
+    def test_card_ascii_symbol_is_encodable_everywhere(self):
+        """The fallback is only useful if it survives a legacy code page."""
+        for suit in Suit:
+            suit.ascii_symbol.encode("cp1250")
+            suit.ascii_symbol.encode("ascii")
+
     def test_card_rank_symbol(self):
         """Test rank symbols."""
         for rank in Rank:

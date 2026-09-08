@@ -22,6 +22,21 @@ class Suit(IntEnum):
         return symbols[self]
 
     @property
+    def ascii_symbol(self) -> str:
+        """The suit as a letter, for streams that cannot encode `symbol`.
+
+        Lives beside `symbol` so the fallback cannot drift from the glyph it
+        stands in for.
+        """
+        symbols = {
+            Suit.CLUBS: "C",
+            Suit.DIAMONDS: "D",
+            Suit.HEARTS: "H",
+            Suit.SPADES: "S",
+        }
+        return symbols[self]
+
+    @property
     def color(self) -> str:
         if self in (Suit.DIAMONDS, Suit.HEARTS):
             return "red"

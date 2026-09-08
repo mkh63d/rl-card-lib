@@ -1,5 +1,6 @@
 """Tests for game implementations."""
 
+import io
 import random
 import warnings
 
@@ -608,6 +609,54 @@ class TestCardGameEnvMethods:
         
         captured = capsys.readouterr()
         assert "Klondike" in captured.out
+
+    def test_render_human_on_a_non_utf8_console(self, monkeypatch):
+        """render() must not raise where stdout cannot encode the glyphs (#47).
+
+        cp1250 with errors="strict" is what a Polish Windows console gives you.
+        """
+        stdout = io.TextIOWrapper(
+            io.BytesIO(), encoding="cp1250", errors="strict"
+        )
+        monkeypatch.setattr("sys.stdout", stdout)
+        game = KlondikeSolitaire()
+        env = CardGameEnv(game, render_mode="human")
+        env.reset(seed=0)
+
+        env.render()
+
+        stdout.flush()
+        written = stdout.buffer.getvalue().decode("cp1250")
+        assert "Klondike" in written
+        # The suits arrived as letters rather than as replacement chars.
+        assert "?" not in written.replace("[??]", "")
+
+    def test_step_on_a_non_utf8_console(self, monkeypatch):
+        """The reported failure: render() is called from inside step() (#47)."""
+        stdout = io.TextIOWrapper(
+            io.BytesIO(), encoding="cp1250", errors="strict"
+        )
+        monkeypatch.setattr("sys.stdout", stdout)
+        game = KlondikeSolitaire()
+        env = CardGameEnv(game, render_mode="human", max_steps=10)
+        obs, info = env.reset(seed=0)
+
+        env.step(info["legal_actions"][0])
+
+        stdout.flush()
+        assert "Klondike" in stdout.buffer.getvalue().decode("cp1250")
+
+    def test_render_ansi_keeps_the_glyphs_on_any_console(self, monkeypatch):
+        """Only the printing path downgrades; a captured string is unchanged."""
+        monkeypatch.setattr(
+            "sys.stdout",
+            io.TextIOWrapper(io.BytesIO(), encoding="cp1250", errors="strict"),
+        )
+        game = KlondikeSolitaire()
+        env = CardGameEnv(game, render_mode="ansi")
+        env.reset(seed=0)
+
+        assert any(glyph in env.render() for glyph in "♣♦♥♠")
 
     def test_render_none_mode(self):
         game = KlondikeSolitaire()
