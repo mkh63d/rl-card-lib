@@ -78,8 +78,11 @@ pre.board {
   font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
   border: 1px solid var(--line); color: var(--muted);
 }
-.tag.illegal, .tag.cap { color: var(--bad); border-color: var(--bad); }
+.tag.illegal, .tag.stepcap { color: var(--bad); border-color: var(--bad); }
 .tag.terminal { color: var(--good); border-color: var(--good); }
+/* A repeat is not a failure on its own, so it keeps the muted base -- stated
+   explicitly so every class `_flags` can emit has a rule of its own. */
+.tag.repeat { color: var(--muted); border-color: var(--line); }
 ol.moves { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
 ol.moves li {
   padding: 5px 8px; border-radius: 5px; cursor: pointer;
@@ -125,7 +128,7 @@ function show(n) {
   move.textContent = '';
   move.appendChild(el('span', 'label', f.action === null ? 'Opening deal' : f.label));
   if (f.action !== null) {
-    (f.flags || []).forEach(t => move.appendChild(el('span', 'tag ' + t.replace(' ', ''), t)));
+    (f.flags || []).forEach(t => move.appendChild(el('span', 'tag ' + t.cls, t.text)));
     move.appendChild(el('div', 'nums',
       `action ${f.action} \\u00b7 reward ${f.reward} \\u00b7 total ${f.total}`));
   }
@@ -164,16 +167,25 @@ show(0);
 
 
 def _flags(step) -> list:
-    flags = []
+    """The step's flags, each paired with the CSS class that styles it.
+
+    The class is computed here and travels with the label rather than being
+    derived in the page from the label's text. Deriving it there is how
+    "step cap" came to ask for `.tag.cap` -- the stylesheet defines
+    `.tag.stepcap`, so the flag silently lost its highlight and nothing failed.
+    One definition, and `test_every_flag_class_is_styled` holds it to the
+    stylesheet.
+    """
+    names = []
     if step.invalid:
-        flags.append("illegal")
+        names.append("illegal")
     if step.repeated:
-        flags.append("repeat")
+        names.append("repeat")
     if step.terminated:
-        flags.append("terminal")
+        names.append("terminal")
     if step.truncated:
-        flags.append("step cap")
-    return flags
+        names.append("step cap")
+    return [{"text": name, "cls": name.replace(" ", "")} for name in names]
 
 
 def _frames(record: EpisodeRecord) -> list:

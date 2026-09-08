@@ -10,6 +10,7 @@ from rl_card_lib.visualizer.episode import (
     iter_episode,
     play_episode,
 )
+from rl_card_lib.visualizer import html_episode
 from rl_card_lib.visualizer.html_episode import episode_to_html, write_episode_html
 from rl_card_lib.visualizer.replay import (
     episode_summary,
@@ -431,6 +432,26 @@ class TestHtml:
         assert page.count('<li tabindex="0" role="button"') == 4
         # Click handlers alone would leave the list dead to Enter and Space.
         assert "onkeydown" in page
+
+    def test_every_flag_class_is_styled(self):
+        # The class used to be derived in the JS with replace(' ', ''), which
+        # asked for `.tag.cap` while the stylesheet defined `.tag.stepcap`:
+        # step-cap flags lost their highlight and nothing failed. The class now
+        # comes from _flags alone, and this holds it to the stylesheet.
+        every_flag = EpisodeStep(
+            index=0, action=0, action_label="x", reward=0.0, total_reward=0.0,
+            terminated=True, truncated=True, invalid=True, repeated=True,
+            winner=None, board="",
+        )
+        flags = html_episode._flags(every_flag)
+        assert {f["text"] for f in flags} == {"illegal", "repeat", "terminal", "step cap"}
+        for flag in flags:
+            assert f'.tag.{flag["cls"]}' in html_episode._CSS
+
+    def test_flag_text_reaches_the_page(self):
+        env = FakeEnv(max_steps=1, flags={0: {"repeated_position": True}})
+        page = episode_to_html(play_episode(env, FakeAgent(), seed=0))
+        assert '"cls": "repeat"' in page and '"text": "repeat"' in page
 
     def test_title_can_be_overridden(self):
         page = episode_to_html(self.make(), title="Deal 42")
