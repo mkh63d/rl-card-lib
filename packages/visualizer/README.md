@@ -89,8 +89,8 @@ metrics.plot()  # plot reward / win-rate curves
 
 ## Dependencies
 
-- `rl-card-lib-core>=0.1.0` - `console_safe`, which every board print goes through
-- `rl-card-lib-cardgames>=0.1.0` - Cardgames extension
+- `rl-card-lib-core>=1.0.0` - `console_safe`, which every board print goes through
+- `rl-card-lib-cardgames>=1.0.0` - Cardgames extension
 - `matplotlib>=3.5.0` - Plotting library
 
 ## Optional Dependencies (dev)

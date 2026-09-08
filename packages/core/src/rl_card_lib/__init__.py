@@ -4,7 +4,7 @@ from pkgutil import extend_path
 
 __path__ = extend_path(__path__, __name__)
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 __author__ = "Michal Holynski"
 
 from rl_card_lib.cardgames import Card, Deck, CardGame, Player
