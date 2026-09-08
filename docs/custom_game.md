@@ -61,6 +61,175 @@ the game ends, and advance `self.current_player_idx` for a multiplayer game (the
 `next_player()` helper does this). `winner` is the index of the winning player,
 or `None`.
 
+### A real example: Klondike
+
+The Hearts stub above is a skeleton. Here is what the seven methods look like
+filled in, taken from the library's own
+[`KlondikeSolitaire`](https://github.com/mkh63d/rl-card-lib/blob/main/packages/examples/src/rl_card_lib/games/klondike.py).
+Private helpers such as `_can_place_on_tableau`, `_can_place_on_foundation`,
+`_draw_from_stock`, `_move_tableau_to_foundation` and `_check_win` are called
+from `step()` and `get_legal_actions()` but are game-specific bookkeeping, not
+part of the contract — they are omitted here; read the source for those.
+
+```python
+class KlondikeSolitaire(CardGame):
+    def reset(self, seed: Optional[int] = None) -> np.ndarray:
+        if seed is not None:
+            self._rng = random.Random(seed)
+        self.deck = Deck()
+        self.deck.shuffle(rng=self._rng)
+
+        self.tableaux = [[] for _ in range(7)]
+        self.foundations = [[] for _ in range(4)]
+        self.stock = []
+        self.waste = []
+        self.passes = 0
+        self.done = False
+        self.winner = None
+        self._turn_count = 0
+
+        # Deal to tableaux, top card of each pile face up; remainder to stock
+        for i in range(7):
+            for j in range(i, 7):
+                card = self.deck.draw_one(face_up=False)
+                self.tableaux[j].append(card)
+            self.tableaux[i][-1].face_up = True
+
+        self.stock = list(self.deck.cards)
+        for card in self.stock:
+            card.face_up = False
+        self.deck.cards.clear()
+
+        return self.get_observation()
+
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict]:
+        self._turn_count += 1
+        reward = 0.0
+
+        if action == 0:
+            reward = self._draw_from_stock()
+        elif 1 <= action <= 7:
+            reward = self._move_waste_to_tableau(action - 1)
+        elif 8 <= action <= 11:
+            reward = self._move_waste_to_foundation(action - 8)
+        elif 12 <= action <= 18:
+            reward = self._move_tableau_to_foundation(action - 12)
+        elif action >= 19:
+            relative_action = action - 19
+            from_pile = relative_action // 7
+            to_pile = relative_action % 7
+            reward = self._move_tableau_to_tableau(from_pile, to_pile)
+
+        reward -= 0.01  # small per-move penalty
+
+        if self.reward_mode == "sparse":
+            reward = 0.0
+
+        won = self._check_win()
+        if won:
+            if self.reward_mode == "sparse":
+                reward = 1.0
+        elif not self.get_legal_actions():
+            self.done = True           # dead deal: no legal moves left
+            reward += self.LOSS_REWARD
+
+        terminated = self.done
+        truncated = False
+        info = {
+            "foundations": [len(f) for f in self.foundations],
+            "cards_in_foundation": sum(len(f) for f in self.foundations),
+        }
+        return self.get_observation(), reward, terminated, truncated, info
+
+    def get_legal_actions(self) -> list[int]:
+        legal = []
+
+        if self.stock or (self.waste and self._can_recycle()):
+            legal.append(0)                                # draw / recycle
+
+        if self.waste:
+            waste_card = self.waste[-1]
+            for i in range(7):
+                if self._can_place_on_tableau(waste_card, i):
+                    legal.append(1 + i)                     # waste -> tableau
+            for i in range(4):
+                if self._can_place_on_foundation(waste_card, i):
+                    legal.append(8 + i)                     # waste -> foundation
+
+        for i in range(7):
+            if self.tableaux[i] and self.tableaux[i][-1].face_up:
+                top_card = self.tableaux[i][-1]
+                for j in range(4):
+                    if self._can_place_on_foundation(top_card, j):
+                        legal.append(12 + i)                # tableau -> foundation
+                        break
+
+        for from_pile in range(7):
+            if not self.tableaux[from_pile]:
+                continue
+            face_up_start = -1
+            for idx, card in enumerate(self.tableaux[from_pile]):
+                if card.face_up:
+                    face_up_start = idx
+                    break
+            if face_up_start == -1:
+                continue
+            for card_idx in range(face_up_start, len(self.tableaux[from_pile])):
+                moving_card = self.tableaux[from_pile][card_idx]
+                for to_pile in range(7):
+                    if from_pile == to_pile:
+                        continue
+                    if self._can_place_on_tableau(moving_card, to_pile):
+                        action = 19 + from_pile * 7 + to_pile
+                        if action not in legal:
+                            legal.append(action)            # tableau -> tableau
+
+        return legal
+
+    def get_observation(self) -> np.ndarray:
+        observation = []
+        card_info = {}
+
+        for card in self.stock:
+            card_info[card.to_index()] = [0, 0, 1, 0]       # in stock, face down
+        for card in self.waste:
+            card_info[card.to_index()] = [0, 0, 1, 1]       # in waste, face up
+        for pile in self.tableaux:
+            for card in pile:
+                card_info[card.to_index()] = [1, 0, 0, 1 if card.face_up else 0]
+        for pile in self.foundations:
+            for card in pile:
+                card_info[card.to_index()] = [0, 1, 0, 1]   # in foundation
+
+        for i in range(52):
+            observation.extend(card_info.get(i, [0, 0, 0, 0]))
+
+        for pile in self.foundations:                        # foundation top ranks
+            observation.append(pile[-1].rank / self.MAX_FOUNDATION_RANK if pile else 0.0)
+        for pile in self.tableaux:                            # tableau pile sizes
+            observation.append(len(pile) / self.MAX_TABLEAU_PILE)
+        observation.append(len(self.waste) / self.MAX_STOCK)
+        observation.append(len(self.stock) / self.MAX_STOCK)
+
+        return np.array(observation, dtype=np.float32)
+
+    def get_observation_shape(self) -> tuple[int, ...]:
+        return (52 * 4 + 4 + 7 + 2,)     # 221 features
+
+    def get_action_space_size(self) -> int:
+        return self.MAX_ACTIONS          # 68
+
+    def is_game_over(self) -> bool:
+        if self.done:
+            return True
+        return len(self.get_legal_actions()) == 0   # stuck: no legal moves
+```
+
+Note how `get_observation_bounds()` isn't here — it's one of the optional
+overrides from the next section, and Klondike uses it because its encoding is
+normalised to `[0, 1]` (see `MAX_FOUNDATION_RANK`, `MAX_TABLEAU_PILE`,
+`MAX_STOCK` in the source).
+
 ### What you get for free
 
 | Method | Default | When to override |
