@@ -86,6 +86,7 @@ ol.moves li {
   display: flex; gap: 8px; align-items: baseline;
 }
 ol.moves li:hover { background: var(--bg); }
+ol.moves li:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 ol.moves li.on { background: var(--accent); color: #fff; }
 ol.moves li.on .nums, ol.moves li.on .idx { color: #fff; opacity: .85; }
 .idx { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 34px; }
@@ -93,6 +94,11 @@ ol.moves li.on .nums, ol.moves li.on .idx { color: #fff; opacity: .85; }
 .hint { color: var(--muted); font-size: 12px; margin-top: 12px; }
 """
 
+# Frame data reaches the DOM as text and never as markup -- no innerHTML
+# anywhere below. Escaping `<` in the payload keeps the *HTML parser* from
+# seeing markup, but JS reads the escape back as `<`, so a label assigned
+# through innerHTML would still run: an action label is game-supplied text and
+# this page does not trust it.
 _JS = """
 const F = FRAMES;
 let i = 0;
@@ -104,23 +110,34 @@ const prev = document.getElementById('prev');
 const next = document.getElementById('next');
 const items = [...document.querySelectorAll('ol.moves li')];
 
-function tags(f) {
-  return (f.flags || []).map(t => `<span class="tag ${t.replace(' ', '')}">${t}</span>`).join('');
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  node.textContent = text;
+  return node;
 }
 
 function show(n) {
   i = Math.max(0, Math.min(F.length - 1, n));
   const f = F[i];
   board.textContent = f.board || '(this game does not render a board)';
-  move.innerHTML = f.action === null
-    ? '<span class="label">Opening deal</span>'
-    : `<span class="label">${f.label}</span>${tags(f)}` +
-      `<div class="nums">action ${f.action} &middot; reward ${f.reward} &middot; total ${f.total}</div>`;
+
+  move.textContent = '';
+  move.appendChild(el('span', 'label', f.action === null ? 'Opening deal' : f.label));
+  if (f.action !== null) {
+    (f.flags || []).forEach(t => move.appendChild(el('span', 'tag ' + t.replace(' ', ''), t)));
+    move.appendChild(el('div', 'nums',
+      `action ${f.action} \\u00b7 reward ${f.reward} \\u00b7 total ${f.total}`));
+  }
+
   slider.value = i;
   counter.textContent = `${i} / ${F.length - 1}`;
   prev.disabled = i === 0;
   next.disabled = i === F.length - 1;
-  items.forEach((li, k) => li.classList.toggle('on', k === i));
+  items.forEach((li, k) => {
+    li.classList.toggle('on', k === i);
+    li.setAttribute('aria-current', k === i ? 'true' : 'false');
+  });
   const on = items[i];
   if (on) on.scrollIntoView({ block: 'nearest' });
 }
@@ -128,7 +145,14 @@ function show(n) {
 prev.onclick = () => show(i - 1);
 next.onclick = () => show(i + 1);
 slider.oninput = () => show(+slider.value);
-items.forEach((li, k) => li.onclick = () => show(k));
+items.forEach((li, k) => {
+  li.onclick = () => show(k);
+  // A click handler alone leaves the list unusable from the keyboard: the
+  // items carry role="button", so Enter and Space have to activate them.
+  li.onkeydown = e => {
+    if (e.key === 'Enter' || e.key === ' ') { show(k); e.preventDefault(); }
+  };
+});
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft') { show(i - 1); e.preventDefault(); }
   if (e.key === 'ArrowRight') { show(i + 1); e.preventDefault(); }
@@ -201,8 +225,11 @@ def episode_to_html(record: EpisodeRecord, *, title: Optional[str] = None) -> st
         label = html.escape(str(frame["label"]), quote=True)
         idx = "deal" if frame["action"] is None else str(n - 1)
         total = html.escape(str(frame["total"]), quote=True)
+        # Focusable and announced as a button: the items are activated by
+        # click, so without these a keyboard cannot reach them at all.
         lis.append(
-            f'<li><span class="idx">{idx}</span>'
+            f'<li tabindex="0" role="button" aria-current="false">'
+            f'<span class="idx">{idx}</span>'
             f'<span class="grow">{label}</span>'
             f'<span class="nums">{total}</span></li>'
         )

@@ -410,12 +410,27 @@ class TestHtml:
         # suits; downgrading here would lose what the record still holds.
         assert "♠" in episode_to_html(self.make())
 
-    def test_markup_in_a_label_cannot_break_out(self):
+    def test_markup_in_a_label_cannot_break_out_of_the_document(self):
         env = FakeEnv(max_steps=1)
         env.action_to_string = lambda action: "</script><img src=x onerror=alert(1)>"
         page = episode_to_html(play_episode(env, FakeAgent(), seed=0))
         assert "<img src=x" not in page
         assert page.count("</script>") == 1
+
+    def test_frame_data_never_reaches_the_dom_as_markup(self):
+        # Escaping `<` in the payload only protects the HTML parser: JS reads
+        # the escape back as `<`, so a label written through innerHTML would
+        # execute even though the file on disk holds no markup. Nothing in the
+        # page may use innerHTML -- the check the serialisation test above
+        # cannot make, because the attack only exists at runtime.
+        assert "innerHTML" not in episode_to_html(self.make())
+
+    def test_move_list_is_reachable_from_the_keyboard(self):
+        page = episode_to_html(self.make())
+        # Every move in the list, the opening deal included.
+        assert page.count('<li tabindex="0" role="button"') == 4
+        # Click handlers alone would leave the list dead to Enter and Space.
+        assert "onkeydown" in page
 
     def test_title_can_be_overridden(self):
         page = episode_to_html(self.make(), title="Deal 42")
