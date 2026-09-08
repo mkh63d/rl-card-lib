@@ -24,7 +24,15 @@ from make_report import (  # noqa: E402
 )
 
 AGENTS = ["ppo", "double_dqn", "dqn", "q_learning"]
-RANDOM_BASELINE = 11.59      # raw/baselines_on_test.json, Klondike, TEST pool
+
+# Both reference lines are the random policy measured on the *bundled* Klondike
+# (BUNDLED_MAX_PASSES = 3, PR #30), because that is the rule set the checkpoints
+# in greedy_vs_epsilon.json were replayed under. The pre-#30 values were 11.59
+# cards and 23.0 %, and they must not be drawn against post-#30 series -- fewer
+# passes through the stock means fewer distinct positions, which lifts every
+# policy's revisit share and lowers every policy's score.
+RANDOM_BASELINE = 9.79       # raw/baselines_on_test.json, Klondike, TEST pool
+RANDOM_REVISIT_PCT = 42.0    # raw/policy_diagnostics.json, random policy
 
 
 def main() -> int:
@@ -57,8 +65,9 @@ def main() -> int:
     left.annotate("random baseline", xy=(0.155, RANDOM_BASELINE), xytext=(0, -14),
                   textcoords="offset points", fontsize=9.5, color=BASELINE,
                   ha="center")
-    right.axhline(23.0, color=BASELINE, linestyle="--", linewidth=1.2)
-    right.annotate("random policy", xy=(0.10, 23.0), xytext=(0, 6),
+    right.axhline(RANDOM_REVISIT_PCT, color=BASELINE, linestyle="--",
+                  linewidth=1.2)
+    right.annotate("random policy", xy=(0.10, RANDOM_REVISIT_PCT), xytext=(0, 6),
                    textcoords="offset points", fontsize=9.5, color=BASELINE,
                    ha="center")
 
@@ -87,9 +96,10 @@ def main() -> int:
                  x=0.045, ha="left", y=1.04)
     caption(left,
             "Nothing is retrained. The identical checkpoints are replayed over "
-            "the identical 200 TEST deals; only the rule that turns the network "
-            "output into an action changes.\n"
-            "The greedy column (ε = 0) is the protocol the thesis reports.", 66)
+            "the identical 200 TEST deals, and the only thing that changes is "
+            "the rule turning the network output into an action.\n"
+            "The greedy column (ε = 0) is the rule the reported protocol used "
+            "for every value-based agent.", 66)
     fig.subplots_adjust(wspace=0.30)
     emit(fig, "action_rule_klondike")
 

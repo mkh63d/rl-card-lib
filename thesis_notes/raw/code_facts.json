@@ -1,22 +1,23 @@
 {
   "klondike.py": {
     "path": "packages/examples/src/rl_card_lib/games/klondike.py",
-    "total_lines": 665,
-    "code_lines": 440,
+    "total_lines": 760,
+    "code_lines": 508,
     "classes": [
       [
         "KlondikeSolitaire",
-        21
+        22
       ]
     ],
-    "methods_in_classes": 21,
-    "module_level_functions": 1,
+    "methods_in_classes": 22,
+    "module_level_functions": 2,
     "method_names": {
       "KlondikeSolitaire": [
         "__init__",
         "reset",
         "get_observation",
         "get_observation_shape",
+        "get_observation_bounds",
         "get_action_space_size",
         "get_legal_actions",
         "_can_place_on_tableau",
@@ -46,19 +47,19 @@
       "step"
     ],
     "contract_missing": [],
-    "own_methods": 21
+    "own_methods": 22
   },
   "macao.py": {
     "path": "packages/examples/src/rl_card_lib/games/macao.py",
-    "total_lines": 693,
-    "code_lines": 493,
+    "total_lines": 737,
+    "code_lines": 514,
     "classes": [
       [
         "Macao",
-        17
+        18
       ]
     ],
-    "methods_in_classes": 17,
+    "methods_in_classes": 18,
     "module_level_functions": 1,
     "method_names": {
       "Macao": [
@@ -66,6 +67,7 @@
         "reset",
         "get_observation",
         "get_observation_shape",
+        "get_observation_bounds",
         "get_action_space_size",
         "get_legal_actions",
         "_can_play_card",
@@ -91,7 +93,7 @@
       "step"
     ],
     "contract_missing": [],
-    "own_methods": 17
+    "own_methods": 18
   },
   "klondike_solver.py": {
     "path": "packages/examples/src/rl_card_lib/games/klondike_solver.py",
@@ -137,15 +139,15 @@
   },
   "game.py": {
     "path": "packages/core/src/rl_card_lib/core/game.py",
-    "total_lines": 163,
-    "code_lines": 129,
+    "total_lines": 188,
+    "code_lines": 150,
     "classes": [
       [
         "Game",
-        19
+        20
       ]
     ],
-    "methods_in_classes": 19,
+    "methods_in_classes": 20,
     "module_level_functions": 0,
     "method_names": {
       "Game": [
@@ -157,6 +159,7 @@
         "get_action_space_size",
         "get_observation_shape",
         "is_game_over",
+        "get_observation_bounds",
         "get_current_player",
         "next_player",
         "action_to_string",

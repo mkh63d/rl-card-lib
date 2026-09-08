@@ -281,7 +281,15 @@ def run(args) -> dict:
         # architectures apart. Kept out of `arm_config`, which describes the
         # protocol and must stay identical across the agents in an arm.
         "variant": variant(args),
-        "agent_config": {"dueling": getattr(agent, "dueling", None)},
+        # Both are None on the agents that have no such switch. The table cap
+        # is here for the same reason `dueling` is: `build_learner` defaults it
+        # to SWEEP_Q_TABLE_LIMIT (#41), so a run trained against the capped
+        # table would otherwise be indistinguishable from the unbounded runs
+        # this sweep replaced.
+        "agent_config": {
+            "dueling": getattr(agent, "dueling", None),
+            "max_table_size": getattr(agent, "max_table_size", None),
+        },
         "arm": args.arm,
         "arm_config": config,
         "repeated_position_penalty": config["repeated_position_penalty"],
