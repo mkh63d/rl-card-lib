@@ -30,7 +30,7 @@ This is a monorepo of five packages that layer on top of a game-agnostic core.
 |---|---|---|
 | **`rl-card-lib-core`** | `Game` base class, Gymnasium env wrappers (`CardGameEnv`, `MaskedCardGameEnv`), the agent framework, `Trainer` / `SelfPlayTrainer` and `TrainingMetrics` | — |
 | **`rl-card-lib-cardgames`** | Card primitives (`Card`, `Suit`, `Rank`, `Deck`, `Player`, `CardGame`) and reusable rule predicates in `cardgames.rules` | core |
-| **`rl-card-lib-visualizer`** | Text rendering of cards and tableaux (`render_cards`, `render_tableau`, `create_simple_board_view`) | core |
+| **`rl-card-lib-visualizer`** | Text rendering of cards and tableaux (`render_cards`, `render_tableau`, `create_simple_board_view`) and step-by-step episode replay (`play_episode`, `print_episode`, `write_episode_html`) | core |
 | **`rl-card-lib-report`** | `TrainingReport` (run configuration), `RunRecord` / `RunStore` (what a run did), `HtmlReport` (a self-contained page) | core; matplotlib via the `charts` extra |
 | **`rl-card-lib-examples`** | Klondike (with a perfect-information solver) and Macao, hand-written heuristic agents, and the demo / training / benchmark scripts | core, cardgames |
 

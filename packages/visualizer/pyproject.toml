@@ -23,6 +23,12 @@ classifiers = [
 ]
 keywords = ["visualization", "training-metrics", "card-games"]
 dependencies = [
+	# core for `utils.console.console_safe`, which every board print goes
+	# through. Already here transitively via cardgames; named so the import is
+	# honest. core declares no rl-card-lib dependency of its own, so this
+	# closes no cycle -- and nothing here may depend on `examples`, which
+	# depends on this package.
+	"rl-card-lib-core>=0.1.0",
 	"rl-card-lib-cardgames>=0.1.0",
 	"matplotlib>=3.5.0",
 ]
