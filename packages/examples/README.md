@@ -35,6 +35,23 @@ win rate vs. a random opponent at each:
   known baseline via `--annotate-buggy-backup`
 - Outputs to `results/mcts_budget_sweep/`
 
+### Watch One Episode (`watch_episode.py`)
+Replays a single deal move by move, printing the board after each action
+together with its reward and the flags the env raised (illegal action, repeated
+position, step cap):
+- Agent is a baseline (`Random`, `Heuristic`, `GreedyLookahead(1)`, `MCTS(n)`)
+  or a trained learner loaded from its checkpoint
+- With no `--seed`, the deal comes from the cached pool the perfect-information
+  solver proved winnable, so a loss is the agent's and not the shuffle's
+- `--step` waits for Enter between moves, `--delay` auto-plays
+- `--html PATH` writes a self-contained page you can step through
+
+```bash
+python scripts/watch_episode.py --agent double_dqn --pool-index 0
+python scripts/watch_episode.py --agent Heuristic --seed 0 --step
+python scripts/watch_episode.py --agent ppo --no-board --html episode.html
+```
+
 ## Installation
 
 ```bash

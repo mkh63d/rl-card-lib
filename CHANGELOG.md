@@ -4,6 +4,48 @@
 
 ### Added
 
+- **A single episode can now be watched, move by move, in the `visualizer`
+  package.** Every piece was already there -- `CardGameEnv.reset(seed=...)`
+  gives a reproducible deal, `render()` draws the board, `action_to_string()`
+  names the move, `load_trained_learner()` restores a checkpoint and
+  `SweepGame.solver` says whether a deal can be won at all -- but nothing
+  joined them. `measure_agent_on_pool` plays a whole pool and reports solve
+  rate and mean moves; the individual moves were discarded, so "what does the
+  trained DQN actually *do* on a deal it fails?" had no answer short of a
+  throwaway loop.
+
+  `play_episode(env, agent, seed=...)` records the episode as an
+  `EpisodeRecord` of `EpisodeStep`s -- action, label, reward, running return,
+  the board afterwards, and the flags the env raised. `iter_episode` is the
+  same loop as a generator, because with MCTS a move takes seconds and the
+  point of watching is that moves arrive while the agent plays rather than all
+  at once at the end. `print_episode` takes either one, so the live stream and
+  the finished artifact are one code path; `write_episode_html` writes a
+  self-contained page that steps through the boards, which is what a 300-step
+  Klondike needs to be readable at all.
+
+  It is duck-typed against the env and agent contracts, and imports nothing
+  from `games`, `harness` or `report` -- `examples` depends on `visualizer`, so
+  any of those would close a cycle. That constraint is also what keeps the
+  replay generic: a custom game replays without a line of this code knowing its
+  name, and the entry point that *does* know about the registry, checkpoints
+  and the solvable-deal pool lives in `examples` as
+  `scripts/watch_episode.py`.
+
+  Boards are recorded as raw Unicode and downgraded only at the moment of
+  printing, so the terminal survives cp1250 (#47) while the UTF-8 page keeps
+  the real suit glyphs. The env's `render_mode` is forced to `"ansi"` for the
+  duration and restored afterwards: left on `"human"` it prints from inside
+  `step()` and every board appears twice, and on `None` `render()` returns
+  nothing to capture.
+
+  The first thing it showed: on Klondike seed 0 -- a deal the solver proves
+  winnable -- the trained Double DQN spends the final 235 of its 300 moves
+  alternating `tableau 4 -> tableau 1 -> tableau 4`, each one flagged
+  `[repeat]`, until the step cap. That is the reversible-move livelock
+  `registration.py` already documents from aggregate revisit percentages, now
+  visible as the moves themselves.
+
 - **Double DQN's dueling head is now a declared default that can be switched
   off, and the ablation it was blocking has been run**
   ([#42](https://github.com/mkh63d/rl-card-lib/issues/42)). `build_learner`
