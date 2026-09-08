@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 - 2026-09-08
+
+First stable release. Everything below is the history that led to it.
 
 ### Added
 

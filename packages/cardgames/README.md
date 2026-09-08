@@ -66,7 +66,7 @@ while not done:
 
 ## Dependencies
 
-- `rl-card-lib-core>=0.1.0` - Core library
+- `rl-card-lib-core>=1.0.0` - Core library
 - `numpy>=1.21.0` - Numerical computing
 
 ## Optional Dependencies (dev)

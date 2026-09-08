@@ -87,9 +87,9 @@ python scripts/train_macao.py --episodes 2000
 
 ## Dependencies
 
-- `rl-card-lib-core>=0.1.0` - Core library
-- `rl-card-lib-cardgames>=0.1.0` - Card games
-- `rl-card-lib-visualizer>=0.1.0` (optional) - Visualization tools
+- `rl-card-lib-core>=1.0.0` - Core library
+- `rl-card-lib-cardgames>=1.0.0` - Card games
+- `rl-card-lib-visualizer>=1.0.0` (optional) - Visualization tools
 - `numpy>=1.21.0`
 - `torch>=2.0.0`
 
