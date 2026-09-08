@@ -77,15 +77,15 @@ class FakeEnv:
 
 
 class BareEnv:
-    """The floor: an env that neither renders nor names its actions.
+    """The floor: an env that neither renders, names its actions, nor carries
+    a render_mode at all.
 
-    A custom game is not obliged to implement either, and the replay has to
-    survive both being missing rather than refusing to run.
+    A custom game is obliged to implement none of those, and the replay has to
+    survive each being missing rather than refusing to run.
     """
 
     def __init__(self, max_steps=2):
         self.game = FakeGame()
-        self.render_mode = None
         self.max_steps = max_steps
         self.steps_taken = 0
 
@@ -167,6 +167,26 @@ class TestPlayEpisode:
         env, agent = BareEnv(max_steps=2), FakeAgent()
         play_episode(env, agent, seed=0)
         assert agent.legal_seen == [None, None]
+
+    def test_numpy_action_is_normalised_before_it_is_used(self):
+        # An external policy returns what its framework produced. The value
+        # that gets stepped, labelled and recorded must be the same one.
+        class NumpyAgent(FakeAgent):
+            def select_action(self, observation, legal_actions=None):
+                super().select_action(observation, legal_actions)
+                return np.int64(2)
+
+        env = FakeEnv(max_steps=1)
+        stepped = []
+        env.action_to_string = lambda action: f"labelled {action!r}"
+        original_step = env.step
+        env.step = lambda action: (stepped.append(action), original_step(action))[1]
+
+        record = play_episode(env, NumpyAgent(), seed=0)
+        assert record.steps[0].action == 2
+        assert type(record.steps[0].action) is int
+        assert type(stepped[0]) is int
+        assert record.steps[0].action_label == "labelled 2"
 
     def test_stops_at_the_envs_step_cap(self):
         record, _ = record_of(max_steps=5)
@@ -264,6 +284,26 @@ class TestRenderMode:
         record = play_episode(env, FakeAgent(), seed=0, capture_board=False)
         assert env.render_modes_seen == []
         assert all(step.board == "" for step in record.steps)
+
+    def test_env_without_render_mode_is_not_given_one(self):
+        # Restoring "the original" to None on an env that never had the
+        # attribute would leave a render_mode behind -- a change dressed up as
+        # a restoration.
+        env = BareEnv(max_steps=2)
+        assert not hasattr(env, "render_mode")
+        play_episode(env, FakeAgent(), seed=0)
+        assert not hasattr(env, "render_mode")
+
+    def test_read_only_render_mode_does_not_stop_the_replay(self):
+        class FrozenEnv(BareEnv):
+            """An env whose render_mode cannot be assigned at all."""
+
+            @property
+            def render_mode(self):
+                return None
+
+        record = play_episode(FrozenEnv(max_steps=2), FakeAgent(), seed=0)
+        assert record.step_count == 2
 
     def test_env_that_cannot_render_still_replays(self):
         record = play_episode(BareEnv(max_steps=2), FakeAgent(), seed=0)
@@ -417,6 +457,18 @@ class TestHtml:
         page = episode_to_html(play_episode(env, FakeAgent(), seed=0))
         assert "<img src=x" not in page
         assert page.count("</script>") == 1
+
+    def test_js_line_separators_in_a_label_are_escaped(self):
+        # JSON permits U+2028/U+2029 raw inside a string; JavaScript counts
+        # them as line terminators, so before ES2019 they end the literal
+        # mid-payload and the whole script fails to parse.
+        env = FakeEnv(max_steps=1)
+        env.action_to_string = lambda action: "before\u2028after\u2029end"
+        page = episode_to_html(play_episode(env, FakeAgent(), seed=0))
+        script = page.split("<script>")[1].split("</script>")[0]
+        # Harmless in the document body, fatal inside the script literal.
+        assert "\u2028" not in script and "\u2029" not in script
+        assert "\\u2028" in script and "\\u2029" in script
 
     def test_frame_data_never_reaches_the_dom_as_markup(self):
         # Escaping `<` in the payload only protects the HTML parser: JS reads

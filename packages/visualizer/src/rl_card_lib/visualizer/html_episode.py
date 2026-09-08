@@ -252,7 +252,17 @@ def episode_to_html(record: EpisodeRecord, *, title: Optional[str] = None) -> st
     # this module has no business trusting. JSON structure contains no `<` of
     # its own, so this only ever rewrites string contents, and `<` is read
     # back as `<` by the JS string literal.
-    payload = json.dumps(frames, ensure_ascii=False).replace("<", "\\u003c")
+    #
+    # U+2028 and U+2029 go the same way. JSON permits them raw inside a string;
+    # JavaScript counts them as line terminators, so before ES2019 they end the
+    # literal mid-payload and the whole script fails to parse. Escaping costs
+    # nothing and does not depend on the reader's engine.
+    payload = (
+        json.dumps(frames, ensure_ascii=False)
+        .replace("<", "\\u003c")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">

@@ -121,21 +121,34 @@ def _ansi_render(env) -> Iterator[None]:
     capture nothing at all. "ansi" is the one mode that hands the string back
     and does nothing else.
 
-    The original mode is restored on the way out: the env belongs to the
-    caller, and a replay is not entitled to reconfigure it permanently.
+    The env is left exactly as it was found: the mode is restored when there
+    was one, and the attribute removed again when there was not. Setting it
+    back to None in that second case would look like a restore while actually
+    leaving a `render_mode` on an object that never had one.
     """
+    had_mode = hasattr(env, "render_mode")
     original = getattr(env, "render_mode", None)
     try:
         env.render_mode = "ansi"
     except AttributeError:
-        # An env that will not take the attribute. Boards come back empty and
-        # the rest of the replay still works, which beats refusing to run.
+        # An env that will not take the attribute -- a read-only property, or
+        # __slots__ without the field. Boards come back empty and the rest of
+        # the replay still works, which beats refusing to run.
         yield
         return
     try:
         yield
     finally:
-        env.render_mode = original
+        try:
+            if had_mode:
+                env.render_mode = original
+            else:
+                delattr(env, "render_mode")
+        except AttributeError:
+            # Cleanup is best-effort by design: the episode is over and its
+            # record is in the caller's hands, so raising here would throw a
+            # finished result away over tidying up.
+            pass
 
 
 def _board(env) -> str:
@@ -227,13 +240,19 @@ def iter_episode(
                 # it -- never coerced to an array. `MaskedCardGameEnv` yields a
                 # dict of {observation, action_mask}, and an agent trained on
                 # that shape needs it whole.
-                action = agent.select_action(observation, info.get("legal_actions"))
+                # Normalised once, then used for every one of stepping,
+                # labelling and recording. An external policy hands back what
+                # its framework produced -- np.int64 out of an argmax, a 0-d
+                # array off a tensor -- and casting only on the way into the
+                # record is how the action that was played and the action that
+                # was written down come to differ.
+                action = int(agent.select_action(observation, info.get("legal_actions")))
                 observation, reward, terminated, truncated, info = env.step(action)
                 total += float(reward)
 
                 yield EpisodeStep(
                     index=index,
-                    action=int(action),
+                    action=action,
                     action_label=_action_label(env, action),
                     reward=float(reward),
                     total_reward=total,
